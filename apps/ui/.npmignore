@@ -1,0 +1,6 @@
+src/
+scripts/
+*.test.*
+*.spec.*
+tsconfig*.json
+.turbo/

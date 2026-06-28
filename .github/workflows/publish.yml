@@ -1,0 +1,45 @@
+name: Publish
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx turbo typecheck
+
+      - name: Lint
+        run: npx turbo lint
+
+      - name: Build
+        run: npx turbo build
+
+      - name: Audit (fail on high/critical)
+        run: npm audit --audit-level=high --workspaces
+
+      - name: Publish packages
+        run: |
+          npm publish --provenance --access public --workspace=apps/ui
+          npm publish --provenance --access public --workspace=apps/api
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

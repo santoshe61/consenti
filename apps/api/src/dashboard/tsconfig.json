@@ -1,0 +1,20 @@
+{
+  "extends": "../../../../tsconfig.base.json",
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "jsxImportSource": "preact",
+    "moduleResolution": "bundler",
+    "noEmit": true,
+    "types": ["vite/client"],
+    "strict": true,
+    "paths": {
+      "react": ["../../../../node_modules/preact/compat/src/index.d.ts"],
+      "react-dom": ["../../../../node_modules/preact/compat/src/index.d.ts"],
+      "react/jsx-runtime": ["../../../../node_modules/preact/jsx-runtime/src/index.d.ts"],
+      "react/jsx-dev-runtime": ["../../../../node_modules/preact/jsx-runtime/src/index.d.ts"]
+    }
+  },
+  "include": ["src/**/*.tsx", "src/**/*.ts", "vite.config.ts"]
+}

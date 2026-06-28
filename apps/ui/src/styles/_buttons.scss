@@ -1,0 +1,61 @@
+.consenti-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--consenti-spacing-sm) var(--consenti-spacing-md);
+  border: none;
+  border-radius: var(--consenti-border-radius-btn);
+  font-family: var(--consenti-font-family);
+  font-size: var(--consenti-font-size-base);
+  font-weight: 500;
+  line-height: 1;
+  cursor: pointer;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+
+  &:focus-visible {
+    outline: 2px solid var(--consenti-color-primary);
+    outline-offset: 2px;
+  }
+
+  &:hover {
+    opacity: 0.9;
+  }
+
+  &--primary {
+    background: var(--consenti-color-primary);
+    color: var(--consenti-color-primary-text);
+  }
+
+  &--secondary {
+    background: var(--consenti-color-secondary);
+    color: var(--consenti-color-secondary-text);
+  }
+
+  &--text {
+    background: transparent;
+    color: var(--consenti-color-primary);
+    padding-left: 0;
+    padding-right: 0;
+    text-decoration: underline;
+  }
+
+  &--accent {
+    background: var(--consenti-color-accent);
+    color: var(--consenti-color-accent-text);
+  }
+
+  &--close {
+    background: transparent;
+    color: var(--consenti-color-text);
+    font-size: 20px;
+    line-height: 1;
+    padding: 4px 8px;
+    border-radius: 50%;
+
+    &:hover {
+      background: var(--consenti-color-secondary);
+      opacity: 1;
+    }
+  }
+}

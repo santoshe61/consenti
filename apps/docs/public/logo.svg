@@ -1,0 +1,50 @@
+<svg width="460" height="132" viewBox="0 0 460 132" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#2563EB"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+
+    <linearGradient id="grad2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#22C55E"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+
+    <linearGradient id="consentiGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#0F3DDE"/>
+      <stop offset="100%" stop-color="#14B8A6"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Logo Symbol -->
+  <g>
+    <!-- Outer C -->
+    <path
+      d="M65 10 A55 55 0 1 0 65 120 L82 102 A30 30 0 1 1 82 28 Z"
+      fill="url(#grad2)"/>
+
+    <!-- Check -->
+    <path
+      d="M42 63 L58 79 L92 42"
+      fill="none"
+      stroke="url(#grad)"
+      stroke-width="12"
+      stroke-linecap="round"
+      stroke-linejoin="round"/>
+  </g>
+
+  <!-- Wordmark -->
+  <!-- Brand Name -->
+  <text x="115"
+        y="92"
+        font-family="Inter, Segoe UI, Helvetica, Arial, sans-serif"
+        font-size="82"
+        font-weight="800"
+        letter-spacing="-2"
+        fill="#000">
+    Consenti
+  </text>
+
+  <!-- Accent -->
+  <circle cx="440" cy="37" r="9" fill="#06B6D4"/>
+</svg>

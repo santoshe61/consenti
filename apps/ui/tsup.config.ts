@@ -1,0 +1,62 @@
+import { defineConfig } from 'tsup'
+
+export default defineConfig([
+  {
+    entry: { index: 'src/index.ts' },
+    format: ['esm'],
+    outExtension: () => ({ js: '.mjs' }),
+    dts: { resolve: true },
+    sourcemap: true,
+    clean: true,
+    target: 'es2020',
+    platform: 'browser',
+  },
+  {
+    entry: { index: 'src/index.ts' },
+    format: ['iife'],
+    globalName: 'Consenti',
+    outExtension: () => ({ js: '.umd.js' }),
+    sourcemap: true,
+    target: 'es2020',
+    platform: 'browser',
+  },
+  {
+    entry: { react: 'src/react.ts' },
+    format: ['esm', 'cjs'],
+    outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
+    dts: { resolve: true },
+    sourcemap: true,
+    target: 'es2020',
+    platform: 'browser',
+    external: ['react'],
+  },
+  {
+    entry: { vue: 'src/vue.ts' },
+    format: ['esm', 'cjs'],
+    outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
+    dts: { resolve: true },
+    sourcemap: true,
+    target: 'es2020',
+    platform: 'browser',
+    external: ['vue'],
+  },
+  {
+    entry: { angular: 'src/angular.ts' },
+    format: ['esm', 'cjs'],
+    outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
+    dts: { resolve: true },
+    sourcemap: true,
+    target: 'es2020',
+    platform: 'browser',
+  },
+  {
+    entry: { testing: 'src/testing.ts' },
+    format: ['esm', 'cjs'],
+    outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
+    dts: { resolve: true },
+    sourcemap: true,
+    target: 'es2020',
+    // Neutral platform — testing utilities run in both browser and Node/jsdom.
+    platform: 'neutral',
+  },
+])

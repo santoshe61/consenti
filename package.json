@@ -1,0 +1,33 @@
+{
+  "name": "consenti-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:ui": "npm run dev --workspace=apps/ui",
+    "dev:api": "npm run dev:all --workspace=apps/api",
+    "dev": "npm run dev:ui && npm run dev:api",
+    "dev:docs": "npm run dev --workspace=apps/docs",
+    "dev:docs:clean": "npm run build && npm run dev --workspace=apps/docs",
+    "build:ui": "npm run build --workspace=apps/ui",
+    "build:api": "npm run build --workspace=apps/api",
+    "build": "npm run build:ui && npm run build:api",
+    "build:docs": "npm run build && npm run build --workspace=apps/docs",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
+    "test": "turbo test"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "turbo": "^2.5.0",
+    "typescript": "^5.8.3"
+  },
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "dependencies": {}
+}

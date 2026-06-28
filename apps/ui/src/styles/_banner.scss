@@ -1,0 +1,138 @@
+.consenti-banner {
+  position: fixed;
+  left: 0;
+  right: 0;
+  z-index: var(--consenti-z-banner);
+  background: var(--consenti-color-bg);
+  color: var(--consenti-color-text);
+  font-family: var(--consenti-font-family);
+  font-size: var(--consenti-font-size-base);
+  line-height: var(--consenti-line-height);
+  box-shadow: var(--consenti-shadow);
+  padding: var(--consenti-spacing-lg);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--consenti-spacing-md);
+
+  &--top {
+    top: 0;
+    border-bottom: 1px solid var(--consenti-color-border);
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: consenti-slide-down 0.2s ease-out;
+    }
+  }
+
+  &--bottom {
+    bottom: 0;
+    border-top: 1px solid var(--consenti-color-border);
+
+    @media (prefers-reduced-motion: no-preference) {
+      animation: consenti-slide-up 0.2s ease-out;
+    }
+  }
+
+  &--middle {
+    top: 50%;
+    transform: translateY(-50%);
+    left: 50%;
+    right: auto;
+    transform: translate(-50%, -50%);
+    width: min(600px, 90vw);
+    border-radius: var(--consenti-border-radius);
+  }
+
+  &--left-bottom {
+    bottom: var(--consenti-spacing-lg);
+    left: var(--consenti-spacing-lg);
+    right: auto;
+    width: min(400px, 90vw);
+    border-radius: var(--consenti-border-radius);
+  }
+
+  &--right-bottom {
+    bottom: var(--consenti-spacing-lg);
+    right: var(--consenti-spacing-lg);
+    left: auto;
+    width: min(400px, 90vw);
+    border-radius: var(--consenti-border-radius);
+  }
+
+  &__text-container {
+    flex: 1;
+    min-width: 200px;
+  }
+
+  &__heading {
+    font-size: var(--consenti-font-size-heading);
+    font-weight: var(--consenti-font-weight-heading);
+    margin: 0 0 var(--consenti-spacing-sm);
+    width: 100%;
+  }
+
+  &__text {
+    margin: 0;
+  }
+
+  &__links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--consenti-spacing-sm);
+    margin-top: var(--consenti-spacing-sm);
+  }
+
+  &__link {
+    font-size: 0.85em;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  &__controls {
+    position: absolute;
+    top: var(--consenti-spacing-sm);
+    right: var(--consenti-spacing-sm);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  &__buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--consenti-spacing-sm);
+    align-items: center;
+  }
+
+  // Top and bottom banners span the full viewport width — add breathing room between
+  // the text block and the button group so they don't crowd each other.
+  &--top &__buttons,
+  &--bottom &__buttons {
+    margin-left: 2vw;
+  }
+
+  &__close {
+    // When inside __controls the close is no longer absolute-positioned itself
+    // (the __controls wrapper handles placement). Remove the absolute fallback.
+  }
+}
+
+@keyframes consenti-slide-up {
+  from {
+    transform: translateY(100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}
+
+@keyframes consenti-slide-down {
+  from {
+    transform: translateY(-100%);
+  }
+
+  to {
+    transform: translateY(0);
+  }
+}

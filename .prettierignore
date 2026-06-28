@@ -1,0 +1,10 @@
+node_modules
+dist
+.turbo
+.next
+package-lock.json
+*.min.js
+*.min.css
+apps/api/src/dashboard/dist
+apps/docs/.next
+apps/docs/out

@@ -1,0 +1,279 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-system: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  }
+
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-system);
+    @apply bg-white text-slate-900 antialiased;
+  }
+
+  .dark body {
+    @apply bg-gray-950 text-gray-100;
+  }
+
+  /* Docs prose styles */
+  .prose h1 {
+    @apply text-3xl font-extrabold text-slate-900 mb-4 mt-0;
+  }
+
+  .dark .prose h1 {
+    @apply text-gray-100;
+  }
+
+  .prose h2 {
+    @apply text-xl font-bold text-slate-800 mb-3 mt-8 pt-4 border-t border-slate-100;
+  }
+
+  .dark .prose h2 {
+    @apply text-gray-200 border-gray-700;
+  }
+
+  .prose h3 {
+    @apply text-base font-bold text-slate-700 mb-2 mt-6;
+  }
+
+  .dark .prose h3 {
+    @apply text-gray-300;
+  }
+
+  .prose p {
+    @apply text-slate-600 leading-relaxed mb-4;
+  }
+
+  .dark .prose p {
+    @apply text-gray-400;
+  }
+
+  .prose ul {
+    @apply list-disc list-inside text-slate-600 mb-4 space-y-1;
+  }
+
+  .dark .prose ul {
+    @apply text-gray-400;
+  }
+
+  .prose ol {
+    @apply list-decimal list-inside text-slate-600 mb-4 space-y-1;
+  }
+
+  .dark .prose ol {
+    @apply text-gray-400;
+  }
+
+  .prose li {
+    @apply leading-relaxed;
+  }
+
+  .prose a {
+    @apply text-brand-500 hover:text-brand-600 underline;
+  }
+
+  .prose strong {
+    @apply font-semibold text-slate-800;
+  }
+
+  .dark .prose strong {
+    @apply text-gray-200;
+  }
+
+  .prose code:not(pre code) {
+    @apply bg-slate-100 text-brand-600 px-1.5 py-0.5 rounded text-sm font-mono;
+  }
+
+  .dark .prose code:not(pre code) {
+    @apply bg-gray-800 text-cyan-400;
+  }
+
+  .prose table {
+    @apply w-full border-collapse text-sm mb-6;
+  }
+
+  .prose th {
+    @apply text-left bg-slate-100 text-slate-700 font-semibold px-3 py-2 border border-slate-200;
+  }
+
+  .dark .prose th {
+    @apply bg-gray-800 text-gray-300 border-gray-700;
+  }
+
+  .prose td {
+    @apply px-3 py-2 border border-slate-200 text-slate-600;
+  }
+
+  .dark .prose td {
+    @apply border-gray-700 text-gray-400;
+  }
+
+  .prose td code {
+    @apply bg-slate-100 text-brand-600 px-1 py-0.5 rounded text-xs font-mono;
+  }
+
+  .dark .prose td code {
+    @apply bg-gray-800 text-cyan-400;
+  }
+
+  .prose blockquote {
+    @apply border-l-4 border-brand-500 pl-4 italic text-slate-500 my-4;
+  }
+
+  .dark .prose blockquote {
+    @apply text-gray-500;
+  }
+}
+
+/* Dark mode surface overrides */
+.dark .bg-white {
+  background-color: #111827;
+}
+
+.dark .bg-slate-50 {
+  background-color: #0f172a;
+}
+
+.dark .bg-slate-100 {
+  background-color: #1e293b;
+}
+
+.dark .text-slate-900 {
+  color: #f1f5f9;
+}
+
+.dark .text-slate-800 {
+  color: #e2e8f0;
+}
+
+.dark .text-slate-700 {
+  color: #cbd5e1;
+}
+
+.dark .text-slate-600 {
+  color: #94a3b8;
+}
+
+.dark .text-slate-500 {
+  color: #64748b;
+}
+
+.dark .border-slate-200 {
+  border-color: #1e293b;
+}
+
+.dark .border-slate-100 {
+  border-color: #1e293b;
+}
+
+.dark .nav-link {
+  color: #9ca3af;
+}
+
+.dark .nav-link:hover {
+  color: #f3f4f6;
+  background-color: #1f2937;
+}
+
+.dark .nav-link-active {
+  color: #22d3ee;
+  background-color: #1f2937;
+}
+
+/* Section with light gradient — replaced inline style */
+.section-gradient-light {
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.dark .section-gradient-light {
+  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+}
+
+@layer components {
+  .nav-link {
+    @apply block text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-md transition-colors no-underline;
+  }
+
+  .nav-link-active {
+    @apply text-brand-500 bg-brand-50 font-semibold;
+  }
+
+  .nav-section {
+    @apply text-xs font-bold uppercase tracking-widest text-slate-400 px-3 pt-5 pb-1.5 first:pt-2;
+  }
+
+  .btn-primary {
+    @apply inline-flex items-center gap-2 bg-brand-500 text-white font-semibold px-5 py-2.5 rounded-lg hover:bg-brand-600 transition-colors no-underline text-sm;
+  }
+
+  .btn-outline {
+    @apply inline-flex items-center gap-2 border-2 border-brand-500 text-brand-500 font-semibold px-5 py-2.5 rounded-lg hover:bg-brand-50 transition-colors no-underline text-sm;
+  }
+
+  .badge-pill {
+    @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full;
+  }
+}
+
+
+.no-underline {
+  text-decoration: none !important;
+}
+
+/* Playground control components */
+@layer components {
+  .ctrl-group {
+    @apply bg-slate-50 border border-slate-200 rounded-xl p-4;
+  }
+
+  .ctrl-group-title {
+    @apply text-xs font-bold uppercase tracking-widest text-brand-500 mb-3;
+  }
+
+  .ctrl-row {
+    @apply flex flex-col gap-1 mb-3 last:mb-0;
+  }
+
+  .ctrl-label {
+    @apply text-sm font-medium text-slate-700;
+  }
+
+  .ctrl-input {
+    @apply w-full px-2.5 py-1.5 border border-slate-300 rounded-md text-sm bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent;
+  }
+
+  .ctrl-hint {
+    @apply text-xs text-slate-400 leading-relaxed;
+  }
+
+  .action-btn {
+    @apply px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0;
+  }
+
+  .action-btn-primary {
+    @apply action-btn bg-brand-500 text-white;
+  }
+
+  .action-btn-secondary {
+    @apply action-btn bg-brand-50 text-brand-600;
+  }
+
+  .action-btn-danger {
+    @apply action-btn bg-red-600 text-white;
+  }
+
+  .badge {
+    @apply inline-block text-xs px-1.5 py-0.5 rounded-full font-semibold leading-snug;
+  }
+}
+
+code::after,
+code::before {
+  content: none !important;
+}

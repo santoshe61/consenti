@@ -1,0 +1,97 @@
+{
+  "name": "@consenti/ui",
+  "version": "0.1.0",
+  "description": "Zero-dependency GDPR cookie consent widget",
+  "license": "Apache-2.0",
+  "keywords": [
+    "gdpr",
+    "cookie-consent",
+    "cmp",
+    "ccpa",
+    "privacy",
+    "consent-management",
+    "cookie-banner",
+    "typescript"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/santoshe61/consenti.git"
+  },
+  "homepage": "https://consenti.dev",
+  "bugs": {
+    "url": "https://github.com/santoshe61/consenti/issues"
+  },
+  "type": "module",
+  "main": "./dist/index.umd.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.umd.js"
+    },
+    "./react": {
+      "types": "./dist/react.d.ts",
+      "import": "./dist/react.mjs",
+      "require": "./dist/react.js"
+    },
+    "./vue": {
+      "types": "./dist/vue.d.ts",
+      "import": "./dist/vue.mjs",
+      "require": "./dist/vue.js"
+    },
+    "./angular": {
+      "types": "./dist/angular.d.ts",
+      "import": "./dist/angular.mjs",
+      "require": "./dist/angular.js"
+    },
+    "./testing": {
+      "types": "./dist/testing.d.ts",
+      "import": "./dist/testing.mjs",
+      "require": "./dist/testing.js"
+    },
+    "./style": {
+      "types": "./dist/style.d.ts",
+      "default": "./dist/index.css"
+    },
+    "./dist/*": "./dist/*"
+  },
+  "sideEffects": [
+    "./dist/index.css"
+  ],
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup && npm run build:css",
+    "dev": "tsup --watch && npm run build:css",
+    "typecheck": "tsc --noEmit",
+    "build:css": "node scripts/build-css.mjs"
+  },
+  "devDependencies": {
+    "@consenti/types": "*",
+    "@types/react": "^19.0.0",
+    "vue": "^3.5.0",
+    "sass": "^1.89.2",
+    "tsup": "^8.5.0",
+    "typescript": "^5.8.3"
+  },
+  "peerDependencies": {
+    "react": ">=18.0.0",
+    "vue": ">=3.0.0"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    },
+    "vue": {
+      "optional": true
+    }
+  },
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

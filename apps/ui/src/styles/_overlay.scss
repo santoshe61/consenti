@@ -1,0 +1,6 @@
+.consenti-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--consenti-color-overlay);
+  z-index: var(--consenti-z-overlay);
+}

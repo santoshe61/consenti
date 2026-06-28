@@ -1,0 +1,65 @@
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Build outputs ────────────────────────────────────────────────────────────
+dist/
+.turbo/
+*.tsbuildinfo
+.next
+*.db
+*.db-shm
+*.db-wal
+*-deploy.tar.gz
+
+
+# ─── Environment / secrets ───────────────────────────────────────────────────
+plans
+.env
+.env.local
+.env.*.local
+consenti-data.json
+consenti-data.db
+
+# ─── Logs ────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ─── OS ──────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+ehthumbs.db
+
+# ─── Editors ─────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ─── Testing ─────────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ─── AI agent session files ───────────────────────────────────────────────────
+# Claude Code (Anthropic) & Cursor
+.claude/
+.cursor/
+.rules
+
+# Aider
+.aider*
+.aider.tags.cache.v*/
+
+# GitHub Copilot
+.copilot/
+
+# Codeium / Windsurf
+.codeium/
+
+# Devin
+.devin/

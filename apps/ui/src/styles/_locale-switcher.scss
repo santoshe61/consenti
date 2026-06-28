@@ -1,0 +1,55 @@
+.consenti-locale-switcher {
+  position: relative;
+  display: inline-flex;
+
+  &__btn {
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  &__list {
+    position: absolute;
+    top: calc(100% + 4px);
+    right: 0;
+    z-index: calc(var(--consenti-z-modal) + 1);
+    background: var(--consenti-color-bg);
+    border: 1px solid var(--consenti-color-border);
+    border-radius: var(--consenti-border-radius);
+    box-shadow: var(--consenti-shadow);
+    list-style: none;
+    margin: 0;
+    padding: 4px 0;
+    min-width: 80px;
+
+    li {
+      display: block;
+    }
+  }
+
+  &__option {
+    display: block;
+    width: 100%;
+    padding: 6px 12px;
+    text-align: left;
+    font-size: var(--consenti-font-size-base);
+    color: var(--consenti-color-text);
+    background: none;
+    border: none;
+    cursor: pointer;
+
+    &:hover {
+      background: var(--consenti-color-secondary);
+    }
+
+    &--active {
+      font-weight: 600;
+      color: var(--consenti-color-primary);
+    }
+  }
+
+  // Modal variant: the list opens downward from the header controls
+  &--modal &__list {
+    right: 0;
+  }
+}
