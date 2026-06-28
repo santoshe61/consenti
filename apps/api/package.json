@@ -51,7 +51,7 @@
     "@consenti/types": "*",
     "@preact/preset-vite": "^2.8.1",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.0.1",
     "@types/pg": "^8.11.0",
     "autoprefixer": "^10.4.21",
     "mongodb": "^6.0.0",
