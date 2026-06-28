@@ -63,7 +63,7 @@
     "tailwindcss": "^3.4.17",
     "tsup": "^8.5.0",
     "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "vite": "^8.1.0"
   },
   "peerDependencies": {
     "better-sqlite3": "^12.11.1",
