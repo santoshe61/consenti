@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import { useTheme } from '@/contexts/theme-context'
 import { ConsentiSetup, ConsentiPlugin, type ConsentiWidgetAPI as WidgetAPI, type ConsentValue } from "@consenti/ui"
 import { setConsentiWidget } from "@consenti/ui/react"
-import '@consenti/ui/style'
+// import '@consenti/ui/style'
 
 interface WidgetHandle {
   destroy(): void
@@ -45,6 +45,7 @@ async function createWidget(dark: boolean): Promise<WidgetHandle> {
       locale: 'en',
       storage: 'cookie',
       allowReceipt: true,
+      // disableCssTemplate: true,
     },
     api: {
       enabled: true,

@@ -16,6 +16,7 @@ import { TenantList } from './pages/TenantList'
 import { VendorList } from './pages/VendorList'
 import { AuditLogPage } from './pages/AuditLog'
 import { Settings } from './pages/Settings'
+import { ChangePassword } from './pages/ChangePassword'
 import { ApiConfig } from './pages/ApiConfig'
 import { ApiDocs } from './pages/ApiDocs'
 
@@ -63,6 +64,7 @@ export function Router() {
   if (hash === '#/api/config') return <ApiConfig current={hash} />
   if (hash === '#/api/docs') return <ApiDocs current={hash} />
   if (hash === '#/settings') return <Settings current={hash} />
+  if (hash === '#/settings/change-password') return <ChangePassword current={hash} />
 
   return <Dashboard current="#/" />
 }

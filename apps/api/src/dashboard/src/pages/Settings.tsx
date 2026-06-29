@@ -20,6 +20,14 @@ export function Settings({ current }: { current: string }) {
             <p><span class="font-medium">Roles:</span> {user?.roles.join(', ')}</p>
             <p><span class="font-medium">ID:</span> <span class="font-mono">{user?.sub}</span></p>
           </div>
+          <div class="mt-4 pt-4 border-t border-gray-100">
+            <a
+              href="#/settings/change-password"
+              class="text-sm text-blue-600 hover:underline"
+            >
+              Change Password
+            </a>
+          </div>
         </div>
 
         <div class="bg-white rounded-lg border border-gray-200 p-5">

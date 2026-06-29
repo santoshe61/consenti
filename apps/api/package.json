@@ -1,6 +1,6 @@
 {
   "name": "@consenti/api",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Zero-dependency GDPR-compliant Consent Management Platform backend",
   "license": "Apache-2.0",
   "keywords": [
@@ -51,19 +51,19 @@
     "@consenti/types": "*",
     "@preact/preset-vite": "^2.8.1",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.0.1",
     "@types/pg": "^8.11.0",
     "autoprefixer": "^10.4.21",
-    "mongodb": "^6.0.0",
+    "mongodb": "^7.4.0",
     "mysql2": "^3.0.0",
     "node-sqlite3-wasm": "^0.8.59",
     "pg": "^8.0.0",
-    "postcss": "^8.5.5",
+    "postcss": "^8.5.16",
     "preact": "^10.26.9",
-    "tailwindcss": "^3.4.17",
+    "tailwindcss": "^4.3.1",
     "tsup": "^8.5.0",
-    "typescript": "^5.8.3",
-    "vite": "^6.3.5"
+    "typescript": "^6.0.3",
+    "vite": "^8.1.0"
   },
   "peerDependencies": {
     "better-sqlite3": "^12.11.1",

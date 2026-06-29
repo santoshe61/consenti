@@ -33,6 +33,8 @@ export class Modal {
   private toggleState = new Map<string, boolean>()
   /** When `true`, the modal wrapper is passthrough (overlayOpacity === 0). */
   private passthrough = false
+  /** Screen width (px) below which the modal goes full-screen. 0 = disabled. */
+  private mobileBreakpoint = 576
 
   /**
    * Constructs the modal DOM from the given config.
@@ -57,6 +59,7 @@ export class Modal {
     activeLocale?: string,
     onLocaleSwitch?: (locale: string) => void,
   ): void {
+    this.mobileBreakpoint = config.mobileFullScreenBreakpoint ?? 576
     const position = config.position ?? 'center'
     const wrapper = document.createElement('div')
     wrapper.id = 'consenti-modal'
@@ -301,6 +304,11 @@ export class Modal {
     if (!this.el) return
     this.triggerEl = triggerEl ?? (document.activeElement as HTMLElement)
     if (this.receiptCheckbox) this.receiptCheckbox.checked = false
+    if (this.mobileBreakpoint > 0 && window.innerWidth <= this.mobileBreakpoint) {
+      this.el.classList.add('consenti-modal--fullscreen')
+    } else {
+      this.el.classList.remove('consenti-modal--fullscreen')
+    }
     document.body.appendChild(this.el)
     // Skip focus trap when overlay is transparent — the user can interact with the
     // page behind the modal panel so trapping keyboard focus would be counterproductive.

@@ -167,8 +167,8 @@ export function defaultUISettings(): Omit<UITemplate, 'id' | 'name' | 'createdAt
       headingTag: 'h2',
       buttons: [
         { text: 'Accept All', type: 'primary', action: 'custom', cookies: '*' },
-        { text: 'Reject All', type: 'accent', action: 'custom', cookies: '!' },
-        { text: 'Manage Preferences', type: 'secondary', action: 'manage' },
+        { text: 'Reject Optional', type: 'accent', action: 'custom', cookies: '!' },
+        { text: 'Customize', type: 'secondary', action: 'manage' },
       ],
     },
     gpcBanner: {
@@ -255,7 +255,7 @@ function migrateButton(b: Record<string, unknown>): TemplateButton {
   const OLD_ACTION_MAP: Record<string, { type: ButtonVisualType; action: ButtonAction }> = {
     submit: { type: 'primary', action: 'submit' },
     manage: { type: 'secondary', action: 'manage' },
-    close:  { type: 'text', action: 'close' },
+    close: { type: 'text', action: 'close' },
     reject: { type: 'accent', action: 'custom' },
   }
   if (OLD_ACTION_MAP[oldType]) {
@@ -456,10 +456,10 @@ export function extractFromProfileJson(profileJson: unknown): {
     const rawDpdpa = pj['dpdpa'] as Record<string, unknown> | undefined
     const dpdpa = rawDpdpa && typeof rawDpdpa['dataFiduciary'] === 'string' && typeof rawDpdpa['grievanceEmail'] === 'string'
       ? {
-          dataFiduciary: rawDpdpa['dataFiduciary'],
-          grievanceEmail: rawDpdpa['grievanceEmail'],
-          ...(typeof rawDpdpa['purposeDescription'] === 'string' ? { purposeDescription: rawDpdpa['purposeDescription'] } : {}),
-        }
+        dataFiduciary: rawDpdpa['dataFiduciary'],
+        grievanceEmail: rawDpdpa['grievanceEmail'],
+        ...(typeof rawDpdpa['purposeDescription'] === 'string' ? { purposeDescription: rawDpdpa['purposeDescription'] } : {}),
+      }
       : undefined
     return {
       cookies: rawCookies,

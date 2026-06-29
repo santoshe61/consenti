@@ -277,3 +277,18 @@ code::after,
 code::before {
   content: none !important;
 }
+
+/* Mobile overflow — tables and code blocks scroll inside their container */
+@media (max-width: 1023px) {
+  .prose table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    max-width: 100%;
+  }
+
+  .prose pre {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+}

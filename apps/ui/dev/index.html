@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Consenti UI Dev</title>
+  <style>
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: system-ui, sans-serif;
+      background: #f8fafc;
+      color: #1a2e4a;
+    }
+
+    .page {
+      padding: 32px;
+      max-width: 800px;
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 700;
+      margin: 0 0 4px;
+    }
+
+    .subtitle {
+      color: #64748b;
+      font-size: 14px;
+      margin: 0 0 24px;
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      cursor: pointer;
+      border: 1px solid #dbe4ee;
+      border-radius: 6px;
+      background: #fff;
+      font-family: system-ui;
+      font-size: 13px;
+      color: #1a2e4a;
+    }
+
+    .btn:hover {
+      background: #f0f4f8;
+    }
+
+    .log-label {
+      margin: 20px 0 6px;
+      font-size: 12px;
+      font-weight: 600;
+      color: #64748b;
+      text-transform: uppercase;
+      letter-spacing: .05em;
+    }
+
+    .log {
+      padding: 14px 16px;
+      background: #1e2535;
+      color: #94a3b8;
+      border-radius: 8px;
+      font-family: monospace;
+      font-size: 12px;
+      min-height: 100px;
+      white-space: pre-wrap;
+      line-height: 1.6;
+    }
+
+    .log span.ts {
+      color: #4a9eff;
+    }
+
+    .log span.ev {
+      color: #34d399;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="page">
+    <h1>Consenti UI Dev</h1>
+    <p class="subtitle">Edit any file in <code>src/</code> — HMR reloads instantly. SCSS changes apply live.</p>
+    <div class="controls">
+      <button class="btn" id="show-main-banner">Show Main Banner</button>
+      <button class="btn" id="show-gpc-banner">Show GPC Banner</button>
+      <button class="btn" id="show-modal">Show Modal</button>
+      <button class="btn" id="reset">Reset consent</button>
+      <button class="btn" id="toggle-dark">Toggle Dark Mode</button>
+    </div>
+    <p class="log-label">Event log</p>
+    <div class="log" id="log">Waiting for widget…</div>
+  </div>
+  <script type="module" src="./main.ts"></script>
+</body>
+
+</html>

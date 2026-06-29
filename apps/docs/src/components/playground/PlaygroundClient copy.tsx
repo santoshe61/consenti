@@ -139,21 +139,21 @@ interface LiveState {
 
 const DEFAULT_BANNER_BUTTONS: ButtonItem[] = [
   { id: 'bb1', text: 'Accept All', style: 'primary', action: 'custom', cookiesMode: '*', cookiesIds: '', url: '' },
-  { id: 'bb2', text: 'Reject All', style: 'secondary', action: 'custom', cookiesMode: '!', cookiesIds: '', url: '' },
-  { id: 'bb3', text: 'Manage Preferences', style: 'text', action: 'manage', cookiesMode: '*', cookiesIds: '', url: '' },
+  { id: 'bb2', text: 'Reject Optional', style: 'secondary', action: 'custom', cookiesMode: '!', cookiesIds: '', url: '' },
+  { id: 'bb3', text: 'Customize', style: 'text', action: 'manage', cookiesMode: '*', cookiesIds: '', url: '' },
   { id: 'bb4', text: 'Privacy Policy', style: 'text', action: 'link', cookiesMode: '*', cookiesIds: '', url: '#' },
   { id: 'bb5', text: 'Usage Terms', style: 'text', action: 'link', cookiesMode: '*', cookiesIds: '', url: '#' },
 ]
 
 const DEFAULT_GPC_BUTTONS: ButtonItem[] = [
   { id: 'gb1', text: 'Understood', style: 'primary', action: 'custom', cookiesMode: '!', cookiesIds: '', url: '' },
-  { id: 'gb2', text: 'Manage Preferences', style: 'secondary', action: 'manage', cookiesMode: '*', cookiesIds: '', url: '' },
+  { id: 'gb2', text: 'Customize', style: 'secondary', action: 'manage', cookiesMode: '*', cookiesIds: '', url: '' },
 ]
 
 const DEFAULT_MODAL_BUTTONS: ButtonItem[] = [
   { id: 'mb1', text: 'Accept All', style: 'primary', action: 'custom', cookiesMode: '*', cookiesIds: '', url: '' },
   { id: 'mb2', text: 'Save Preferences', style: 'primary', action: 'submit', cookiesMode: '*', cookiesIds: '', url: '' },
-  { id: 'mb3', text: 'Reject All', style: 'text', action: 'custom', cookiesMode: '!', cookiesIds: '', url: '' },
+  { id: 'mb3', text: 'Reject Optional', style: 'text', action: 'custom', cookiesMode: '!', cookiesIds: '', url: '' },
 ]
 
 const DEFAULT_COOKIES: CookieItem[] = [

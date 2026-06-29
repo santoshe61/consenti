@@ -94,7 +94,7 @@ export default function GettingStartedPage() {
         <li>The widget initialises and resolves the active profile (code-defined, API-fetched, or built-in default)</li>
         <li>It reads any existing consent record from the browser cookie or <code>localStorage</code></li>
         <li>If no valid record exists → the banner appears</li>
-        <li>The user clicks Accept / Reject / Manage Preferences</li>
+        <li>The user clicks Accept / Reject / Customize</li>
         <li>Consent is saved to the browser and (if configured) POSTed to the backend</li>
         <li><code>consenti:consentSubmitted</code> fires with the full consent record</li>
         <li>On every subsequent visit → the banner stays hidden unless consent has expired or the profile version changed</li>

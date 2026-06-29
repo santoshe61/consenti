@@ -1,3 +1,5 @@
+'use client'
+
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -31,8 +33,16 @@ export function Footer() {
                 <li><Link href="/demo-playground/frontend" className="hover:text-white no-underline transition-colors">Live Demo</Link></li>
                 <li><Link href="/demo-playground/backend" className="hover:text-white no-underline transition-colors">Admin Demo</Link></li>
                 <li><a href="https://github.com/santoshe61/consenti" target="_blank" rel="noopener noreferrer" className="hover:text-white no-underline transition-colors">GitHub</a></li>
-                <li><a href="https://www.npmjs.com/org/santoshe61" target="_blank" rel="noopener noreferrer" className="hover:text-white no-underline transition-colors">npm</a></li>
+                <li><a href="https://www.npmjs.com/org/consenti" target="_blank" rel="noopener noreferrer" className="hover:text-white no-underline transition-colors">npm</a></li>
                 <li><Link href="/support" className="hover:text-white no-underline transition-colors">Support Us</Link></li>
+                <li>
+                  <button
+                    onClick={() => (window as unknown as { consentiWidget?: { showModal(): void } }).consentiWidget?.showModal()}
+                    className="hover:text-white transition-colors bg-transparent border-0 p-0 text-inherit cursor-pointer text-sm"
+                  >
+                    Customize
+                  </button>
+                </li>
               </ul>
             </div>
           </div>

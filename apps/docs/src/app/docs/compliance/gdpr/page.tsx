@@ -127,7 +127,7 @@ export default function GDPRPage() {
 
       <h2>Banner requirements</h2>
       <Callout type="warning">
-        Under GDPR, the "Reject All" option must be as prominent as "Accept All". Do not use dark patterns
+        Under GDPR, the "Reject Optional" option must be as prominent as "Accept All". Do not use dark patterns
         such as grey-out reject buttons or hiding the reject option behind extra clicks.
         Consenti's default profile is compliant, but custom profiles are your responsibility.
       </Callout>

@@ -81,8 +81,20 @@ export const DEFAULT_PROFILE: ResolvedProfile = {
       'of cookies. You may change your preferences at any time.',
     buttons: [
       { text: 'Accept All', cookies: '*', style: 'primary', action: 'custom' },
-      { text: 'Reject All', cookies: '!', style: 'primary', action: 'custom' },
-      { text: 'Manage Preferences', style: 'secondary', action: 'manage' },
+      { text: 'Reject Optional', cookies: '!', style: 'primary', action: 'custom' },
+      { text: 'Customize', style: 'text', action: 'manage' },
+    ],
+  },
+  gpcBanner: {
+    position: 'bottom',
+    heading: 'Your Privacy Preference Has Been Recognized',
+    htmlText:
+      'Your browser has sent a Global Privacy Control (GPC) signal.' +
+      "We've applied your privacy preference where required by applicable law." +
+      'You can review or update your cookie choices at any time.',
+    buttons: [
+      { text: 'Review Preferences', style: 'primary', action: 'manage' },
+      { text: 'Continue', style: 'secondary', action: 'submit' },
     ],
   },
   preferenceModal: {
@@ -127,8 +139,8 @@ export const DEFAULT_PROFILE: ResolvedProfile = {
     ],
     buttons: [
       { text: 'Accept All', cookies: '*', style: 'primary', action: 'custom' },
-      { text: 'Save Preferences', style: 'primary', action: 'submit' },
-      { text: 'Reject All', cookies: '!', style: 'primary', action: 'custom' },
+      { text: 'Reject Optional', cookies: '!', style: 'primary', action: 'custom' },
+      { text: 'Save Selection', style: 'secondary', action: 'submit' },
     ],
   },
 }

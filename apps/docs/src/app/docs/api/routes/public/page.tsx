@@ -152,8 +152,8 @@ export default function PublicRoutesPage() {
     "htmlText": "This site uses cookies to improve your experience.",
     "buttons": [
       { "text": "Accept All", "type": "primary", "cookies": "*" },
-      { "text": "Reject All", "type": "primary", "cookies": "!" },
-      { "text": "Manage Preferences", "type": "manage" }
+      { "text": "Reject Optional", "type": "primary", "cookies": "!" },
+      { "text": "Customize", "type": "manage" }
     ]
   },
   "preferenceModal": {
@@ -162,7 +162,7 @@ export default function PublicRoutesPage() {
     "buttons": [
       { "text": "Accept All", "type": "primary", "cookies": "*" },
       { "text": "Save Preferences", "type": "submit" },
-      { "text": "Reject All", "type": "primary", "cookies": "!" }
+      { "text": "Reject Optional", "type": "primary", "cookies": "!" }
     ],
     "categories": [
       {

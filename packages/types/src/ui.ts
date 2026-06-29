@@ -70,6 +70,8 @@ export interface PreferenceModal {
   buttons: Button[]
   categories: Category[]
   persistent?: boolean
+  /** Screen width in px below which the modal expands to full screen. Default: 576. Set to 0 to disable. */
+  mobileFullScreenBreakpoint?: number
 }
 
 export interface LocaleTranslations {

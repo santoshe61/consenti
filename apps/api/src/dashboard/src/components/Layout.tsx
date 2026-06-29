@@ -1,4 +1,4 @@
-import { useState } from 'preact/hooks'
+import { useState, useEffect } from 'preact/hooks'
 import type { ComponentChildren, FunctionComponent } from 'preact'
 import { ChevronLeft, ChevronRight, LogOut } from 'lucide-react'
 import { Sidebar } from './Sidebar'
@@ -16,13 +16,24 @@ interface Props {
   current: string
 }
 
+function isMobileViewport() {
+  return typeof window !== 'undefined' && window.innerWidth < 768
+}
+
 export function Layout({ children, title, current }: Props) {
-  const [collapsed, setCollapsed] = useState(false)
+  const [collapsed, setCollapsed] = useState(() => isMobileViewport())
   const toggle = () => setCollapsed(c => !c)
   const { logout } = useAuth()
 
+  // Collapse sidebar after navigation on mobile
+  useEffect(() => {
+    const handler = () => { if (isMobileViewport()) setCollapsed(true) }
+    window.addEventListener('hashchange', handler)
+    return () => window.removeEventListener('hashchange', handler)
+  }, [])
+
   return (
-    <div class="flex min-h-screen dark:bg-gray-900">
+    <div class="flex min-h-screen dark:bg-gray-900 overflow-x-hidden">
       <div class="relative shrink-0">
         <Sidebar current={current} collapsed={collapsed} onToggle={toggle} />
         <button

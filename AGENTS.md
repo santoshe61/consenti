@@ -273,7 +273,8 @@ All custom DOM events prefixed with `consenti:`:
 
 ## After Every Change — Mandatory Checklist
 
-Run through this checklist after implementing any feature, fix, or enhancement.
+Run through this checklist after implementing any feature, fix, or enhancement to apps/ui or apps/api.
+Ignore updating changelog and README for updates in apps/docs
 
 ### 1. Frontend ↔ Backend sync
 - If a change touches `apps/api` (types, routes, payload shape, error codes), update the corresponding `apps/ui` integration code to match, and vice versa.

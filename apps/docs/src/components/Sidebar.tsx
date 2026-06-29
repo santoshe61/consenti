@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Coffee, Github, Layout, List, Server } from 'lucide-react'
+import { Coffee, Github, Heart, Layout, List, Server } from 'lucide-react'
 
 interface NavItem {
   href: string
@@ -103,7 +103,7 @@ function isBackendPath(pathname: string) {
   )
 }
 
-export function Sidebar({ onClose }: { onClose?: () => void }) {
+export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: boolean }) {
   const pathname = usePathname()
   const [activeTab, setActiveTab] = useState<'frontend' | 'backend'>(
     isBackendPath(pathname) ? 'backend' : 'frontend'
@@ -116,7 +116,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   const nav = activeTab === 'frontend' ? FRONTEND_NAV : BACKEND_NAV
 
   return (
-    <aside className="w-64 shrink-0 overflow-y-auto bg-white fixed lg:sticky top-[52px]">
+    <aside className={`w-64 shrink-0 overflow-y-auto bg-white dark:bg-gray-900 border-r border-slate-100 dark:border-gray-800 fixed lg:sticky top-[70px] h-[calc(100vh-52px)] z-40 transition-transform duration-200 ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
       {/* Frontend / Backend tabs */}
       <div className="px-3 pt-3 pb-2">
         <div className="flex bg-slate-100 dark:bg-gray-700 rounded-lg p-0.5 gap-0.5">
@@ -185,6 +185,13 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
           >
             <Coffee size={15} /> Support Consenti
+          </Link>
+          <Link
+            href="/author/"
+            {...(onClose ? { onClick: onClose } : {})}
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
+          >
+            <Heart size={15} /> Support Author
           </Link>
           <a
             href="https://github.com/santoshe61/consenti"
