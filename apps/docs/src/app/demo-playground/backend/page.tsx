@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
+import { DemoCredentials } from '@/components/DemoCredentials'
 
 export const metadata: Metadata = { title: 'Backend Admin — Consenti' }
 
@@ -64,23 +65,23 @@ export default function BackendDemoPage() {
         </a>
       </div>
 
+      {/* Data retention callout */}
+      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-2xl p-4 mb-6 flex items-start gap-3">
+        <span className="text-amber-500 text-lg mt-0.5">⏱</span>
+        <p className="text-sm text-amber-800 dark:text-amber-300">
+          <strong>Demo environment:</strong> All data is automatically purged after 7 days.
+          Feel free to create profiles, templates, and consent records — they won&apos;t persist forever.
+        </p>
+      </div>
+
       {/* Credentials panel */}
       <div className="bg-blue-50 border border-blue-200 rounded-2xl p-6 mb-8">
         <h3 className="text-sm font-bold text-blue-700 mb-3">Demo credentials</h3>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-          <div>
-            <span className="text-blue-500 text-xs font-semibold uppercase tracking-wide">Email</span>
-            <p className="font-mono text-blue-900 mt-0.5">user@consenti.dev</p>
-          </div>
-          <div>
-            <span className="text-blue-500 text-xs font-semibold uppercase tracking-wide">Password</span>
-            <p className="font-mono text-blue-900 mt-0.5">Consenti@123</p>
-          </div>
-          <div>
-            <span className="text-blue-500 text-xs font-semibold uppercase tracking-wide">Storage</span>
-            <p className="font-mono text-blue-900 mt-0.5">json (consenti-data.json)</p>
-          </div>
-        </div>
+        <DemoCredentials items={[
+          { label: 'Email',    value: 'user@consenti.dev' },
+          { label: 'Password', value: 'Consenti@123' },
+          { label: 'Storage',  value: 'json (consenti-data.json)', copyable: false },
+        ]} />
       </div>
 
       {/* Quick links */}

@@ -1,28 +1,33 @@
-import { join } from 'node:path'
-import type { ConsentiServerConfig } from '@consenti/api'
+import { type ConsentiServerConfig, createConsenti } from '@consenti/api'
 
-type ConsentiInstance = ReturnType<typeof import('@consenti/api').createConsenti>
+type ConsentReturnType = ReturnType<typeof createConsenti>
 
 const g = global as typeof globalThis & {
-  _consenti?: ConsentiInstance | null
+  _consenti?: ConsentReturnType | null
   _consentiError?: string
 }
 
 const config: ConsentiServerConfig = {
-  basePath: "/consenti",
+  basePath: '/consenti',
   dashboard: true,
   storage: {
-    driver: "json",
-    path: 'db/consenti-data.json'
+    driver: 'json',
+    path: 'db/consenti-data.json',
+  },
+  auth: {
+    mode: 'local',
+    jwtSecret: process.env.CONSENTI_JWT_SECRET ?? 'consenti-docs-dev-secret-2024',
+    adminEmail: 'user@consenti.dev',
+    adminPassword: 'Consenti@123',
   },
   compliance: { gdpr: true, ccpa: true, gpc: true },
   rateLimit: { enabled: true, windowMs: 60_000, maxRequests: 120 },
+  dataRetention: { purgeAfterDays: 7 },
 }
 
-export async function getConsenti(): Promise<ConsentiInstance | null> {
+export async function getConsenti(): Promise<ConsentReturnType | null> {
   if (g._consenti !== undefined) return g._consenti
   try {
-    const { createConsenti } = await import('@consenti/api')
     g._consenti = createConsenti(config)
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)

@@ -118,8 +118,8 @@ const profile = new ConsentiProfile({
         htmlText: 'We use cookies to improve your experience.',
         buttons: [
           { text: 'Accept All',          style: 'primary',    action: 'custom', cookies: '*' },
-          { text: 'Reject All',          style: 'secondary',  action: 'custom', cookies: '!' },
-          { text: 'Manage Preferences',  style: 'secondary',  action: 'manage' },
+          { text: 'Reject Optional',          style: 'secondary',  action: 'custom', cookies: '!' },
+          { text: 'Customize',  style: 'secondary',  action: 'manage' },
         ],
       },
       preferenceModal: {
@@ -131,7 +131,7 @@ const profile = new ConsentiProfile({
         buttons: [
           { text: 'Accept All',       style: 'primary',  action: 'custom', cookies: '*' },
           { text: 'Save Preferences', style: 'primary',  action: 'submit' },
-          { text: 'Reject All',       style: 'text',     action: 'custom', cookies: '!' },
+          { text: 'Reject Optional',       style: 'text',     action: 'custom', cookies: '!' },
         ],
         categories: [
           {
@@ -187,7 +187,7 @@ new ConsentiSetup({
         htmlText: 'We use cookies.',
         buttons: [
           { text: 'Accept All',  style: 'primary',   action: 'custom', cookies: '*' },
-          { text: 'Reject All',  style: 'secondary', action: 'custom', cookies: '!' },
+          { text: 'Reject Optional',  style: 'secondary', action: 'custom', cookies: '!' },
         ],
       },
       preferenceModal: {
@@ -241,7 +241,7 @@ new ConsentiSetup({
       showClose: false,
       buttons: [
         { text: 'Understood',           style: 'primary',   action: 'custom', cookies: '!' },
-        { text: 'Manage Preferences',   style: 'secondary', action: 'manage' },
+        { text: 'Customize',   style: 'secondary', action: 'manage' },
       ],
     },
     preferenceModal: { /* ... */ },
@@ -362,6 +362,7 @@ new ConsentiSetup({
           <tr><td><code>showClose</code></td><td><code>boolean</code></td><td>No</td><td>Show a ✕ close button in the modal header.</td></tr>
           <tr><td><code>showLocaleSwitcher</code></td><td><code>boolean</code></td><td>No</td><td>Show a locale switcher in the modal header. Only renders when the profile has more than one locale defined.</td></tr>
           <tr><td><code>persistent</code></td><td><code>boolean</code></td><td>No</td><td>When <code>true</code>, clicking the overlay does not close the modal. The user must click a footer button. Default: <code>false</code>.</td></tr>
+          <tr><td><code>mobileFullScreenBreakpoint</code></td><td><code>number</code></td><td>No</td><td>Screen width in px at or below which the modal expands to fill the entire screen. Default: <code>576</code>. Set to <code>0</code> to disable full-screen on mobile entirely.</td></tr>
           <tr><td><code>headingTag</code></td><td><code>string</code></td><td>No</td><td>HTML tag for the modal heading.</td></tr>
         </tbody>
       </table>
@@ -500,8 +501,8 @@ new ConsentiSetup({
       htmlText: 'We use cookies to improve your experience and personalise ads.',
       buttons: [
         { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
-        { text: 'Reject All',         style: 'secondary', action: 'custom', cookies: '!' },
-        { text: 'Manage Preferences', style: 'secondary', action: 'manage' },
+        { text: 'Reject Optional',         style: 'secondary', action: 'custom', cookies: '!' },
+        { text: 'Customize', style: 'secondary', action: 'manage' },
       ],
     },
     gpcBanner: {
@@ -510,7 +511,7 @@ new ConsentiSetup({
       htmlText: "Your browser's GPC signal has been honoured. Ad cookies are pre-denied.",
       buttons: [
         { text: 'Understood',         style: 'primary',   action: 'custom', cookies: '!' },
-        { text: 'Manage Preferences', style: 'secondary', action: 'manage' },
+        { text: 'Customize', style: 'secondary', action: 'manage' },
       ],
     },
     preferenceModal: {
@@ -522,7 +523,7 @@ new ConsentiSetup({
       buttons: [
         { text: 'Accept All',       style: 'primary', action: 'custom', cookies: '*' },
         { text: 'Save Preferences', style: 'primary', action: 'submit' },
-        { text: 'Reject All',       style: 'text',    action: 'custom', cookies: '!' },
+        { text: 'Reject Optional',       style: 'text',    action: 'custom', cookies: '!' },
       ],
       categories: [
         {

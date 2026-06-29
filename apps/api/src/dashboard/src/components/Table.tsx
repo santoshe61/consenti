@@ -25,7 +25,7 @@ export function Table<T extends Record<string, unknown>>({ columns, rows, keyFn,
 
   return (
     <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
-      <table class="w-full text-sm">
+      <table class="min-w-full text-sm">
         <thead>
           <tr class="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
             {columns.map(col => (

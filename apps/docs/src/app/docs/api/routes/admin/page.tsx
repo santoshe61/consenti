@@ -220,7 +220,7 @@ ${AUTH_HEADER}`,
           "bannerTitle": "We use cookies",
           "bannerDescription": "This site uses cookies to improve your experience.",
           "acceptAllLabel": "Accept All",
-          "rejectAllLabel": "Reject All",
+          "rejectAllLabel": "Reject Optional",
           "customizeLabel": "Customize"
         }
       }
@@ -267,7 +267,7 @@ ${AUTH_HEADER}
         "bannerTitle": "We use cookies",
         "bannerDescription": "This site uses cookies to improve your experience.",
         "acceptAllLabel": "Accept All",
-        "rejectAllLabel": "Reject All",
+        "rejectAllLabel": "Reject Optional",
         "customizeLabel": "Customize"
       }
     }

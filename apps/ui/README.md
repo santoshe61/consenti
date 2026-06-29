@@ -240,8 +240,8 @@ const profile = new ConsentiProfile({
         buttons: [
           { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
           // cookies: '*' = grant all | '!' = deny all | ['id1','id2'] = grant specific
-          { text: 'Reject All',         style: 'secondary', action: 'custom', cookies: '!' },
-          { text: 'Manage Preferences', style: 'secondary', action: 'manage' },
+          { text: 'Reject Optional',         style: 'secondary', action: 'custom', cookies: '!' },
+          { text: 'Customize', style: 'secondary', action: 'manage' },
           { text: 'Privacy Policy',     style: 'text',      action: 'link',   url: '/privacy' },
           // action: 'link' + url — renders as a text link below the banner
         ],
@@ -254,7 +254,7 @@ const profile = new ConsentiProfile({
         htmlText: "Your browser's GPC signal was detected. Ad cookies have been pre-denied.",
         buttons: [
           { text: 'Understood',           style: 'primary',   action: 'custom', cookies: '!' },
-          { text: 'Manage Preferences',   style: 'secondary', action: 'manage' },
+          { text: 'Customize',   style: 'secondary', action: 'manage' },
         ],
       },
       preferenceModal: {
@@ -267,10 +267,11 @@ const profile = new ConsentiProfile({
         showLocaleSwitcher: false,
         persistent: false,        // true = cannot dismiss by clicking outside
         overlayOpacity: 50,
+        mobileFullScreenBreakpoint: 576, // px — modal fills screen on viewports ≤ this width. Set to 0 to disable.
         buttons: [
           { text: 'Accept All',       style: 'primary', action: 'custom', cookies: '*' },
           { text: 'Save Preferences', style: 'primary', action: 'submit' },
-          { text: 'Reject All',       style: 'text',    action: 'custom', cookies: '!' },
+          { text: 'Reject Optional',       style: 'text',    action: 'custom', cookies: '!' },
         ],
         categories: [
           {

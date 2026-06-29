@@ -19,6 +19,11 @@ DEPLOY=.next/standalone
 cp -r public      "$DEPLOY/apps/docs/public"
 cp -r .next/static "$DEPLOY/apps/docs/.next/static"
 
+# @consenti/api resolves its dashboard via import.meta.url → dist/dashboard/.
+# Next.js standalone copies dist/index.js but not the dashboard/ sibling directory,
+# so we copy it manually next to the traced index.js.
+cp -r ../../apps/api/dist/dashboard "$DEPLOY/node_modules/@consenti/api/dist/dashboard"
+
 rm -rf consenti-docs-deploy.tar.gz
 
 # COPYFILE_DISABLE prevents macOS from embedding Apple extended attributes

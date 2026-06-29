@@ -5,6 +5,7 @@ import { DocsMenuProvider } from '@/contexts/docs-menu-context'
 import { ThemeProvider } from '@/contexts/theme-context'
 import { Navbar } from '@/components/Navbar'
 import { Footer } from '@/components/Footer'
+import { SaasRequestBadge } from '@/components/SaasRequestBadge'
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -23,7 +24,7 @@ const jsonLd = {
       license: 'https://www.apache.org/licenses/LICENSE-2.0',
       programmingLanguage: ['TypeScript', 'JavaScript'],
       url: 'https://consenti.dev',
-      sameAs: ['https://github.com/santoshe61/consenti', 'https://www.npmjs.com/org/santoshe61'],
+      sameAs: ['https://github.com/santoshe61/consenti', 'https://www.npmjs.com/org/consenti'],
       featureList: [
         'GDPR opt-in consent management',
         'CCPA opt-out consent management',
@@ -202,6 +203,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <Navbar />
             {children}
             <Footer />
+            <SaasRequestBadge />
           </DocsMenuProvider>
         </ThemeProvider>
       </body>

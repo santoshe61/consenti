@@ -63,8 +63,8 @@ const profile = new ConsentiProfile({
         htmlText: 'We use cookies to improve your experience.',
         buttons: [
           { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
-          { text: 'Reject All',         style: 'secondary', action: 'custom', cookies: '!' },
-          { text: 'Manage Preferences', style: 'secondary', action: 'manage' },
+          { text: 'Reject Optional',         style: 'secondary', action: 'custom', cookies: '!' },
+          { text: 'Customize', style: 'secondary', action: 'manage' },
         ],
       },
       preferenceModal: {
@@ -75,7 +75,7 @@ const profile = new ConsentiProfile({
         buttons: [
           { text: 'Accept All',       style: 'primary', action: 'custom', cookies: '*' },
           { text: 'Save Preferences', style: 'primary', action: 'submit' },
-          { text: 'Reject All',       style: 'text',    action: 'custom', cookies: '!' },
+          { text: 'Reject Optional',       style: 'text',    action: 'custom', cookies: '!' },
         ],
         categories: [
           {

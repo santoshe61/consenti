@@ -61,7 +61,7 @@
 
   &__text-container {
     flex: 1;
-    min-width: 200px;
+    min-width: 500px;
   }
 
   &__heading {
@@ -104,16 +104,46 @@
     align-items: center;
   }
 
-  // Top and bottom banners span the full viewport width — add breathing room between
-  // the text block and the button group so they don't crowd each other.
-  &--top &__buttons,
-  &--bottom &__buttons {
-    margin-left: 2vw;
-  }
-
   &__close {
     // When inside __controls the close is no longer absolute-positioned itself
     // (the __controls wrapper handles placement). Remove the absolute fallback.
+  }
+}
+
+// ── Mobile adjustments (≤ 576px) ───────────────────────────────────────────
+@media (max-width: 576px) {
+  .consenti-banner {
+    padding: var(--consenti-spacing-md);
+    gap: var(--consenti-spacing-sm);
+
+    // Floating banners collapse to full-width on small screens
+    &--left-bottom,
+    &--right-bottom {
+      left: 0;
+      right: 0;
+      bottom: 0;
+      width: 100%;
+      border-radius: 0;
+      border-top: 1px solid var(--consenti-color-border);
+    }
+
+    // Middle banner fills more width on small screens
+    &--middle {
+      width: 95vw;
+    }
+
+    // Stack buttons vertically
+    &__buttons {
+      width: 100%;
+      flex-direction: row;
+      align-items: stretch;
+    }
+
+    // Text block should not have a minimum width that forces wrapping
+    &__text-container {
+      min-width: 0;
+      width: 100%;
+    }
   }
 }
 

@@ -34,13 +34,13 @@ Both fields are now **required**.
 ```ts
 // Before
 { text: 'Accept All',          cookies: '*', type: 'primary' }
-{ text: 'Manage Preferences',               type: 'manage' }
+{ text: 'Customize',               type: 'manage' }
 { text: 'Save Preferences',                 type: 'submit' }
 { text: 'Decline',             cookies: '!', type: 'reject' }
 
 // After
 { text: 'Accept All',          cookies: '*', style: 'primary',   action: 'custom' }
-{ text: 'Manage Preferences',               style: 'secondary', action: 'manage' }
+{ text: 'Customize',               style: 'secondary', action: 'manage' }
 { text: 'Save Preferences',                 style: 'primary',   action: 'submit' }
 { text: 'Decline',             cookies: '!', style: 'accent',    action: 'custom' }
 ```
