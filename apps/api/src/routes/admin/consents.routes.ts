@@ -10,14 +10,15 @@ export function buildAdminConsentRoutes(
 ) {
   async function auth(req: Request, perm?: string) {
     const user = await authenticate(req, storage, authConfig, secret)
-    return { denied: authError(user, perm) }
+    return { user, denied: authError(user, perm) }
   }
 
   return {
     'GET /consents': async (req: Request, _p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'consent:view')
+        const { user, denied } = await auth(req, 'consent:view')
         if (denied) return denied
+        if (user?.allowedTenants.length && !user.allowedTenants.includes('default')) return json(200, { items: [], total: 0, page: 1, limit: 50 })
         const url = new URL(req.url)
         const profileId = getQueryParam(url, 'profileId')
         const from = getQueryParam(url, 'from')
@@ -38,8 +39,9 @@ export function buildAdminConsentRoutes(
 
     'GET /consents/:visitorId': async (req: Request, p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'consent:view')
+        const { user, denied } = await auth(req, 'consent:view')
         if (denied) return denied
+        if (user?.allowedTenants.length && !user.allowedTenants.includes('default')) return errorResponse(403, 'Forbidden')
         const record = await storage.getConsent(p['visitorId'] ?? '')
         if (!record) return errorResponse(404, 'Consent not found')
         return json(200, record)
@@ -47,8 +49,9 @@ export function buildAdminConsentRoutes(
 
     'GET /consents/:visitorId/history': async (req: Request, p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'consent:view')
+        const { user, denied } = await auth(req, 'consent:view')
         if (denied) return denied
+        if (user?.allowedTenants.length && !user.allowedTenants.includes('default')) return errorResponse(403, 'Forbidden')
         const history = await storage.getConsentHistory(p['visitorId'] ?? '')
         return json(200, history)
       }),

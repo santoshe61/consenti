@@ -1,11 +1,22 @@
 import { useState } from 'preact/hooks'
+import type { FunctionComponent } from 'preact'
+import { Eye, EyeOff } from 'lucide-react'
 import { apiFetch } from '../api/client'
 import { useAuth } from '../context/auth'
+import { useBranding } from '../context/branding'
+import { useT } from '../context/locale'
+
+interface IconProps { size?: number; className?: string }
+const EyeIcon = Eye as unknown as FunctionComponent<IconProps>
+const EyeOffIcon = EyeOff as unknown as FunctionComponent<IconProps>
 
 export function Login() {
   const { login } = useAuth()
+  const { appName, appLogoPath, hidePoweredBy } = useBranding()
+  const t = useT()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -20,7 +31,7 @@ export function Login() {
       login(token)
       window.location.hash = '#/'
     } catch {
-      setError('Invalid email or password')
+      setError(t('login.error.invalid'))
     } finally {
       setLoading(false)
     }
@@ -38,39 +49,62 @@ export function Login() {
   }
 
   return (
-    <div class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+    <div class="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4" style={{ background: "linear-gradient(135deg, rgb(2, 6, 23) 0%, rgb(26, 52, 96) 40%, rgb(21, 101, 192) 75%, rgb(67, 160, 71) 100%)" }}>
+      {appLogoPath
+        ? <img src={appLogoPath} alt={appName} class="h-14 w-auto mx-auto mb-3 object-contain" />
+        : null}
       <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-8 w-full max-w-sm">
         <div class="mb-6 text-center">
-          <h1 class="text-2xl font-bold text-gray-900">Consenti Admin</h1>
-          <p class="text-sm text-gray-500 mt-1">Sign in to your account</p>
+          <h1 class="text-xl font-bold text-gray-900">{t('login.title', { appName })}</h1>
+          <p class="text-sm text-gray-500 mt-1">{t('login.subtitle')}</p>
         </div>
 
         <form onSubmit={handleSubmit} class="space-y-4">
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+            <label for="login-email" class="block text-sm font-medium text-gray-700 mb-1">
+              {t('login.email')}
+            </label>
             <input
+              id="login-email"
               type="email"
               required
               value={email}
               onInput={e => setEmail((e.target as HTMLInputElement).value)}
               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="admin@example.com"
+              placeholder={t('login.emailPlaceholder')}
+              autocomplete="email"
             />
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
-            <input
-              type="password"
-              required
-              value={password}
-              onInput={e => setPassword((e.target as HTMLInputElement).value)}
-              class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <label for="login-password" class="block text-sm font-medium text-gray-700 mb-1">
+              {t('login.password')}
+            </label>
+            <div class="relative">
+              <input
+                id="login-password"
+                type={showPassword ? 'text' : 'password'}
+                required
+                value={password}
+                onInput={e => setPassword((e.target as HTMLInputElement).value)}
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 pr-10 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                autocomplete="current-password"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword(v => !v)}
+                aria-label={showPassword ? t('login.hidePassword') : t('login.showPassword')}
+                class="absolute inset-y-0 right-0 flex items-center px-3 text-gray-400 hover:text-gray-600"
+              >
+                {showPassword
+                  ? <EyeOffIcon size={16} />
+                  : <EyeIcon size={16} />}
+              </button>
+            </div>
           </div>
 
           {error && (
-            <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
+            <p role="alert" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
               {error}
             </p>
           )}
@@ -80,7 +114,7 @@ export function Login() {
             disabled={loading}
             class="w-full bg-blue-600 text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? t('login.submitting') : t('login.submit')}
           </button>
         </form>
 
@@ -92,9 +126,18 @@ export function Login() {
               onClick={handleDemoLogin}
               class="w-full border border-dashed border-gray-300 text-gray-500 rounded-lg px-4 py-2 text-xs font-medium hover:border-blue-400 hover:text-blue-600 hover:bg-blue-50 disabled:opacity-50 transition-colors"
             >
-              ⚡ Dev: sign in as user@consenti.dev
+              {t('login.devSignIn')}
             </button>
           </div>
+        )}
+
+        {hidePoweredBy || (
+          <p class="mt-5 text-center text-[11px] text-gray-400">
+            {t('layout.poweredBy')}{' '}
+            <a href="https://consenti.dev" target="_blank" rel="noopener noreferrer" class="hover:text-blue-500 transition-colors">
+              Consenti
+            </a>
+          </p>
         )}
       </div>
     </div>

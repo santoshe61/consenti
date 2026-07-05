@@ -1,11 +1,14 @@
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
-import { dirname } from 'node:path'
 import type {
   StorageAdapter,
   StorageConfig,
   Profile,
   ProfileConfig,
+  ProfileSummary,
+  OptInStats,
+  OptInFilters,
+  ComplianceGroupId,
   CreateProfileInput,
   UpdateProfileInput,
   ConsentDbRecord,
@@ -45,6 +48,7 @@ import type {
   CreateUITemplateInput,
   UpdateUITemplateInput,
 } from '@consenti/types'
+import { resolveStoragePaths } from '../../utils/storage-path'
 import {
   SEED_TENANT,
   SEED_PERMISSIONS,
@@ -107,19 +111,17 @@ function page<T>(arr: T[], pageNum: number, limit: number): T[] {
 
 export class JsonFileAdapter implements StorageAdapter {
   private db: JsonDb = emptyDb()
-  private filePath: string
+  private filePath = ''
   // Steno-equivalent: serialised writes via promise chain.
   // Old settled promises are GC'd on reassignment — no memory leak.
   private writeQueue: Promise<void> = Promise.resolve()
 
-  constructor(private config: StorageConfig) {
-    this.filePath = config.path ?? './consenti-data.json'
-  }
+  constructor(private config: StorageConfig) {}
 
   private scheduleWrite(): void {
     this.writeQueue = this.writeQueue
       .then(async () => {
-        await mkdir(dirname(this.filePath), { recursive: true })
+        await mkdir(this.filePath.replace(/\/[^/]+$/, ''), { recursive: true })
         const tmp = `${this.filePath}.tmp`
         await writeFile(tmp, JSON.stringify(this.db), 'utf8')
         await rename(tmp, this.filePath)
@@ -128,6 +130,8 @@ export class JsonFileAdapter implements StorageAdapter {
   }
 
   async connect(): Promise<void> {
+    const { dbPath } = resolveStoragePaths(this.config.path ?? './consenti-data', 'json')
+    this.filePath = dbPath
     try {
       const raw = await readFile(this.filePath, 'utf8')
       this.db = JSON.parse(raw) as JsonDb
@@ -217,6 +221,14 @@ export class JsonFileAdapter implements StorageAdapter {
   async getProfiles(tenantId: string): Promise<Profile[]> {
     return this.db.profiles.filter(p => p.tenantId === tenantId)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+  }
+
+  async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
+    return this.db.profiles.find(p =>
+      p.tenantId === tenantId &&
+      p.profileJson.complianceGroup === complianceGroup &&
+      p.profileJson.isActive
+    ) ?? null
   }
 
   // ── Consents ──────────────────────────────────────────────────────────────
@@ -373,6 +385,7 @@ export class JsonFileAdapter implements StorageAdapter {
       email: data.email,
       passwordHash: data.passwordHash,
       isActive: true,
+      allowedTenants: data.allowedTenants ?? [],
       createdAt: now,
       updatedAt: now,
     }
@@ -393,6 +406,7 @@ export class JsonFileAdapter implements StorageAdapter {
       ...(data.isActive != null && { isActive: data.isActive }),
       ...('totpSecret' in data && data.totpSecret != null && { totpSecret: data.totpSecret }),
       ...(data.totpEnabled != null && { totpEnabled: data.totpEnabled }),
+      ...('allowedTenants' in data && { allowedTenants: data.allowedTenants ?? [] }),
       updatedAt: new Date().toISOString(),
     }
     this.db.users[idx] = updated
@@ -795,5 +809,98 @@ export class JsonFileAdapter implements StorageAdapter {
       ...(gpcBanner !== undefined && { gpcBanner }),
       ...(preferenceModal !== undefined && { preferenceModal }),
     } as CreateUITemplateInput)
+  }
+
+  // ── Profile summaries ──────────────────────────────────────────────────────
+
+  private profileToSummary(p: Profile): ProfileSummary {
+    const json = p.profileJson as ProfileConfig & { complianceGroup?: string; isActive?: boolean; cookieTemplateId?: string; uiTemplateId?: string }
+    const ct = json.cookieTemplateId ? this.db.cookie_templates.find(t => t.id === json.cookieTemplateId) : null
+    const ut = json.uiTemplateId ? this.db.ui_templates.find(t => t.id === json.uiTemplateId) : null
+    return {
+      id: p.id,
+      name: p.name,
+      defaultLocale: p.defaultLocale,
+      complianceGroup: (json.complianceGroup ?? null) as ComplianceGroupId | null,
+      version: p.version,
+      isActive: json.isActive ?? false,
+      cookieTemplateName: ct?.name ?? null,
+      uiTemplateName: ut?.name ?? null,
+      createdAt: p.createdAt,
+      updatedAt: p.updatedAt,
+    }
+  }
+
+  async listProfilesSummary(tenantId: string): Promise<ProfileSummary[]> {
+    return this.db.profiles
+      .filter(p => p.tenantId === tenantId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map(p => this.profileToSummary(p))
+  }
+
+  async findProfilesUsingCookieTemplate(templateId: string): Promise<ProfileSummary[]> {
+    return this.db.profiles
+      .filter(p => {
+        const json = p.profileJson as { cookieTemplateId?: string }
+        return json.cookieTemplateId === templateId
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(p => this.profileToSummary(p))
+  }
+
+  async findProfilesUsingUITemplate(templateId: string): Promise<ProfileSummary[]> {
+    return this.db.profiles
+      .filter(p => {
+        const json = p.profileJson as { uiTemplateId?: string }
+        return json.uiTemplateId === templateId
+      })
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map(p => this.profileToSummary(p))
+  }
+
+  // ── Analytics ──────────────────────────────────────────────────────────────
+
+  async getOptInStats(tenantId: string, filters: OptInFilters): Promise<OptInStats> {
+    let records = this.db.consents.filter(c => c.tenantId === tenantId)
+    if (filters.profileId) records = records.filter(c => c.profileId === filters.profileId)
+    if (filters.from) records = records.filter(c => c.createdAt >= filters.from!)
+    if (filters.to) records = records.filter(c => c.createdAt <= filters.to!)
+    if (filters.locale) records = records.filter(c => c.locale === filters.locale)
+
+    let total = 0, granted = 0, denied = 0, managed = 0
+    const byLocale: Record<string, { total: number; granted: number; denied: number; managed: number }> = {}
+    const dateMap = new Map<string, { total: number; granted: number; denied: number; managed: number }>()
+
+    for (const r of records) {
+      const statuses = Object.values(r.consentJson as Record<string, string>)
+      const grantedPct = statuses.length > 0 ? statuses.filter(s => s === 'granted').length / statuses.length : 0
+      const deniedPct = statuses.length > 0 ? statuses.filter(s => s === 'denied').length / statuses.length : 0
+      total++
+      const loc = r.locale
+      if (!byLocale[loc]) byLocale[loc] = { total: 0, granted: 0, denied: 0, managed: 0 }
+      byLocale[loc]!.total++
+
+      const date = r.createdAt.slice(0, 10)
+      const entry = dateMap.get(date) ?? { total: 0, granted: 0, denied: 0, managed: 0 }
+      entry.total++
+
+      if (grantedPct >= 0.9) { granted++; byLocale[loc]!.granted++; entry.granted++ }
+      else if (deniedPct >= 0.9) { denied++; byLocale[loc]!.denied++; entry.denied++ }
+      else { managed++; byLocale[loc]!.managed++; entry.managed++ }
+      dateMap.set(date, entry)
+    }
+
+    const byDate = Array.from(dateMap.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([date, v]) => ({ date, ...v }))
+
+    return {
+      total, granted, denied, managed,
+      grantedPct: total > 0 ? Math.round((granted / total) * 1000) / 10 : 0,
+      deniedPct: total > 0 ? Math.round((denied / total) * 1000) / 10 : 0,
+      managedPct: total > 0 ? Math.round((managed / total) * 1000) / 10 : 0,
+      byLocale,
+      byDate,
+    }
   }
 }

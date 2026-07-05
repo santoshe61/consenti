@@ -92,11 +92,11 @@ function mapHistory(d: DocConsentHistory): ConsentHistoryEntry {
 function mapVisitor(d: DocVisitor): Visitor {
   return {
     id: d._id, tenantId: d.tenant_id, visitorId: d.visitor_id,
-    ...(d.country        != null ? { country:       d.country        } : {}),
-    ...(d.region         != null ? { region:        d.region         } : {}),
-    ...(d.city           != null ? { city:          d.city           } : {}),
-    ...(d.ip_hash        != null ? { ipHash:        d.ip_hash        } : {}),
-    ...(d.user_agent_hash!= null ? { userAgentHash: d.user_agent_hash} : {}),
+    ...(d.country != null ? { country: d.country } : {}),
+    ...(d.region != null ? { region: d.region } : {}),
+    ...(d.city != null ? { city: d.city } : {}),
+    ...(d.ip_hash != null ? { ipHash: d.ip_hash } : {}),
+    ...(d.user_agent_hash != null ? { userAgentHash: d.user_agent_hash } : {}),
     firstSeen: d.first_seen, lastSeen: d.last_seen,
   }
 }
@@ -126,10 +126,10 @@ function mapPermission(d: DocPermission): Permission {
 function mapAuditLog(d: DocAuditLog): AuditLog {
   return {
     id: d._id, tenantId: d.tenant_id, action: d.action, resourceType: d.resource_type,
-    ...(d.user_id     != null ? { userId:     d.user_id     } : {}),
+    ...(d.user_id != null ? { userId: d.user_id } : {}),
     ...(d.resource_id != null ? { resourceId: d.resource_id } : {}),
-    ...(d.old_data    != null ? { oldData:    d.old_data    } : {}),
-    ...(d.new_data    != null ? { newData:    d.new_data    } : {}),
+    ...(d.old_data != null ? { oldData: d.old_data } : {}),
+    ...(d.new_data != null ? { newData: d.new_data } : {}),
     createdAt: d.created_at,
   }
 }
@@ -161,7 +161,7 @@ export class MongoDBAdapter implements StorageAdapter {
   private client!: MongoClient
   private db!: Db
 
-  constructor(private config: StorageConfig) {}
+  constructor(private config: StorageConfig) { }
 
   private col(name: string): DocCollection {
     // MongoDB's Collection generics assume ObjectId for _id; we use string UUIDs throughout.
@@ -174,7 +174,7 @@ export class MongoDBAdapter implements StorageAdapter {
     const uri = this.config.uri ?? 'mongodb://localhost:27017'
     this.client = new MC(uri)
     await this.client.connect()
-    this.db = this.client.db(this.config.dbName ?? this.config.database ?? 'consenti')
+    this.db = this.client.db(this.config.database ?? 'consenti')
     await this.migrate()
   }
 
@@ -239,9 +239,9 @@ export class MongoDBAdapter implements StorageAdapter {
   async updateProfile(id: string, data: UpdateProfileInput): Promise<Profile> {
     const now = new Date().toISOString()
     const set: Record<string, unknown> = { updated_at: now }
-    if (data.name != null)          set['name']           = data.name
+    if (data.name != null) set['name'] = data.name
     if (data.defaultLocale != null) set['default_locale'] = data.defaultLocale
-    if (data.profileJson != null)   set['profile_json']   = data.profileJson
+    if (data.profileJson != null) set['profile_json'] = data.profileJson
     const res = cast<DocProfile>(await this.col('profiles').findOneAndUpdate(
       { _id: id }, { $set: set, $inc: { version: 1 } }, { returnDocument: 'after' },
     ))
@@ -261,6 +261,11 @@ export class MongoDBAdapter implements StorageAdapter {
   async getProfiles(tenantId: string): Promise<Profile[]> {
     const docs = castArr<DocProfile>(await this.col('profiles').find({ tenant_id: tenantId }).toArray())
     return docs.map(mapProfile)
+  }
+
+  async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
+    const profiles = await this.getProfiles(tenantId)
+    return profiles.find(p => p.profileJson.complianceGroup === complianceGroup && p.profileJson.isActive) ?? null
   }
 
   // ── Consents ─────────────────────────────────────────────────────────────────
@@ -284,7 +289,7 @@ export class MongoDBAdapter implements StorageAdapter {
     if (!existing) throw new Error(`Consent for visitor ${visitorId} not found`)
     const now = new Date().toISOString()
     const set: Record<string, unknown> = { updated_at: now, consent_json: data.consentJson }
-    if (data.locale      != null) set['locale']       = data.locale
+    if (data.locale != null) set['locale'] = data.locale
     if (data.gpcDetected != null) set['gpc_detected'] = data.gpcDetected
     const res = cast<DocConsent>(await this.col('consent_records').findOneAndUpdate(
       { visitor_id: visitorId }, { $set: set }, { returnDocument: 'after' },
@@ -326,7 +331,7 @@ export class MongoDBAdapter implements StorageAdapter {
     if (f.from != null || f.to != null) {
       const range: Record<string, string> = {}
       if (f.from != null) range['$gte'] = f.from
-      if (f.to   != null) range['$lte'] = f.to
+      if (f.to != null) range['$lte'] = f.to
       q['created_at'] = range
     }
     return q
@@ -358,10 +363,10 @@ export class MongoDBAdapter implements StorageAdapter {
     const doc: DocVisitor = {
       _id: randomUUID(), tenant_id: data.tenantId, visitor_id: data.visitorId,
       first_seen: now, last_seen: now,
-      ...(data.country       != null ? { country:        data.country       } : {}),
-      ...(data.region        != null ? { region:         data.region        } : {}),
-      ...(data.city          != null ? { city:           data.city          } : {}),
-      ...(data.ipHash        != null ? { ip_hash:        data.ipHash        } : {}),
+      ...(data.country != null ? { country: data.country } : {}),
+      ...(data.region != null ? { region: data.region } : {}),
+      ...(data.city != null ? { city: data.city } : {}),
+      ...(data.ipHash != null ? { ip_hash: data.ipHash } : {}),
       ...(data.userAgentHash != null ? { user_agent_hash: data.userAgentHash } : {}),
     }
     await this.col('visitors').insertOne(doc)
@@ -371,8 +376,8 @@ export class MongoDBAdapter implements StorageAdapter {
   async updateVisitor(visitorId: string, data: UpdateVisitorInput): Promise<Visitor> {
     const set: Record<string, string> = { last_seen: data.lastSeen ?? new Date().toISOString() }
     if (data.country != null) set['country'] = data.country
-    if (data.region  != null) set['region']  = data.region
-    if (data.city    != null) set['city']    = data.city
+    if (data.region != null) set['region'] = data.region
+    if (data.city != null) set['city'] = data.city
     const res = cast<DocVisitor>(await this.col('visitors').findOneAndUpdate(
       { visitor_id: visitorId }, { $set: set }, { returnDocument: 'after' },
     ))
@@ -394,10 +399,10 @@ export class MongoDBAdapter implements StorageAdapter {
     if (filters.from != null || filters.to != null) {
       const r: Record<string, string> = {}
       if (filters.from != null) r['$gte'] = filters.from
-      if (filters.to   != null) r['$lte'] = filters.to
+      if (filters.to != null) r['$lte'] = filters.to
       q['first_seen'] = r
     }
-    const page  = filters.page  ?? 1
+    const page = filters.page ?? 1
     const limit = filters.limit ?? 50
     const docs = castArr<DocVisitor>(
       await this.col('visitors').find(q).sort({ first_seen: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
@@ -426,12 +431,12 @@ export class MongoDBAdapter implements StorageAdapter {
     for (const r of results) {
       all += r.count
       if (r._id === 'granted') granted = r.count
-      if (r._id === 'denied')  denied  = r.count
+      if (r._id === 'denied') denied = r.count
     }
     return {
       totalConsents: total,
       acceptedPct: all > 0 ? Math.round((granted / all) * 100) : 0,
-      rejectedPct:  all > 0 ? Math.round((denied  / all) * 100) : 0,
+      rejectedPct: all > 0 ? Math.round((denied / all) * 100) : 0,
       totalVisitors: visitors,
       gpcDetectedCount: gpcCount,
     }
@@ -451,8 +456,8 @@ export class MongoDBAdapter implements StorageAdapter {
       if (!result[cookie]) result[cookie] = { granted: 0, denied: 0, objected: 0 }
       const entry = result[cookie]
       if (entry) {
-        if (r._id.status === 'granted')  entry.granted  += r.count
-        if (r._id.status === 'denied')   entry.denied   += r.count
+        if (r._id.status === 'granted') entry.granted += r.count
+        if (r._id.status === 'denied') entry.denied += r.count
         if (r._id.status === 'objected') entry.objected += r.count
       }
     }
@@ -485,10 +490,10 @@ export class MongoDBAdapter implements StorageAdapter {
 
   async updateUser(id: string, data: UpdateUserInput): Promise<AdminUser> {
     const set: Record<string, unknown> = { updated_at: new Date().toISOString() }
-    if (data.name         != null) set['name']          = data.name
-    if (data.email        != null) set['email']         = data.email
+    if (data.name != null) set['name'] = data.name
+    if (data.email != null) set['email'] = data.email
     if (data.passwordHash != null) set['password_hash'] = data.passwordHash
-    if (data.isActive     != null) set['is_active']     = data.isActive
+    if (data.isActive != null) set['is_active'] = data.isActive
     const res = cast<DocUser>(await this.col('users').findOneAndUpdate(
       { _id: id }, { $set: set }, { returnDocument: 'after' },
     ))
@@ -538,7 +543,7 @@ export class MongoDBAdapter implements StorageAdapter {
 
   async updateRole(id: string, data: UpdateRoleInput): Promise<Role> {
     const set: Record<string, string> = {}
-    if (data.name        != null) set['name']        = data.name
+    if (data.name != null) set['name'] = data.name
     if (data.description != null) set['description'] = data.description
     const res = cast<DocRole>(await this.col('roles').findOneAndUpdate(
       { _id: id }, { $set: set }, { returnDocument: 'after' },
@@ -613,10 +618,10 @@ export class MongoDBAdapter implements StorageAdapter {
     const doc: DocAuditLog = {
       _id: randomUUID(), tenant_id: data.tenantId, action: data.action,
       resource_type: data.resourceType,
-      ...(data.userId     != null ? { user_id:     data.userId     } : {}),
+      ...(data.userId != null ? { user_id: data.userId } : {}),
       ...(data.resourceId != null ? { resource_id: data.resourceId } : {}),
-      ...(data.oldData    != null ? { old_data:    data.oldData    } : {}),
-      ...(data.newData    != null ? { new_data:    data.newData    } : {}),
+      ...(data.oldData != null ? { old_data: data.oldData } : {}),
+      ...(data.newData != null ? { new_data: data.newData } : {}),
       created_at: new Date().toISOString(),
     }
     await this.col('audit_logs').insertOne(doc)
@@ -624,7 +629,7 @@ export class MongoDBAdapter implements StorageAdapter {
 
   async getLogs(filters: AuditFilters): Promise<AuditLog[]> {
     const q = this.buildAuditFilter(filters)
-    const page  = filters.page  ?? 1
+    const page = filters.page ?? 1
     const limit = filters.limit ?? 50
     const docs = castArr<DocAuditLog>(
       await this.col('audit_logs').find(q).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
@@ -640,12 +645,12 @@ export class MongoDBAdapter implements StorageAdapter {
 
   private buildAuditFilter(f: AuditFilters): Record<string, unknown> {
     const q: Record<string, unknown> = { tenant_id: f.tenantId }
-    if (f.action       != null) q['action']        = f.action
+    if (f.action != null) q['action'] = f.action
     if (f.resourceType != null) q['resource_type'] = f.resourceType
     if (f.from != null || f.to != null) {
       const r: Record<string, string> = {}
       if (f.from != null) r['$gte'] = f.from
-      if (f.to   != null) r['$lte'] = f.to
+      if (f.to != null) r['$lte'] = f.to
       q['created_at'] = r
     }
     return q
@@ -758,4 +763,10 @@ export class MongoDBAdapter implements StorageAdapter {
   async getUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async getUITemplates(): Promise<never> { throw new Error('Not implemented') }
   async copyUITemplate(): Promise<never> { throw new Error('Not implemented') }
+
+  // Profile summary / analytics — not yet implemented for MongoDB adapter
+  async listProfilesSummary(): Promise<never[]> { return [] }
+  async findProfilesUsingCookieTemplate(): Promise<never[]> { return [] }
+  async findProfilesUsingUITemplate(): Promise<never[]> { return [] }
+  async getOptInStats(): Promise<never> { throw new Error('Not implemented') }
 }

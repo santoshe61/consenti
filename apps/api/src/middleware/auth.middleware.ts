@@ -7,6 +7,7 @@ export interface AuthenticatedUser {
   email: string
   roles: string[]
   permissions: string[]
+  allowedTenants: string[]  // empty = all tenants
 }
 
 export async function authenticate(
@@ -26,12 +27,14 @@ export async function authenticate(
     const email = payload['email']
     const roles = payload['roles']
     const permissions = payload['permissions']
+    const allowedTenants = payload['allowedTenants']
     if (typeof sub !== 'string' || typeof email !== 'string') return null
     return {
       sub,
       email,
       roles: Array.isArray(roles) ? (roles as string[]) : [],
       permissions: Array.isArray(permissions) ? (permissions as string[]) : [],
+      allowedTenants: Array.isArray(allowedTenants) ? (allowedTenants as string[]) : [],
     }
   }
 
@@ -46,6 +49,7 @@ export async function authenticate(
       email: user.email,
       roles: roles.map(r => r.name),
       permissions,
+      allowedTenants: [],
     }
   }
 

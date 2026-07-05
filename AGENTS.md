@@ -83,12 +83,14 @@ Read the relevant plan before writing any code. All architectural decisions are 
 
 ## Tech Decisions — Locked
 
+Always use i18n keys for text interpolation in apps/api dashboard
+
 Do not propose changes to these without explicit user instruction.
 
 | Concern | Choice |
 |---|---|
 | Runtime | Node 20+ (22 or 24 LTS recommended for production) |
-| Default DB | `node-sqlite3-wasm` (WASM, zero compilation, Node 20+); `node:sqlite` built-in (Node 22.5+); `better-sqlite3` (native peer dep, optional) |
+| Default DB | `json`; `node:sqlite` built-in (Node 22.5+); `better-sqlite3` (native peer dep, optional) |
 | Package manager | npm workspaces |
 | Monorepo | Turborepo |
 | Build (packages) | tsup (ESM + UMD for ui; CJS + ESM for api) |
@@ -271,6 +273,13 @@ All custom DOM events prefixed with `consenti:`:
 
 ---
 
+## Before Every Change — Mandatory Checklist
+- Ask queries, questions for refinement or confusing things from a task before finalizing change or plan
+- If you think prompt is week and dont have proper context, ask for more info
+- If you think have better way to that change, suggest it, but implement only if accepted
+
+---
+
 ## After Every Change — Mandatory Checklist
 
 Run through this checklist after implementing any feature, fix, or enhancement to apps/ui or apps/api.
@@ -279,23 +288,23 @@ Ignore updating changelog and README for updates in apps/docs
 ### 1. Frontend ↔ Backend sync
 - If a change touches `apps/api` (types, routes, payload shape, error codes), update the corresponding `apps/ui` integration code to match, and vice versa.
 - Shared types always live in `packages/types` — never duplicate them.
+- update Root `README.md` — if public API surface, install instructions, or overall behaviour changed
 
-### 2. README updates
-Update whichever README files are affected:
-- Root `README.md` — if public API surface, install instructions, or overall behaviour changed
-- `apps/api/README.md` — if backend config, routes, or exported types changed
-- `apps/ui/README.md` — if widget config, events, or exported API changed
+### 2. If frontend (@consenti/ui OR apps/ui) changes
+- Update `apps/ui/README.md` — for item / API changed
+- Reflect the change in the `apps/docs/src/app/demo-playground/frontend/page.tsx` playground so the running app always exercises the latest functionality.
+- update docs at `apps/docs/src/app/docs/ui/configuration/page.tsx` and related change detailed type page in `apps/docs/src/app/docs/ui/*/page.tsx` (in both top table/code and below detail of relative page.tsx)
 
-### 3. Playground update (`apps/docs`)
-Reflect the change in the `apps/docs` playground so the running app always exercises the latest functionality.
+### 3. If backend (@consenti/api OR apps/api) changes
+- Update `apps/api/README.md` — for item / API changed
+- update docs at `apps/docs/src/app/docs/api/configuration/page.tsx` and related change detailed type page in `apps/docs/src/app/docs/api/*/page.tsx` (in both top table/code and below detail of relative page.tsx)
+- Update Open API routes at `apps/api/src/openapi/spec.ts` if changed/updated
+- update keys in all locale in apps/api/locale
 
-### 4. Docs update (`apps/docs`)
-Add or update the relevant page in `apps/docs` to document the change. Cover: what changed, how to use it, any config options, and migration notes if behaviour changed.
-
-### 5. Validations
+### 4. Validations
 For any form fields or endpoint you are creating, add a validation check for the expected value.
 
-### 6. Internal Changelog entry
+### 5. Internal Changelog entry
 Create a new file at `changelog/YYYY-MM-DD-V{n}.md` (increment `n` if a file for today already exists), format is below.
 ```markdown
 ## [x.x.x] - YYYY-MM-DD

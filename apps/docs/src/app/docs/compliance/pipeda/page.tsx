@@ -8,6 +8,10 @@ export default function PIPEDAPage() {
   return (
     <div className="prose max-w-none">
       <h1>PIPEDA / Law 25 Compliance Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — same opt-in model as GDPR.
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         Canada has two overlapping privacy frameworks. The federal{' '}
         <strong>PIPEDA (Personal Information Protection and Electronic Documents Act)</strong> applies

@@ -11,7 +11,10 @@
   --consenti-color-secondary: #f0f4f8;
   --consenti-color-secondary-text: #1a2e4a;
   --consenti-color-border: #dbe4ee;
+  --consenti-color-secondary-border: #1a2e4a;
   --consenti-color-overlay: rgba(26, 52, 96, 0.55);
+  --consenti-color-accent: #d32f2f;
+  --consenti-color-accent-text: #ffffff;
 
   --consenti-font-family: system-ui, -apple-system, sans-serif;
   --consenti-font-size-base: 14px;
@@ -24,17 +27,14 @@
   --consenti-spacing-lg: 24px;
 
   --consenti-border-radius: 8px;
-  --consenti-border-radius-btn: 4px;
+  --consenti-border-radius-btn: 0;
   --consenti-shadow: 0 4px 24px rgba(21, 101, 192, 0.14);
 
-  --consenti-color-accent: #d32f2f;
-  --consenti-color-accent-text: #ffffff;
-
   --consenti-toggle-bg-on: #43a047;
-  --consenti-toggle-bg-off: #c8d6e8;
+  --consenti-toggle-bg-off: #9ca3af;
   --consenti-toggle-knob: #ffffff;
-  --consenti-toggle-width: 44px;
-  --consenti-toggle-height: 24px;
+  --consenti-toggle-width: 52px;
+  --consenti-toggle-height: 28px;
 
   --consenti-z-banner: 9999;
   --consenti-z-overlay: 9998;
@@ -52,5 +52,5 @@
   --consenti-color-border: #374151;
   --consenti-color-overlay: rgba(0, 0, 0, 0.65);
   --consenti-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
-  --consenti-toggle-bg-off: #4b5563;
+  --consenti-toggle-bg-off: #6b7280;
 }

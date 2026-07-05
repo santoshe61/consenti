@@ -22,6 +22,7 @@
     opacity: 0.9;
   }
 
+
   &--primary {
     background: var(--consenti-color-primary);
     color: var(--consenti-color-primary-text);
@@ -29,7 +30,14 @@
 
   &--secondary {
     background: var(--consenti-color-secondary);
-    color: var(--consenti-color-secondary-text);
+    color: var(--consenti-color-primary);
+    border: 1px solid var(--consenti-color-primary);
+
+    &:hover {
+      background: var(--consenti-color-primary);
+      color: var(--consenti-color-secondary);
+      border: 1px solid var(--consenti-color-secondary);
+    }
   }
 
   &--text {
@@ -38,6 +46,7 @@
     padding-left: 0;
     padding-right: 0;
     text-decoration: underline;
+    text-underline-offset: 4px;
   }
 
   &--accent {

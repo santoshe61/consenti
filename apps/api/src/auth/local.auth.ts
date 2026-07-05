@@ -60,7 +60,13 @@ export class LocalAuth {
     const permSets = await Promise.all(roles.map(r => this.storage.getPermissionsForRole(r.id)))
     const permissions = [...new Set(permSets.flat().map(p => p.name))]
     return signJwt(
-      { sub: user.id, email: user.email, roles: roles.map(r => r.name), permissions },
+      {
+        sub: user.id,
+        email: user.email,
+        roles: roles.map(r => r.name),
+        permissions,
+        allowedTenants: user.allowedTenants ?? [],
+      },
       this.secret,
     )
   }

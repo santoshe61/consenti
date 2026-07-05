@@ -49,4 +49,5 @@ export type {
   ConsentiMessage,
   ResolvedProfile,
   ConsentiWidgetAPI,
+  ConsentiEventName,
 } from './types'

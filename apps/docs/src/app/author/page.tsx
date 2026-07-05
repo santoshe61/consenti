@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Check, Coffee, CreditCard, ExternalLink, Github, Heart, MapPin, Code2, Package } from 'lucide-react'
+import { Check, Coffee, CreditCard, ExternalLink, Heart, MapPin, Code2, Package } from 'lucide-react'
+import { FaGithub } from 'react-icons/fa'
 
 export const metadata: Metadata = { title: 'Support the Author — Santosh Ojha' }
 
@@ -128,7 +129,7 @@ export default function AuthorPage() {
           rel="noopener noreferrer"
           className="inline-flex items-center justify-center gap-2 bg-slate-900 dark:bg-gray-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold no-underline hover:bg-slate-800 dark:hover:bg-gray-600 transition-colors"
         >
-          <Github size={16} />
+          <FaGithub size={16} />
           GitHub Profile
         </a>
         <a

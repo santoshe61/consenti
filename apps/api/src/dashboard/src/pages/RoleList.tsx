@@ -2,10 +2,9 @@ import { useEffect, useState } from 'preact/hooks'
 import { Pencil, Trash2, Check, X, Plus } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useConfirmDialog } from '../components/ConfirmDialog'
+import { useT } from '../context/locale'
 import { rolesApi } from '../api/roles'
 import type { Role, Permission } from '@consenti/types'
-
-// ── Helpers ────────────────────────────────────────────────────────────────────
 
 function groupPermissions(perms: Permission[]): Array<{ group: string; items: Permission[] }> {
   const map: Record<string, Permission[]> = {}
@@ -18,8 +17,6 @@ function groupPermissions(perms: Permission[]): Array<{ group: string; items: Pe
     .map(([group, items]) => ({ group, items }))
 }
 
-// ── Inline role form ───────────────────────────────────────────────────────────
-
 function RoleForm({
   initial,
   onSave,
@@ -31,6 +28,7 @@ function RoleForm({
   onCancel: () => void
   saving: boolean
 }) {
+  const t = useT()
   const [name, setName] = useState(initial?.name ?? '')
   const [desc, setDesc] = useState(initial?.description ?? '')
   const nameEmpty = !name.trim()
@@ -44,25 +42,32 @@ function RoleForm({
   return (
     <form onSubmit={submit} class="border border-blue-200 bg-blue-50 rounded-lg p-3 space-y-2">
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-0.5">
-          Role name <span class="text-red-500">*</span>
+        <label for="role-name" class="block text-xs font-medium text-gray-600 mb-0.5">
+          {t('roles.form.roleNameLabel')} <span class="text-red-500" aria-hidden="true">*</span>
         </label>
         <input
+          id="role-name"
           class={`w-full border rounded px-2 py-1.5 text-sm ${nameEmpty ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-white'}`}
           value={name}
           onInput={e => setName((e.target as HTMLInputElement).value)}
-          placeholder="e.g. Editor"
+          placeholder={t('roles.form.roleNamePlaceholder')}
           autoFocus
+          required
+          aria-required="true"
+          aria-invalid={nameEmpty}
         />
-        {nameEmpty && <p class="text-xs text-red-500 mt-0.5">Required</p>}
+        {nameEmpty && <p role="alert" class="text-xs text-red-500 mt-0.5">{t('common.required')}</p>}
       </div>
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-0.5">Description</label>
+        <label for="role-desc" class="block text-xs font-medium text-gray-600 mb-0.5">
+          {t('roles.form.descriptionLabel')}
+        </label>
         <input
+          id="role-desc"
           class="w-full border border-gray-300 bg-white rounded px-2 py-1.5 text-sm"
           value={desc}
           onInput={e => setDesc((e.target as HTMLInputElement).value)}
-          placeholder="Optional description"
+          placeholder={t('roles.form.descriptionPlaceholder')}
         />
       </div>
       <div class="flex gap-2 pt-1">
@@ -71,23 +76,22 @@ function RoleForm({
           disabled={saving || nameEmpty}
           class="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded hover:bg-blue-700 disabled:opacity-50 transition-colors"
         >
-          <Check size={12} /> {saving ? 'Saving…' : 'Save'}
+          <Check size={12} aria-hidden="true" /> {saving ? t('common.saving') : t('common.save')}
         </button>
         <button
           type="button"
           onClick={onCancel}
           class="flex items-center gap-1.5 px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded transition-colors"
         >
-          <X size={12} /> Cancel
+          <X size={12} aria-hidden="true" /> {t('common.cancel')}
         </button>
       </div>
     </form>
   )
 }
 
-// ── Main component ─────────────────────────────────────────────────────────────
-
 export function RoleList({ current }: { current: string }) {
+  const t = useT()
   const [roles, setRoles] = useState<Role[]>([])
   const [allPerms, setAllPerms] = useState<Permission[]>([])
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
@@ -103,7 +107,7 @@ export function RoleList({ current }: { current: string }) {
     setLoading(true)
     Promise.all([rolesApi.list(), rolesApi.allPermissions()])
       .then(([r, p]) => { setRoles(r); setAllPerms(p) })
-      .catch(() => setError('Failed to load roles.'))
+      .catch(() => setError(t('roles.error.load')))
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
@@ -126,7 +130,7 @@ export function RoleList({ current }: { current: string }) {
         setRolePerms(p => [...p, perm])
       }
     } catch {
-      setError('Failed to update permission.')
+      setError(t('roles.error.perm'))
     }
   }
 
@@ -140,7 +144,7 @@ export function RoleList({ current }: { current: string }) {
       setSelectedRole(role)
       rolesApi.permissions(role.id).then(setRolePerms).catch(() => {})
     } catch {
-      setError('Failed to create role.')
+      setError(t('roles.error.create'))
     } finally {
       setSaving(false)
     }
@@ -157,7 +161,7 @@ export function RoleList({ current }: { current: string }) {
         setSelectedRole(prev => prev ? { ...prev, name, description } : prev)
       }
     } catch {
-      setError('Failed to update role.')
+      setError(t('roles.error.update'))
     } finally {
       setSaving(false)
     }
@@ -165,8 +169,8 @@ export function RoleList({ current }: { current: string }) {
 
   const handleDelete = async (role: Role) => {
     const ok = await requestConfirm({
-      title: `Delete role "${role.name}"?`,
-      message: 'Users assigned this role will lose its permissions immediately.',
+      title: t('roles.dialog.delete.title', { name: role.name }),
+      message: t('roles.dialog.delete.message'),
     })
     if (!ok) return
     try {
@@ -174,34 +178,33 @@ export function RoleList({ current }: { current: string }) {
       if (selectedRole?.id === role.id) { setSelectedRole(null); setRolePerms([]) }
       load()
     } catch {
-      setError('Failed to delete role.')
+      setError(t('roles.error.delete'))
     }
   }
 
   const grouped = groupPermissions(allPerms)
 
   return (
-    <Layout title="Roles & Permissions" current={current}>
+    <Layout title={t('roles.title')} current={current}>
       {dialog}
 
       {error && (
-        <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-4">{error}</p>
+        <p role="alert" class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2 mb-4">{error}</p>
       )}
 
       {loading ? (
-        <p class="text-gray-400 text-sm">Loading…</p>
+        <p role="status" aria-live="polite" class="text-gray-400 text-sm">{t('common.loading')}</p>
       ) : (
         <div class="grid grid-cols-1 md:grid-cols-[280px_1fr] gap-6 items-start">
 
-          {/* ── Left: role list ─────────────────────────────────────────── */}
           <div>
             <div class="flex items-center justify-between mb-2">
-              <h2 class="text-sm font-semibold text-gray-700">Roles</h2>
+              <h2 class="text-sm font-semibold text-gray-700">{t('roles.list.heading')}</h2>
               <button
                 onClick={() => { setCreating(true); setEditingId(null) }}
                 class="flex items-center gap-1 text-xs text-blue-600 hover:underline"
               >
-                <Plus size={12} /> New Role
+                <Plus size={12} aria-hidden="true" /> {t('common.newRole')}
               </button>
             </div>
 
@@ -239,6 +242,10 @@ export function RoleList({ current }: { current: string }) {
                         : 'border-gray-200 bg-white hover:border-gray-300'
                     }`}
                     onClick={() => selectRole(role)}
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={e => e.key === 'Enter' && selectRole(role)}
+                    aria-pressed={isSelected}
                   >
                     <div class="flex-1 min-w-0">
                       <p class={`font-medium ${isSelected ? 'text-blue-700' : 'text-gray-700'}`}>{role.name}</p>
@@ -251,17 +258,19 @@ export function RoleList({ current }: { current: string }) {
                         type="button"
                         onClick={e => { e.stopPropagation(); setEditingId(role.id); setCreating(false) }}
                         class="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
-                        title="Edit role"
+                        aria-label={t('roles.aria.editRole')}
+                        title={t('roles.aria.editRole')}
                       >
-                        <Pencil size={13} />
+                        <Pencil size={13} aria-hidden="true" />
                       </button>
                       <button
                         type="button"
                         onClick={e => { e.stopPropagation(); handleDelete(role) }}
                         class="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
-                        title="Delete role"
+                        aria-label={t('roles.aria.deleteRole')}
+                        title={t('roles.aria.deleteRole')}
                       >
-                        <Trash2 size={13} />
+                        <Trash2 size={13} aria-hidden="true" />
                       </button>
                     </div>
                   </div>
@@ -269,15 +278,14 @@ export function RoleList({ current }: { current: string }) {
               })}
 
               {roles.length === 0 && !creating && (
-                <p class="text-sm text-gray-400 text-center py-6">No roles yet. Create one to get started.</p>
+                <p class="text-sm text-gray-400 text-center py-6">{t('roles.list.empty')}</p>
               )}
             </div>
           </div>
 
-          {/* ── Right: permissions ──────────────────────────────────────── */}
           <div>
             <h2 class="text-sm font-semibold text-gray-700 mb-2">
-              {selectedRole ? `Permissions — ${selectedRole.name}` : 'Select a role to manage permissions'}
+              {selectedRole ? t('roles.perms.heading', { name: selectedRole.name }) : t('roles.perms.selectPrompt')}
             </h2>
 
             {selectedRole ? (
@@ -298,7 +306,7 @@ export function RoleList({ current }: { current: string }) {
                             toToggle.forEach(p => togglePerm(p))
                           }}
                         >
-                          {items.every(p => rolePerms.some(rp => rp.id === p.id)) ? 'Revoke all' : 'Grant all'}
+                          {items.every(p => rolePerms.some(rp => rp.id === p.id)) ? t('common.revokeAll') : t('common.grantAll')}
                         </button>
                       </div>
                     </div>
@@ -324,7 +332,7 @@ export function RoleList({ current }: { current: string }) {
                             </div>
                             {has && (
                               <span class="ml-auto shrink-0 text-xs text-green-600 bg-green-50 px-1.5 py-0.5 rounded-full">
-                                granted
+                                {t('common.granted')}
                               </span>
                             )}
                           </label>
@@ -335,12 +343,12 @@ export function RoleList({ current }: { current: string }) {
                 ))}
 
                 {allPerms.length === 0 && (
-                  <p class="text-sm text-gray-400">No permissions defined in the system.</p>
+                  <p class="text-sm text-gray-400">{t('roles.perms.noPerms')}</p>
                 )}
               </div>
             ) : (
               <div class="bg-white border border-gray-200 rounded-lg p-8 text-center">
-                <p class="text-sm text-gray-400">Click a role on the left to view and manage its permissions.</p>
+                <p class="text-sm text-gray-400">{t('roles.perms.clickPrompt')}</p>
               </div>
             )}
           </div>

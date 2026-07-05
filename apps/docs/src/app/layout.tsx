@@ -1,5 +1,6 @@
 import type { Metadata } from 'next'
 import './globals.css'
+import '@docsearch/css'
 import { ConsentiProvider } from '@/components/ConsentiProvider'
 import { DocsMenuProvider } from '@/contexts/docs-menu-context'
 import { ThemeProvider } from '@/contexts/theme-context'

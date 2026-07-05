@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'preact/hooks'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { FunctionComponent } from 'preact'
 import widgetJs from '@consenti/ui/dist/index.umd.js?raw'
-import widgetCss from '@consenti/ui/dist/index.css?raw'
+import { CONSENTI_CSS as widgetCss } from '@consenti/ui/src/styles/consenti-css'
 import { useTheme } from '../context/theme'
 
 interface IconProps { size?: number; className?: string }

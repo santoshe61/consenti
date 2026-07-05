@@ -1,4 +1,5 @@
 import type { ComponentChildren } from 'preact'
+import { useT } from '../context/locale'
 
 interface Column<T> {
   key: string
@@ -14,11 +15,18 @@ interface Props<T> {
   emptyText?: string
 }
 
-export function Table<T extends Record<string, unknown>>({ columns, rows, keyFn, loading, emptyText = 'No data' }: Props<T>) {
+export function Table<T extends Record<string, unknown>>({ columns, rows, keyFn, loading, emptyText }: Props<T>) {
+  const t = useT()
+  const empty = emptyText ?? t('common.noData')
+
   if (loading) {
     return (
-      <div class="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 text-sm">
-        Loading…
+      <div
+        role="status"
+        aria-live="polite"
+        class="flex items-center justify-center py-12 text-gray-400 dark:text-gray-500 text-sm"
+      >
+        {t('common.loading')}
       </div>
     )
   }
@@ -29,7 +37,11 @@ export function Table<T extends Record<string, unknown>>({ columns, rows, keyFn,
         <thead>
           <tr class="bg-gray-50 dark:bg-gray-700/50 border-b border-gray-200 dark:border-gray-700">
             {columns.map(col => (
-              <th key={col.key} class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide">
+              <th
+                key={col.key}
+                scope="col"
+                class="px-4 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide"
+              >
                 {col.label}
               </th>
             ))}
@@ -39,7 +51,7 @@ export function Table<T extends Record<string, unknown>>({ columns, rows, keyFn,
           {rows.length === 0 ? (
             <tr>
               <td colSpan={columns.length} class="px-4 py-8 text-center text-gray-400 dark:text-gray-500">
-                {emptyText}
+                {empty}
               </td>
             </tr>
           ) : (

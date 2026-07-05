@@ -1,8 +1,24 @@
 import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 import type { NextRequest } from 'next/server'
+import { verifyRecaptcha } from '@/lib/recaptcha-verify'
 
-const DB_PATH = join(process.cwd(), 'db', 'consenti-saas-requests.json')
+const DB_PATH = join(process.cwd(), '../../../../db', 'consenti-saas-requests.json')
+
+const EMAIL_RE = /^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$/
+// Strip HTML tags and control characters from free-text fields
+const HTML_TAG_RE = /<[^>]*>/g
+const CONTROL_RE = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g
+
+function sanitizeText(value: unknown, maxLen: number): string | null {
+  if (value === undefined || value === null || value === '') return null
+  if (typeof value !== 'string') return null
+  return value
+    .replace(HTML_TAG_RE, '')
+    .replace(CONTROL_RE, '')
+    .trim()
+    .slice(0, maxLen) || null
+}
 
 function maskIp(ip: string): string {
   // IPv4: strip last octet (192.0.2.55 → 192.0.2.0)
@@ -34,20 +50,35 @@ function appendRecord(record: Record<string, unknown>) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json() as Record<string, unknown>
-    const { email, organization, currentTool, triedConsenti, satisfactionScore } = body
+    const { email, organization, currentTool, triedConsenti, satisfactionScore, feedback, recaptchaToken } = body
 
-    if (!email || typeof email !== 'string' || !email.includes('@')) {
+    const cleanEmail = typeof email === 'string' ? email.trim() : ''
+    if (!cleanEmail || !EMAIL_RE.test(cleanEmail)) {
       return Response.json({ error: 'Valid email required.' }, { status: 400 })
     }
+
+    const captchaOk = await verifyRecaptcha(typeof recaptchaToken === 'string' ? recaptchaToken : null)
+    if (!captchaOk) {
+      return Response.json({ error: 'reCAPTCHA check failed. Please try again.' }, { status: 403 })
+    }
+
+    const score = triedConsenti && typeof satisfactionScore === 'number'
+      && satisfactionScore >= 1 && satisfactionScore <= 5
+      ? satisfactionScore : null
+
+    const cleanFeedback = triedConsenti && score !== null
+      ? sanitizeText(feedback, 200)
+      : null
 
     const record = {
       timestamp: new Date().toISOString(),
       ip: getIp(req),
-      email: String(email).trim(),
-      organization: organization ? String(organization).trim() : null,
-      currentTool: currentTool ? String(currentTool).trim() : null,
+      email: cleanEmail.slice(0, 254),
+      organization: sanitizeText(organization, 200),
+      currentTool: sanitizeText(currentTool, 200),
       triedConsenti: Boolean(triedConsenti),
-      satisfactionScore: triedConsenti && typeof satisfactionScore === 'number' ? satisfactionScore : null,
+      satisfactionScore: score,
+      feedback: cleanFeedback,
     }
 
     appendRecord(record)

@@ -12,6 +12,14 @@ const PORT = Number(process.env['CONSENTI_DEV_PORT'] ?? 3001)
 const consenti = createConsenti({
   dashboard: false,
   compliance: { gdpr: true, ccpa: true, gpc: true },
+  branding: {
+    appName: "Consenti",
+    appLogoPath: "./logo-dark.svg"
+  },
+  storage: {
+    driver: 'json',
+    path: '../../db/'
+  }
 })
 
 const server = createServer(async (req, res) => {

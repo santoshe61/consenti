@@ -1,5 +1,5 @@
 import { apiFetch } from './client'
-import type { ServerCookieTemplate, ServerUITemplate } from '@consenti/types'
+import type { ServerCookieTemplate, ServerUITemplate, ProfileSummary } from '@consenti/types'
 
 export const cookieTemplatesApi = {
   list: () => apiFetch<ServerCookieTemplate[]>('/cookie-templates'),
@@ -11,6 +11,7 @@ export const cookieTemplatesApi = {
   delete: (id: string) => apiFetch<{ ok: boolean }>(`/cookie-templates/${id}`, { method: 'DELETE' }),
   copy: (id: string, name?: string) =>
     apiFetch<ServerCookieTemplate>(`/cookie-templates/${id}/copy`, { method: 'POST', body: JSON.stringify({ name }) }),
+  profileUsage: (id: string) => apiFetch<ProfileSummary[]>(`/cookie-templates/${id}/profile-usage`),
 }
 
 export const uiTemplatesApi = {
@@ -23,4 +24,5 @@ export const uiTemplatesApi = {
   delete: (id: string) => apiFetch<{ ok: boolean }>(`/ui-templates/${id}`, { method: 'DELETE' }),
   copy: (id: string, name?: string) =>
     apiFetch<ServerUITemplate>(`/ui-templates/${id}/copy`, { method: 'POST', body: JSON.stringify({ name }) }),
+  profileUsage: (id: string) => apiFetch<ProfileSummary[]>(`/ui-templates/${id}/profile-usage`),
 }

@@ -10,14 +10,15 @@ export function buildAdminVisitorRoutes(
 ) {
   async function auth(req: Request, perm?: string) {
     const user = await authenticate(req, storage, authConfig, secret)
-    return { denied: authError(user, perm) }
+    return { user, denied: authError(user, perm) }
   }
 
   return {
     'GET /visitors': async (req: Request, _p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'visitor:view')
+        const { user, denied } = await auth(req, 'visitor:view')
         if (denied) return denied
+        if (user?.allowedTenants.length && !user.allowedTenants.includes('default')) return json(200, { items: [], total: 0, page: 1, limit: 50 })
         const url = new URL(req.url)
         const from = getQueryParam(url, 'from')
         const to = getQueryParam(url, 'to')

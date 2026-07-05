@@ -17,17 +17,23 @@
     "build:docs": "npm run build && npm run build --workspace=apps/docs",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
-    "test": "turbo test"
+    "test": "turbo test",
+    "changeset": "changeset",
+    "version-packages": "changeset version && node scripts/sync-root-version.mjs",
+    "publish-packages": "npx turbo build && changeset publish"
   },
   "devDependencies": {
-    "tsx": "^4.19.2",
-    "turbo": "^2.5.0",
-    "typescript": "^5.8.3"
+    "@changesets/cli": "^2.31.0",
+    "tsx": "^4.23.0",
+    "turbo": "^2.10.3",
+    "typescript": "^6.0.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.16"
   },
   "packageManager": "npm@10.9.2",
   "engines": {
     "node": ">=20.0.0",
     "npm": ">=10.0.0"
-  },
-  "dependencies": {}
+  }
 }

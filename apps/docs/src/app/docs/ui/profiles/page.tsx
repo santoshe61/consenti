@@ -18,39 +18,67 @@ export default function UIProfilesPage() {
       <h2>How profiles are resolved</h2>
       <p>
         Every time <code>new ConsentiSetup(config)</code> initialises, it resolves exactly one
-        profile. The resolution order is:
+        profile through one of six scenarios. The compliance group (from{' '}
+        <code>compliance.type</code> or auto-detected from the browser) determines which
+        pre-built profile is loaded.
       </p>
-      <ol>
-        <li>
-          <strong>Backend API</strong> — when <code>api.enabled: true</code>, Consenti fetches{' '}
-          <code>GET /consenti/api/v1/profiles/:id/:locale</code>. The server resolves locale
-          fallback and returns a single flat{' '}
-          <code>ResolvedProfile</code> ready for rendering.{' '}
-          If the network request fails, it falls through to the next step.
-        </li>
-        <li>
-          <strong>Local profile</strong> — when <code>core.profileId &gt; 0</code> and a profile
-          with that ID has been registered via{' '}
-          <code>new ConsentiProfile(config)</code>, the widget uses it directly.
-          Locale resolution is performed client-side.
-        </li>
-        <li>
-          <strong>Built-in default</strong> — when <code>core.profileId</code> is <code>0</code>{' '}
-          (or omitted) and no API is configured, the widget falls back to the built-in English
-          GDPR profile covering the four Google Consent Mode v2 purposes.
-        </li>
-      </ol>
+
+      <table>
+        <thead>
+          <tr><th>Scenario</th><th>API</th><th>compliance.type</th><th>Resolution</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>1A</strong></td>
+            <td>off</td>
+            <td>auto-detect</td>
+            <td>Browser locale + optional geo resolver → compliance group → pre-built profile chunk (dynamic import)</td>
+          </tr>
+          <tr>
+            <td><strong>1B</strong></td>
+            <td>off</td>
+            <td>fixed (e.g. <code>&apos;opt-in&apos;</code>)</td>
+            <td>Pre-built profile chunk for that group, loaded via dynamic import</td>
+          </tr>
+          <tr>
+            <td><strong>2A</strong></td>
+            <td>on</td>
+            <td>auto-detect</td>
+            <td><code>GET /resolve-profile</code> returns the best profile URL for the visitor; result cached in <code>sessionStorage</code> (1 h TTL)</td>
+          </tr>
+          <tr>
+            <td><strong>2B</strong></td>
+            <td>on</td>
+            <td><code>api.complianceGroup</code> set</td>
+            <td>Fetches the profile for a specific compliance group — skips auto-resolution</td>
+          </tr>
+          <tr>
+            <td><strong>Local</strong></td>
+            <td>any</td>
+            <td>any</td>
+            <td><code>ConsentiProfile</code> registered in code; takes precedence over pre-built profiles when found for the matching compliance type</td>
+          </tr>
+          <tr>
+            <td><strong>Fallback</strong></td>
+            <td>any</td>
+            <td>any</td>
+            <td>Built-in default GDPR profile (Google Consent Mode v2, four purposes) — always available</td>
+          </tr>
+        </tbody>
+      </table>
 
       <CodeBlock
         lang="text"
-        filename="Resolution order"
-        code={`new ConsentiSetup({ core: { profileId: 1 }, api: { enabled: true } })
+        filename="Resolution flow (API enabled)"
+        code={`new ConsentiSetup({ api: { enabled: true } })
     │
-    ├─ 1. API: GET /consenti/api/v1/profiles/1/en  ──▶  success → use API profile
-    │                                                     fail   ↓
-    ├─ 2. Local registry: ConsentiProfile with id 1 ──▶  found  → use local profile
-    │                                                     missing ↓
-    └─ 3. Built-in default profile (profileId 0)   ──▶  always available`}
+    ├─ 2A. GET /resolve-profile  ──▶  success → fetch returned profile URL (cached 1h)
+    │                                  fail   ↓
+    ├─ Local: ConsentiProfile in registry ──▶  found  → use local profile
+    │                                           missing ↓
+    ├─ 1A. Pre-built profile (auto-detect) ──▶  loaded → use pre-built chunk
+    │                                            fail   ↓
+    └─ Fallback: built-in default          ──▶  always available`}
       />
 
       <Callout type="info">
@@ -58,17 +86,21 @@ export default function UIProfilesPage() {
         See <a href="#profileoverride">profileOverride</a> below.
       </Callout>
 
-      <h2>Built-in default profile</h2>
+      <h2>Pre-built profiles</h2>
       <p>
-        When no profile is configured (<code>core.profileId</code> omitted or <code>0</code>),
-        Consenti uses a built-in English GDPR profile. It covers the four Google Consent Mode v2
-        cookie purposes plus a mandatory functional bucket — a realistic starting point for any
-        GTM-backed site.
+        Consenti ships pre-built profiles for each compliance group. They are loaded as dynamic
+        import chunks — only the chunk for the resolved compliance group is downloaded. Each
+        pre-built profile covers all four Google Consent Mode v2 purposes plus a mandatory
+        functional bucket.
+      </p>
+      <p>
+        The fallback built-in profile (used when all resolution steps fail) is an English
+        opt-in GDPR profile — a realistic starting point for any GTM-backed site.
       </p>
       <CodeBlock
         lang="ts"
-        filename="Default profile cookies"
-        code={`// Built-in default — used automatically when no profileId / no API
+        filename="Default profile cookies (fallback)"
+        code={`// Built-in fallback — used when all resolution steps fail
 const defaultCookies = [
   { id: 'functionality_storage', mandatory: true },
   { id: 'analytics_storage',     listenGpc: true, expiry: 365 },
@@ -78,23 +110,22 @@ const defaultCookies = [
 ]`}
       />
       <p>
-        To customise the default banner without defining a full profile, use{' '}
+        To customise the pre-built profile banner without defining a full profile, use{' '}
         <a href="#profileoverride">profileOverride</a>.
       </p>
 
       <hr />
 
-      <h2>ConsentiProfile — frontend-only installation</h2>
+      <h2>ConsentiProfile — custom profiles in code</h2>
       <p>
-        When the Consenti backend is <em>not</em> deployed, use <code>ConsentiProfile</code> to
-        define profiles entirely in JavaScript. Each instance is registered in a module-level
-        registry. <code>ConsentiSetup</code> resolves it by the numeric ID returned by{' '}
-        <code>profile.getId()</code>.
+        Use <code>ConsentiProfile</code> to define profiles entirely in JavaScript. Each instance
+        is registered in a module-level registry. <code>ConsentiSetup</code> prefers a local
+        profile over the pre-built profile for the same compliance group when one is found.
       </p>
       <Callout type="tip">
-        Local profile IDs are auto-assigned starting from <strong>1000</strong> to avoid
-        collisions with database-assigned API profile IDs (which start from 1).
-        Never hard-code a local profile ID — always call <code>profile.getId()</code>.
+        Define the profile before calling <code>new ConsentiSetup()</code> — the registry lookup
+        happens during init. No ID needs to be passed; the profile is matched by compliance group
+        (or used as the default if no group-specific profile is found).
       </Callout>
 
       <h3>Minimal example</h3>
@@ -160,10 +191,8 @@ const profile = new ConsentiProfile({
 })
 
 new ConsentiSetup({
-  core: {
-    profileId: profile.getId(), // ← always use getId(), never hardcode
-    regulation: 'gdpr',
-  },
+  compliance: { type: 'opt-in' },
+  // ConsentiProfile auto-registered above takes precedence over the pre-built profile
 })`}
       />
 
@@ -219,7 +248,8 @@ new ConsentiSetup({
 })
 
 new ConsentiSetup({
-  core: { profileId: profile.getId(), locale: 'fr' },
+  compliance: { type: 'opt-in' },
+  core: { locale: 'fr' },
 })`}
       />
 
@@ -277,12 +307,6 @@ new ConsentiSetup({
             <td>Banner and modal config keyed by locale. If omitted, the widget falls back to profileOverride or defaults.</td>
           </tr>
           <tr>
-            <td><code>regulation</code></td>
-            <td><code>string</code></td>
-            <td>No</td>
-            <td>Compliance regulation stored with this profile. In API mode, the server applies it in place of <code>core.regulation</code>. For local profiles, use <code>core.regulation</code> on <code>ConsentiSetup</code> instead.</td>
-          </tr>
-          <tr>
             <td><code>gpcBanner</code></td>
             <td><code>boolean</code></td>
             <td>No</td>
@@ -298,7 +322,7 @@ new ConsentiSetup({
             <td><code>dpdpa</code></td>
             <td><code>DpdpaConfig</code></td>
             <td>No</td>
-            <td>Required when <code>regulation: &apos;dpdpa&apos;</code>. See the <a href="/docs/compliance/dpdpa/">DPDPA guide</a>.</td>
+            <td>Required when using the <code>opt-in-dpdpa</code> compliance group. See the <a href="/docs/compliance/dpdpa/">DPDPA guide</a>.</td>
           </tr>
         </tbody>
       </table>
@@ -313,7 +337,7 @@ new ConsentiSetup({
           <tr><td><code>mandatory</code></td><td><code>true</code></td><td>No</td><td>Cannot be denied. Toggle rendered as disabled. Value always <code>&apos;granted&apos;</code>.</td></tr>
           <tr><td><code>listenGpc</code></td><td><code>boolean</code></td><td>No</td><td>When <code>true</code> and <code>autoHonorGPC</code> is active, this cookie is auto-denied when the browser GPC signal is present.</td></tr>
           <tr><td><code>expiry</code></td><td><code>number</code></td><td>No</td><td>Consent expiry in days. After this period the banner re-appears. Default: no expiry.</td></tr>
-          <tr><td><code>cpraCategory</code></td><td><code>&apos;sale&apos; | &apos;sharing&apos; | &apos;sensitive&apos;</code></td><td>No</td><td>CPRA classification. Only used when <code>regulation: &apos;cpra&apos;</code>.</td></tr>
+          <tr><td><code>cpraCategory</code></td><td><code>&apos;sale&apos; | &apos;sharing&apos; | &apos;sensitive&apos;</code></td><td>No</td><td>CPRA classification. Only relevant for the <code>opt-out-strict</code> compliance group.</td></tr>
         </tbody>
       </table>
 
@@ -453,7 +477,7 @@ new ConsentiSetup({
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: { profileId: profile.getId(), regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   profileOverride: {
     mainBanner: {
       heading: 'Cookie notice',
@@ -472,7 +496,7 @@ new ConsentiSetup({
         lang="ts"
         code={`// On the checkout page, keep the banner out of the way
 new ConsentiSetup({
-  core: { profileId: profile.getId() },
+  compliance: { type: 'opt-in' },
   profileOverride: {
     mainBanner: { position: 'right-bottom' },
   },
@@ -488,7 +512,7 @@ new ConsentiSetup({
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: { regulation: 'gdpr' }, // profileId omitted → starts from default, then overridden
+  compliance: { type: 'opt-in' },
   profileOverride: {
     cookies: [
       { id: 'necessary',  mandatory: true },
@@ -555,7 +579,7 @@ new ConsentiSetup({
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: { profileId: profile.getId() },
+  compliance: { type: 'opt-in' },
   profileOverride: {
     preferenceModal: {
       categories: [
@@ -580,23 +604,29 @@ new ConsentiSetup({
 
       <hr />
 
-      <h2>Using a backend profile by ID</h2>
+      <h2>Using the backend API</h2>
       <p>
-        When the Consenti API is deployed, profiles are created in the Admin Dashboard and
-        assigned a numeric ID. Pass that ID to <code>core.profileId</code> and enable the API.
-        The widget fetches the profile automatically at init time.
+        When the Consenti API is deployed, profiles are managed in the Admin Dashboard and
+        grouped by compliance type. The widget calls <code>GET /resolve-profile</code> to find the
+        best profile for each visitor automatically.
       </p>
       <CodeBlock
         lang="ts"
-        code={`new ConsentiSetup({
-  core: {
-    profileId: 3,       // numeric ID from Admin Dashboard → Profiles
-    regulation: 'gdpr',
-    locale: 'fr',       // server resolves locale fallback
-  },
+        code={`// Auto-resolve: server picks the right profile for the visitor's locale / country
+new ConsentiSetup({
   api: {
     enabled: true,
     baseUrl: 'https://your-site.com', // where @consenti/api is mounted
+  },
+  core: { locale: 'fr' },
+})
+
+// Fixed group: always fetch the GDPR-model profile
+new ConsentiSetup({
+  api: {
+    enabled: true,
+    baseUrl: 'https://your-site.com',
+    complianceGroup: 'opt-in',
   },
 })`}
       />
@@ -611,16 +641,20 @@ new ConsentiSetup({
       <CodeBlock
         lang="ts"
         code={`import type {
-  ProfileConfig,       // passed to new ConsentiProfile(config)
-  LocaleTranslations,  // translations[locale] shape
-  MainBanner,          // mainBanner / gpcBanner shape
-  PreferenceModal,     // preferenceModal shape
-  Button,              // button definition
-  ButtonStyle,         // 'primary' | 'secondary' | 'text' | 'accent'
-  ButtonAction,        // 'custom' | 'manage' | 'submit' | 'close'
-  Category,            // preference modal category
-  Cookie,              // cookie / purpose definition
-  ResolvedProfile,     // what profileOverride accepts (Partial<ResolvedProfile>)
+  ProfileConfig,           // passed to new ConsentiProfile(config)
+  LocaleTranslations,      // translations[locale] shape
+  MainBanner,              // mainBanner / gpcBanner shape
+  PreferenceModal,         // preferenceModal shape
+  Button,                  // button definition
+  ButtonStyle,             // 'primary' | 'secondary' | 'text' | 'accent'
+  ButtonAction,            // 'custom' | 'manage' | 'submit' | 'close'
+  Category,                // preference modal category
+  Cookie,                  // cookie / purpose definition
+  ResolvedProfile,         // what profileOverride accepts (Partial<ResolvedProfile>)
+  ComplianceWidgetConfig,  // compliance section
+  AgeGateWidgetConfig,     // compliance.ageGate section
+  WidgetCountryResolverFn, // custom geo resolver function type
+  NonEmptyArray,           // [T, ...T[]] — at least one element
 } from '@consenti/ui'`}
       />
     </div>

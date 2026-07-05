@@ -13,6 +13,13 @@ export default function GDPRPage() {
         All core design decisions follow the six lawfulness principles in Article 5.
       </p>
 
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — covers GDPR (EU / EEA), UK GDPR,
+        PIPEDA (Canada), POPIA (South Africa), PDPA-TH (Thailand), APPI (Japan), and KVKK (Turkey).
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your{' '}
+        <code>ConsentiSetup</code> config to activate the opt-in consent model.
+      </Callout>
+
       <h2>Official references</h2>
       <ul>
         <li>

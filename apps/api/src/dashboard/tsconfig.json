@@ -9,6 +9,7 @@
     "noEmit": true,
     "types": ["vite/client"],
     "strict": true,
+    "resolveJsonModule": true,
     "paths": {
       "react": ["../../../../node_modules/preact/compat/src/index.d.ts"],
       "react-dom": ["../../../../node_modules/preact/compat/src/index.d.ts"],

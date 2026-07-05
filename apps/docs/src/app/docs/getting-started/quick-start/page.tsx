@@ -16,17 +16,17 @@ export default function QuickStartPage() {
 
       <h2>Path A — Frontend only (no backend)</h2>
       <p>
-        Consent stays in the browser. Profiles are defined in code.
-        No server required.
+        Consent stays in the browser. Profiles are pre-built and loaded automatically based on
+        the compliance group you choose. No server required.
       </p>
 
       <h3>1. Install</h3>
       <Terminal code="npm install @consenti/ui" />
 
-      <h3>2. Zero-config (built-in GDPR profile)</h3>
+      <h3>2. Zero-config (auto-detected compliance)</h3>
       <p>
-        The shortest path. The widget shows a fully working GDPR banner using the built-in
-        default profile covering the four Google Consent Mode v2 purposes.
+        The shortest path. Pass no config and Consenti auto-detects the appropriate compliance
+        group from the browser's locale and geo signals, then loads the matching pre-built profile.
       </p>
       <CodeBlock
         lang="ts"
@@ -34,8 +34,42 @@ export default function QuickStartPage() {
         code={`import { ConsentiSetup } from '@consenti/ui'
 import '@consenti/ui/dist/index.css'
 
-new ConsentiSetup({ core: { regulation: 'gdpr' } })`}
+new ConsentiSetup({ }) // compliance group auto-detected from browser locale / geo`}
       />
+
+      <h3>2 (alt). Fixed compliance group</h3>
+      <p>
+        Set <code>compliance.type</code> explicitly when you know which consent model your site
+        needs. Consenti loads the pre-built profile for that group — no manual profile definition
+        required.
+      </p>
+      <CodeBlock
+        lang="ts"
+        filename="main.ts"
+        code={`import { ConsentiSetup } from '@consenti/ui'
+import '@consenti/ui/dist/index.css'
+
+// GDPR / EEA — opt-in model, banner on first visit
+new ConsentiSetup({ compliance: { type: 'opt-in' } })
+
+// CCPA — opt-out model, consent written silently, no banner
+new ConsentiSetup({ compliance: { type: 'opt-out' } })
+
+// CPRA — strict opt-out, GPC honoured
+new ConsentiSetup({ compliance: { type: 'opt-out-strict' } })
+
+// LGPD — Brazil opt-in
+new ConsentiSetup({ compliance: { type: 'opt-in-brazil' } })
+
+// DPDPA — India opt-in with age-gate
+new ConsentiSetup({ compliance: { type: 'opt-in-dpdpa' } })`}
+      />
+
+      <Callout type="info">
+        See <a href="/docs/compliance/gdpr/">Compliance guides</a> for the full list of supported
+        groups and the regulations they cover. Use <a href="/docs/ui/profiles/">Profiles</a> to
+        customise the banner copy and cookie categories for a group.
+      </Callout>
 
       <h3>2 (alt). Custom profile</h3>
       <p>
@@ -62,9 +96,9 @@ const profile = new ConsentiProfile({
         heading: 'We value your privacy',
         htmlText: 'We use cookies to improve your experience.',
         buttons: [
-          { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
-          { text: 'Reject Optional',         style: 'secondary', action: 'custom', cookies: '!' },
-          { text: 'Customize', style: 'secondary', action: 'manage' },
+          { text: 'Accept All',     style: 'primary',   action: 'custom', cookies: '*' },
+          { text: 'Reject Optional',style: 'secondary', action: 'custom', cookies: '!' },
+          { text: 'Customize',      style: 'secondary', action: 'manage' },
         ],
       },
       preferenceModal: {
@@ -75,7 +109,7 @@ const profile = new ConsentiProfile({
         buttons: [
           { text: 'Accept All',       style: 'primary', action: 'custom', cookies: '*' },
           { text: 'Save Preferences', style: 'primary', action: 'submit' },
-          { text: 'Reject Optional',       style: 'text',    action: 'custom', cookies: '!' },
+          { text: 'Reject Optional',  style: 'text',    action: 'custom', cookies: '!' },
         ],
         categories: [
           {
@@ -104,7 +138,7 @@ const profile = new ConsentiProfile({
 })
 
 new ConsentiSetup({
-  core: { profileId: profile.getId(), regulation: 'gdpr' },
+  compliance: { type: 'opt-in' }, // compliance group determines opt-in / opt-out behaviour
 })`}
       />
 
@@ -116,7 +150,7 @@ new ConsentiSetup({
       </p>
       <CodeBlock
         lang="ts"
-        code={`const widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
+        code={`const widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
 
 // Returning visitors — consent already stored
 widget.onReady(() => {
@@ -146,7 +180,7 @@ window.addEventListener('consenti:consentSubmitted', (e) => {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: { regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   utils: {
     gtm: {
       containerId: 'GTM-XXXXXX',
@@ -162,7 +196,8 @@ window.addEventListener('consenti:consentSubmitted', (e) => {
       <h2>Path B — With backend</h2>
       <p>
         Consent records are stored server-side. Profiles are managed in the admin dashboard —
-        no code changes needed to update copy or buttons.
+        no code changes needed to update copy or buttons. The compliance group is resolved
+        automatically per-visitor via the <code>/resolve-profile</code> endpoint.
       </p>
 
       <h3>1. Install both packages</h3>
@@ -227,10 +262,11 @@ app.use(consenti.router)  // mounts at /consenti/
 app.listen(3000)`}
       />
 
-      <h3>3. Create a profile in the dashboard</h3>
+      <h3>3. Create profiles in the dashboard</h3>
       <p>
-        Open <code>/consenti/</code>, log in, and create a profile. Copy its numeric ID from
-        the Profiles list — you will pass it to <code>core.profileId</code>.
+        Open <code>/consenti/</code>, log in, and create profiles for each compliance group your
+        site serves. The backend automatically resolves the best profile per-visitor based on their
+        locale and geo data.
       </p>
 
       <h3>4. Connect the frontend</h3>
@@ -241,11 +277,11 @@ app.listen(3000)`}
 import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({
-  core: { profileId: 3, regulation: 'gdpr' }, // ID from the dashboard
   api: {
     enabled: true,
     baseUrl: 'https://your-site.com', // where the backend is mounted
   },
+  // compliance group resolved automatically via /resolve-profile
 })
 
 widget.onReady(() => {
@@ -256,8 +292,26 @@ widget.onReady(() => {
 
       <Callout type="info">
         If the API request fails (network error, server down), the widget automatically falls back
-        to the local profile registry and then to the built-in default — it never breaks the page.
+        to the pre-built profile matching the browser locale, then to the built-in default — it
+        never breaks the page.
       </Callout>
+
+      <h3>4 (alt). Fixed compliance group in API mode</h3>
+      <p>
+        Pass <code>api.complianceGroup</code> to bypass auto-resolution and always fetch the
+        profile for a specific compliance group. Useful for regional deployments where you know
+        exactly which regulation applies.
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`new ConsentiSetup({
+  api: {
+    enabled: true,
+    baseUrl: 'https://your-site.com',
+    complianceGroup: 'opt-in', // always fetch the GDPR-model profile
+  },
+})`}
+      />
 
       <hr />
 
@@ -269,6 +323,7 @@ widget.onReady(() => {
         <li><a href="/docs/ui/methods/">API Methods</a> — every widget method with examples</li>
         <li><a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt</li>
         <li><a href="/docs/api/configuration/">Backend configuration</a> — storage drivers, auth, RBAC</li>
+        <li><a href="/docs/compliance/gdpr/">Compliance guides</a> — what each compliance group requires</li>
       </ul>
     </div>
   )

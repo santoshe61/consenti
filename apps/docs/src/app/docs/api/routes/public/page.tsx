@@ -43,8 +43,12 @@ export default function PublicRoutesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {[
-              { m: 'GET', p: '/profiles/:id', d: 'Get profile resolved in its default locale' },
-              { m: 'GET', p: '/profiles/:id/:locale', d: 'Get profile resolved for a specific locale' },
+              { m: 'GET', p: '/profiles/:tenantId/:complianceGroup/:locale', d: 'Hot-serve — serve locale JSON directly from disk (zero DB)' },
+              { m: 'GET', p: '/profiles/:tenantId/:profileId/:version/:locale', d: 'Serve a specific version locale JSON (dashboard preview)' },
+              { m: 'GET', p: '/resolve-profile', d: 'Geo-resolve compliance group, return file path + locale' },
+              { m: 'GET', p: '/profiles/:id', d: 'Get profile by ID (DB-backed, default locale)' },
+              { m: 'GET', p: '/profiles/:id/:locale', d: 'Get profile by ID and locale (DB-backed)' },
+              { m: 'GET', p: '/profiles/auto/:locale', d: 'Legacy: geo-resolve and return matching active profile' },
               { m: 'POST', p: '/consent', d: 'Submit a consent record' },
               { m: 'GET', p: '/consent/:visitorId', d: 'Get current consent for a visitor' },
               { m: 'PUT', p: '/consent/:visitorId', d: 'Update consent for a visitor' },
@@ -61,25 +65,166 @@ export default function PublicRoutesPage() {
         </table>
       </div>
 
-      {/* ── Profiles ──────────────────────────────────────────────── */}
+      {/* ── Static file serving ───────────────────────────────────── */}
 
-      <h2>Profiles</h2>
+      <h2>Static profile file serving (hot path)</h2>
       <p>
-        Profiles define the cookie categories and all UI copy (banners, modal, buttons) served to
-        visitors. The UI widget fetches the active profile on page load using the profile ID you
-        supply in <code>core.profileId</code>.
+        The primary way to serve profiles at scale. Locale JSON files are written to disk when a
+        profile is <strong>activated</strong> in the dashboard. These routes serve them directly from
+        the filesystem — no DB query on the hot path.
+      </p>
+
+      <h3>
+        <Method m="GET" /> <code>/profiles/:tenantId/:complianceGroup/:locale</code>
+      </h3>
+      <p>
+        Serves the active locale JSON for a compliance group from{' '}
+        <code>{`\${storage.path}/profiles/\${tenantId}/\${complianceGroup}/\${locale}.json`}</code>.
+        Returns <code>Cache-Control: public, max-age=3600, stale-while-revalidate=60</code> —
+        safe for CDN caching.
+      </p>
+      <p>
+        If the requested locale file does not exist, responds with{' '}
+        <code>303 See Other</code> to <code>.../default</code>, which serves <code>default.json</code>{' '}
+        (the <code>defaultLocale</code> content).
+      </p>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// GET /consenti/api/v1/profiles/default/opt-in/en HTTP/1.1`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `// Content-Type: application/json
+// Cache-Control: public, max-age=3600, stale-while-revalidate=60
+
+{
+  "id": "my-gdpr-profile",
+  "version": 3,
+  "defaultLocale": "en",
+  "complianceGroup": "opt-in",
+  "cookies": [...],
+  "mainBanner": { ... },
+  "preferenceModal": { ... }
+}`,
+          },
+          {
+            label: '303 — locale missing',
+            lang: 'javascript',
+            code: `// GET /consenti/api/v1/profiles/default/opt-in/hi-IN HTTP/1.1
+// → 303 See Other
+// Location: /consenti/api/v1/profiles/default/opt-in/default`,
+          },
+        ]}
+      />
+
+      <h3>
+        <Method m="GET" /> <code>/profiles/:tenantId/:profileId/:version/:locale</code>
+      </h3>
+      <p>
+        Serves a specific immutable version of a profile locale JSON — used by the dashboard
+        version history viewer. These files are written once and never modified.
+      </p>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// GET /consenti/api/v1/profiles/default/my-profile-uuid/2/fr-FR HTTP/1.1`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `// Serves: \${storage.path}/profiles/default/my-profile-uuid/2/fr-FR.json`,
+          },
+        ]}
+      />
+
+      {/* ── /resolve-profile ─────────────────────────────────────── */}
+
+      <h2>Resolve profile</h2>
+
+      <h3>
+        <Method m="GET" /> <code>/resolve-profile</code>
+      </h3>
+      <p>
+        Used by widgets configured with <code>{'compliance.type: \'auto\''}</code>. Call this once on
+        page load to discover which compliance group and locale file the visitor should receive.
+        The widget then fetches that file directly — zero subsequent DB queries.
+      </p>
+      <p>
+        Geo resolution uses the <code>geoDataProvider</code> configured in{' '}
+        <code>createConsenti()</code>. When S3 sync is enabled, the returned <code>path</code> is an S3 URL.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Query param</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>tz</code></td><td>IANA timezone string (e.g. <code>Europe/Paris</code>).</td></tr>
+          <tr><td><code>lang</code></td><td>Accept-Language value (e.g. <code>fr-FR,fr;q=0.9</code>).</td></tr>
+          <tr><td><code>locale</code></td><td>Preferred BCP 47 locale (e.g. <code>fr-FR</code>).</td></tr>
+        </tbody>
+      </table>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request — Europe/Paris',
+            lang: 'javascript',
+            code: `// GET /consenti/api/v1/resolve-profile?tz=Europe/Paris&lang=fr-FR&locale=fr-FR HTTP/1.1`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `{
+  "path": "/consenti/api/v1/profiles/default/opt-in/fr-FR",
+  "resolvedLocale": "fr-FR",
+  "resolvedComplianceGroup": "opt-in",
+  "profileId": "my-gdpr-profile-uuid",
+  "version": 3
+}`,
+          },
+          {
+            label: 'Response — locale missing',
+            lang: 'json',
+            code: `{
+  "path": "/consenti/api/v1/profiles/default/opt-in/default",
+  "resolvedLocale": "en",
+  "resolvedComplianceGroup": "opt-in",
+  "profileId": "my-gdpr-profile-uuid",
+  "version": 3,
+  "warning": "locale_not_found"
+}`,
+          },
+        ]}
+      />
+      <Callout type="info">
+        The <code>warning: &apos;locale_not_found&apos;</code> field is present only when the requested locale
+        was unavailable and the path was redirected to <code>default.json</code>.
+      </Callout>
+
+      {/* ── DB-backed profile routes ──────────────────────────────── */}
+
+      <h2>DB-backed profile routes</h2>
+      <p>
+        These routes query the database on each request. Use them for server-side rendering or
+        when you need a fully resolved profile object including the translations map. For
+        high-traffic public-facing widget use, prefer the static file serving routes above.
       </p>
 
       <Callout type="info">
-        There is no public list endpoint — clients must know the profile ID in advance (copy it
-        from the admin dashboard or pass it from your backend).
+        There is no public list endpoint — clients must know the profile ID (copy it from the
+        admin dashboard or pass it from your backend).
       </Callout>
 
       <p>
-        Both profile endpoints return the same response shape. The only difference is which locale
-        is resolved: <code>/profiles/:id</code> uses the profile&apos;s <code>defaultLocale</code>,
+        Both endpoints return the same response shape. The only difference is which locale is
+        resolved: <code>/profiles/:id</code> uses the profile&apos;s <code>defaultLocale</code>,
         while <code>/profiles/:id/:locale</code> uses the requested locale (falling back to{' '}
-        <code>defaultLocale</code> if no translation exists for the requested locale).
+        <code>defaultLocale</code> if no translation exists).
       </p>
 
       <h3>Response shape</h3>
@@ -108,6 +253,7 @@ export default function PublicRoutesPage() {
               { f: 'mainBanner', t: 'MainBanner', d: 'Banner config resolved for currentLocale' },
               { f: 'preferenceModal', t: 'PreferenceModal', d: 'Modal config resolved for currentLocale' },
               { f: 'gpcBanner?', t: 'GpcBanner', d: 'GPC-specific banner variant (omitted if not configured)' },
+              { f: 'resolvedComplianceGroup?', t: 'ComplianceGroupId', d: 'Present only on /profiles/auto/:locale — the geo-resolved compliance group' },
             ].map(({ f, t, d }) => (
               <tr key={f} className="hover:bg-slate-50">
                 <td className="px-3 py-2 font-mono text-slate-800">{f}</td>
@@ -257,6 +403,91 @@ export default function PublicRoutesPage() {
         Use <code>locales</code> in the response to build a locale switcher — it lists every locale
         key the profile has translations for, so you can offer only the languages that are actually
         configured.
+      </Callout>
+
+      <h3>
+        <Method m="GET" /> <code>/profiles/auto/:locale</code>{' '}
+        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 not-prose">Legacy</span>
+      </h3>
+      <p>
+        Legacy geo-resolution route — returns a fully resolved profile object from the database.
+        Prefer <code>GET /resolve-profile</code> (above) for new integrations: it returns a file
+        path so the widget fetches the locale JSON directly from disk or CDN, removing all DB
+        overhead from the hot path.
+      </p>
+      <p>
+        Geo-resolves the visitor&apos;s compliance group from geo signals, finds the active profile
+        tagged to that group, and returns it resolved for <code>:locale</code>. The response
+        includes <code>resolvedComplianceGroup</code>. Falls back to the default profile when no
+        active profile exists for the resolved group.
+      </p>
+      <p>
+        Requires <code>compliance.type: &apos;auto&apos;</code> in <code>createConsenti()</code>.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Query param</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>tz</code></td><td>IANA timezone string (e.g. <code>Europe/Paris</code>). Used when <code>geoDataProvider: &apos;timezone&apos;</code>.</td></tr>
+          <tr><td><code>lang</code></td><td>Accept-Language header value (e.g. <code>fr-FR,fr;q=0.9</code>). Used when <code>geoDataProvider: &apos;language&apos;</code>.</td></tr>
+        </tbody>
+      </table>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request — Europe/Paris',
+            lang: 'javascript',
+            code: `// GET /consenti/api/v1/profiles/auto/en?tz=Europe/Paris HTTP/1.1`,
+          },
+          {
+            label: 'Response 200 — opt-in',
+            lang: 'json',
+            code: `{
+  "id": "my-gdpr-profile",
+  "version": 3,
+  "defaultLocale": "en",
+  "currentLocale": "en",
+  "resolvedComplianceGroup": "opt-in",
+  "locales": ["en", "fr", "de"],
+  "cookies": [
+    { "id": "necessary", "legalBasis": "mandatory" },
+    { "id": "analytics", "legalBasis": "consent", "expiry": 365 }
+  ],
+  "mainBanner": { "position": "bottom", "heading": "We use cookies", "buttons": [...] },
+  "preferenceModal": { "heading": "Cookie Preferences", "buttons": [...], "categories": [...] }
+}`,
+          },
+          {
+            label: 'Request — California',
+            lang: 'javascript',
+            code: `// GET /consenti/api/v1/profiles/auto/en?tz=America/Los_Angeles HTTP/1.1`,
+          },
+          {
+            label: 'Response 200 — opt-out-strict',
+            lang: 'json',
+            code: `{
+  "id": "my-cpra-profile",
+  "version": 2,
+  "defaultLocale": "en",
+  "currentLocale": "en",
+  "resolvedComplianceGroup": "opt-out-strict",
+  "locales": ["en"],
+  "cookies": [
+    { "id": "necessary", "legalBasis": "mandatory" },
+    { "id": "analytics", "legalBasis": "consent", "cpraCategory": "sale", "listenGpc": true }
+  ],
+  "mainBanner": { "position": "bottom", "heading": "Your Privacy Choices", "buttons": [...] },
+  "gpcBanner": { "heading": "We detected GPC", "buttons": [...] },
+  "preferenceModal": { "heading": "Cookie Preferences", "buttons": [...], "categories": [...] }
+}`,
+          },
+        ]}
+      />
+      <Callout type="info">
+        The 3-step jurisdiction lookup: (1) country + region override (e.g. California → CPRA),
+        (2) country base group (e.g. US → opt-out), (3) country default (most strict) when region
+        is unknown (US unknown state → opt-out-strict).
       </Callout>
 
       {/* ── Consent ──────────────────────────────────────────────── */}

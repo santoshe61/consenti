@@ -8,6 +8,11 @@ export default function LGPDPage() {
   return (
     <div className="prose max-w-none">
       <h1>LGPD Compliance Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in-brazil</code> — Brazil-specific opt-in with
+        10 lawful bases and ANPD enforcement. Parental consent gate for under-12.
+        Use <code>compliance: {'{ type: \'opt-in-brazil\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         Brazil's <strong>Lei Geral de Proteção de Dados Pessoais (LGPD)</strong> — Law 13,709/2018 —
         came into full force in September 2020 and is enforced by the{' '}

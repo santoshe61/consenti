@@ -57,11 +57,26 @@ export function checkOriginAllowed(request: Request, allowedOrigins: string[]): 
   return matchesAllowedOrigin(origin, allowedOrigins)
 }
 
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' https://unpkg.com",
+  "style-src 'self' https://unpkg.com 'unsafe-inline'",
+  "img-src 'self' data:",
+  "font-src 'self'",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ')
+
 export function addSecurityHeaders(res: Response): Response {
   const h = new Headers(res.headers)
   h.set('X-Content-Type-Options', 'nosniff')
   h.set('X-Frame-Options', 'DENY')
   h.set('Referrer-Policy', 'no-referrer')
   h.set('Permissions-Policy', 'interest-cohort=()')
+  h.set('Content-Security-Policy', CSP)
+  // Browsers only honour HSTS over HTTPS; sending it over HTTP is harmless.
+  h.set('Strict-Transport-Security', 'max-age=63072000; includeSubDomains; preload')
   return new Response(res.body, { status: res.status, statusText: res.statusText, headers: h })
 }

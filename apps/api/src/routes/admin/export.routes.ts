@@ -3,6 +3,7 @@ import type {
   ConsentDbRecord, AuditLog,
 } from '@consenti/types'
 import { withErrorHandler } from '../../middleware/error.middleware'
+import { errorResponse } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
 import { getQueryParam } from '../../utils/http'
 
@@ -150,6 +151,50 @@ export function buildAdminExportRoutes(
           headers: {
             'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
             'Content-Disposition': 'attachment; filename="consents.xlsx"',
+          },
+        })
+      }),
+
+    'GET /export/translations/:profileId': async (req: Request, p: Record<string, string>): Promise<Response> =>
+      withErrorHandler(async () => {
+        const { denied } = await auth(req)
+        if (denied) return denied
+        const profileId = p['profileId'] ?? ''
+        const profile = await storage.getProfile(profileId)
+        if (!profile) return errorResponse(404, 'Profile not found')
+
+        const translations = profile.profileJson.translations ?? {}
+        const locales = Object.keys(translations)
+        if (locales.length === 0) {
+          return new Response('locale,field,value\n', {
+            status: 200,
+            headers: {
+              'Content-Type': 'text/csv; charset=utf-8',
+              'Content-Disposition': `attachment; filename="${profileId}-translations.csv"`,
+            },
+          })
+        }
+
+        const rows: string[] = ['locale,section,field,value']
+        for (const locale of locales) {
+          const t = translations[locale]
+          if (!t) continue
+          for (const [section, content] of Object.entries(t)) {
+            if (typeof content === 'object' && content !== null) {
+              for (const [field, value] of Object.entries(content as Record<string, unknown>)) {
+                if (typeof value === 'string') {
+                  rows.push([locale, section, field, value].map(escapeCsv).join(','))
+                }
+              }
+            }
+          }
+        }
+
+        return new Response(rows.join('\n') + '\n', {
+          status: 200,
+          headers: {
+            'Content-Type': 'text/csv; charset=utf-8',
+            'Content-Disposition': `attachment; filename="${profileId}-translations.csv"`,
           },
         })
       }),

@@ -1,5 +1,8 @@
 import { defineConfig } from 'tsup'
 
+const PACKAGE_VERSION = process.env.npm_package_version ?? '0.0.0'
+const versionDefine = { __CONSENTI_VERSION__: JSON.stringify(PACKAGE_VERSION) }
+
 export default defineConfig([
   {
     entry: { index: 'src/index.ts' },
@@ -7,9 +10,11 @@ export default defineConfig([
     outExtension: () => ({ js: '.mjs' }),
     dts: { resolve: true },
     sourcemap: true,
+    minify: true,
     clean: true,
     target: 'es2020',
     platform: 'browser',
+    define: versionDefine,
   },
   {
     entry: { index: 'src/index.ts' },
@@ -17,8 +22,10 @@ export default defineConfig([
     globalName: 'Consenti',
     outExtension: () => ({ js: '.umd.js' }),
     sourcemap: true,
+    minify: true,
     target: 'es2020',
     platform: 'browser',
+    define: versionDefine,
   },
   {
     entry: { react: 'src/react.ts' },
@@ -26,6 +33,7 @@ export default defineConfig([
     outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
     dts: { resolve: true },
     sourcemap: true,
+    minify: true,
     target: 'es2020',
     platform: 'browser',
     external: ['react'],
@@ -36,6 +44,7 @@ export default defineConfig([
     outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
     dts: { resolve: true },
     sourcemap: true,
+    minify: true,
     target: 'es2020',
     platform: 'browser',
     external: ['vue'],
@@ -46,6 +55,7 @@ export default defineConfig([
     outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
     dts: { resolve: true },
     sourcemap: true,
+    minify: true,
     target: 'es2020',
     platform: 'browser',
   },
@@ -55,6 +65,7 @@ export default defineConfig([
     outExtension: ({ format }) => ({ js: format === 'esm' ? '.mjs' : '.js' }),
     dts: { resolve: true },
     sourcemap: true,
+    minify: true,
     target: 'es2020',
     // Neutral platform — testing utilities run in both browser and Node/jsdom.
     platform: 'neutral',

@@ -8,7 +8,7 @@
  * @example
  * ```ts
  * const widget = new ConsentiSetup({
- *   core: { profileId: 0 },
+ *   compliance: { type: 'opt-in' },
  * })
  * await widget.ready
  * console.log(widget.hasConsent())
@@ -19,10 +19,14 @@ import type {
   ConsentiConfig,
   ConsentValue,
   ConsentAction,
+  ConsentEvent,
   ResolvedProfile,
   ConsentiPlugin,
   ConsentiWidgetAPI,
   ConsentiMessage,
+  ConsentiEventName,
+  ThemeConfig,
+  DeepPartial,
 } from '../types'
 import { CONSENTI_CSS } from '../styles/consenti-css'
 import { isClient } from '../utils/ssr'
@@ -37,11 +41,14 @@ import { Banner } from '../ui/banner'
 import { Modal } from '../ui/modal'
 import { Renderer } from '../ui/renderer'
 import type { ButtonClickHandler } from '../ui/buttons'
+import { deepMerge } from '../utils/locale'
+import { logger, initConsole } from '../utils/console'
 
 export class ConsentiSetup implements ConsentiWidgetAPI {
   private initialized = false
   private initializing = false
   private profile: ResolvedProfile | null = null
+  private resolvedBase: ResolvedProfile | null = null
   private consentStore: ConsentStore | null = null
   private eventBus: EventBus | null = null
   private banner: Banner | null = null
@@ -55,6 +62,11 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
   private lastSignature: string | undefined
   /** Tracks which banner variant is currently visible, or null when hidden. */
   private _bannerVariant: 'main' | 'gpc' | null = null
+  /** Maps original handler functions to their DOM-wrapped listeners for on/off bookkeeping. */
+  private _eventHandlers = new Map<
+    (data: ConsentEvent) => void,
+    Array<{ name: string; wrapped: EventListener }>
+  >()
 
   /**
    * Creates and initialises the consent widget.
@@ -71,21 +83,23 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
 
     if (!isClient()) return
 
+    initConsole(config.core.console ?? ['error'])
+
     if (config.api?.enabled && config.core.storage === 'localStorage') {
-      console.warn(
-        '[Consenti] localStorage storage mode cannot be used with API mode ' +
+      logger.warn(
+        'localStorage storage mode cannot be used with API mode ' +
         '(API sets cookies via Set-Cookie header). Falling back to cookie storage.',
       )
       config.core.storage = 'cookie'
     }
 
     if (config.autoInit !== false) {
-      this.init().catch((err) => console.warn('[Consenti] Init error:', err))
+      this.init().catch((err) => logger.warn('Init error:', err))
     }
   }
 
   private profileId(): number {
-    return this.config.core.profileId ?? 0
+    return this.profile?.id ?? 0
   }
 
   /**
@@ -106,12 +120,16 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
       const userId = this.config.core.userId
         ?? ConsentStore.getOrCreateUserId(this.profileId(), storageMode)
 
-      this.profile = await resolveProfile(this.config)
+      const resolvedProfile = await resolveProfile(this.config)
+      this.resolvedBase = resolvedProfile
 
-      // Apply profileOverride — shallow-merge top-level keys only
-      if (this.config.profileOverride) {
-        this.profile = { ...this.profile, ...this.config.profileOverride }
-      }
+      // Apply widget-level config overrides on top of the resolved profile
+      if (this.config.darkMode !== undefined) resolvedProfile.darkMode = this.config.darkMode
+
+      const profile = this.config.profileOverride
+        ? deepMerge<ResolvedProfile>(resolvedProfile, this.config.profileOverride)
+        : resolvedProfile
+      this.profile = profile
 
       this.eventBus = new EventBus(this.profileId(), this.config.utils?.gtm)
       this.consentStore = new ConsentStore(
@@ -120,6 +138,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
         storageMode,
         this.config.core.cookieDomains,
       )
+      this.consentStore.setProfileCookies(profile.cookies)
       this.renderer = new Renderer()
       if (!this.config.core.disableCssTemplate && CONSENTI_CSS) {
         this.renderer.injectStyles(CONSENTI_CSS)
@@ -134,10 +153,10 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
       await this.runPlugins()
 
       // Determine signing key: API-returned key takes precedence, then config fallback
-      const signingKey = this.profile.cookieSigningKey ?? this.config.core.cookieSigningKey
+      const signingKey = profile.cookieSigningKey ?? this.config.core.cookieSigningKey
 
       const existing =
-        this.config.core.signCookies && signingKey
+        signingKey
           ? await this.consentStore.readAndVerify(signingKey)
           : this.consentStore.read()
       const hasExisting = existing !== null
@@ -147,10 +166,16 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
         hasExistingConsent: hasExisting,
       })
 
-      // GPC handling — evaluated before normal banner logic
-      const gpcMode = this.config.core.autoHonorGPC ?? false
+      // GPC handling — widget config overrides profile JSON when explicitly set
+      const profileGpcMode = profile.gpcMode
+      const gpcMode: boolean | 'strict' =
+        this.config.core.autoHonorGPC !== undefined
+          ? this.config.core.autoHonorGPC
+          : profileGpcMode === 'strict' ? 'strict'
+          : profileGpcMode === 'honor'  ? true
+          : false
       if (gpcMode && detectGPC()) {
-        const gpcConsent = applyGPCToConsent(this.profile.cookies, {}, gpcMode)
+        const gpcConsent = applyGPCToConsent(profile.cookies, {}, gpcMode)
 
         if (gpcMode === 'strict') {
           // Silent mode: write consent immediately, dispatch event, skip any banner
@@ -170,8 +195,8 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
           // the GPC banner for the user to review/adjust.
           // BroadcastChannel is same-window-exempt, so the banner in this tab is
           // not hidden by the consentUpdated handler received in other tabs.
-          const gpcSigningKey = this.profile.cookieSigningKey ?? this.config.core.cookieSigningKey
-          if (this.config.core.signCookies && gpcSigningKey && this.consentStore) {
+          const gpcSigningKey = profile.cookieSigningKey ?? this.config.core.cookieSigningKey
+          if (gpcSigningKey && this.consentStore) {
             this.lastSignature = await this.consentStore.writeAndSign(gpcConsent, gpcSigningKey)
           } else {
             this.consentStore?.write(gpcConsent)
@@ -195,16 +220,19 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
         }
       }
 
-      const regulation = this.config.core.regulation ?? 'gdpr'
+      // Derive opt-out mode from profile complianceGroup (replaces old core.regulation field)
+      const compGroup = profile.complianceGroup ?? ''
+      const isOptOut = compGroup === 'opt-out'
+      const isOptOutStrict = compGroup === 'opt-out-strict'
 
       // CCPA opt-out: silently write all-granted on first visit; no banner.
-      if (regulation === 'ccpa' && !hasExisting) {
+      if (isOptOut && !hasExisting) {
         const defaultConsent: ConsentValue = {}
-        for (const cookie of this.profile.cookies) {
+        for (const cookie of profile.cookies) {
           defaultConsent[cookie.id] = 'granted'
         }
-        const ccpaSigKey = this.profile.cookieSigningKey ?? this.config.core.cookieSigningKey
-        if (this.config.core.signCookies && ccpaSigKey) {
+        const ccpaSigKey = profile.cookieSigningKey ?? this.config.core.cookieSigningKey
+        if (ccpaSigKey) {
           await this.consentStore.writeAndSign(defaultConsent, ccpaSigKey)
         } else {
           this.consentStore.write(defaultConsent)
@@ -216,23 +244,21 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
 
       // CPRA: opt-out for non-sensitive; opt-in required for sensitive data.
       // GPC triggers Do Not Sell + Do Not Share simultaneously (CPRA s.1798.135).
-      if (regulation === 'cpra' && !hasExisting) {
+      if (isOptOutStrict && !hasExisting) {
         const gpcActive = this.config.core.autoHonorGPC && detectGPC()
         const defaultConsent: ConsentValue = {}
-        for (const cookie of this.profile.cookies) {
+        for (const cookie of profile.cookies) {
           if (cookie.mandatory) { defaultConsent[cookie.id] = 'granted'; continue }
           if (cookie.cpraCategory === 'sensitive') {
-            // Sensitive data always requires explicit opt-in even under CPRA
             defaultConsent[cookie.id] = 'denied'
           } else if (gpcActive && (cookie.cpraCategory === 'sale' || cookie.cpraCategory === 'sharing')) {
             defaultConsent[cookie.id] = 'denied'
           } else {
-            // Non-sensitive CPRA cookies default to granted (opt-out model)
             defaultConsent[cookie.id] = 'granted'
           }
         }
-        const sigKey = this.profile.cookieSigningKey ?? this.config.core.cookieSigningKey
-        if (this.config.core.signCookies && sigKey) {
+        const sigKey = profile.cookieSigningKey ?? this.config.core.cookieSigningKey
+        if (sigKey) {
           await this.consentStore.writeAndSign(defaultConsent, sigKey)
         } else {
           this.consentStore.write(defaultConsent)
@@ -318,7 +344,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
       try {
         await plugin.initialize(this)
       } catch (err) {
-        console.warn('[Consenti] Plugin initialize error:', err)
+        logger.warn('Plugin initialize error:', err)
       }
     }
   }
@@ -335,27 +361,35 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
       try {
         await invoke(plugin, this)
       } catch (err) {
-        console.warn('[Consenti] Plugin hook failed:', err)
+        logger.warn('Plugin hook failed:', err)
       }
     }
+  }
+
+  private _buildGrantAllConsent(onlyMandatory = false): ConsentValue {
+    const consent: ConsentValue = {}
+    for (const cookie of this.profile?.cookies ?? []) {
+      consent[cookie.id] = onlyMandatory && !cookie.mandatory ? 'denied' : 'granted'
+    }
+    return consent
+  }
+
+  private _buildDenyAllConsent(includingMandatory = false): ConsentValue {
+    const consent: ConsentValue = {}
+    for (const cookie of this.profile?.cookies ?? []) {
+      consent[cookie.id] = !includingMandatory && cookie.mandatory ? 'granted' : 'denied'
+    }
+    return consent
   }
 
   private buildHandlers(context: 'banner' | 'modal'): ButtonClickHandler {
     return {
       onGrantAll: () => {
-        const consent: ConsentValue = {}
-        for (const cookie of this.profile?.cookies ?? []) {
-          consent[cookie.id] = 'granted'
-        }
-        void this.submitConsent(consent)
+        void this.submitConsent(this._buildGrantAllConsent())
         if (context === 'banner') { this.banner?.hide(); this._bannerVariant = null }
       },
       onDenyAll: () => {
-        const consent: ConsentValue = {}
-        for (const cookie of this.profile?.cookies ?? []) {
-          consent[cookie.id] = cookie.mandatory ? 'granted' : 'denied'
-        }
-        void this.submitConsent(consent)
+        void this.submitConsent(this._buildDenyAllConsent())
         if (context === 'banner') { this.banner?.hide(); this._bannerVariant = null }
       },
       onSubmit: () => {
@@ -525,7 +559,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
   async submitConsent(consent: Partial<ConsentValue>, gpcDerived = false): Promise<void> {
     if (!isClient() || !this.profile || !this.consentStore) return
 
-    const regulation = this.config.core.regulation ?? 'gdpr'
+    const compGroup = this.profile.complianceGroup ?? ''
     const hadExistingConsent = this.consentStore.hasConsent()
     const consentId = crypto.randomUUID()
     const pageUrl = window.location.href
@@ -534,13 +568,12 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
     for (const cookie of this.profile.cookies) {
       if (cookie.mandatory) {
         fullConsent[cookie.id] = 'granted'
-      } else if (regulation === 'cpra') {
-        // CPRA: sensitive cookies default to denied (opt-in); all others default to granted (opt-out)
+      } else if (compGroup === 'opt-out-strict') {
         const fallback = cookie.cpraCategory === 'sensitive' ? 'denied' : 'granted'
         fullConsent[cookie.id] = consent[cookie.id] ?? fallback
       } else {
-        // CCPA: default granted (opt-out); GDPR/DPDPA: default denied (opt-in)
-        fullConsent[cookie.id] = consent[cookie.id] ?? (regulation === 'ccpa' ? 'granted' : 'denied')
+        const defaultDenied = compGroup !== 'opt-out' && compGroup !== 'notice-only'
+        fullConsent[cookie.id] = consent[cookie.id] ?? (defaultDenied ? 'denied' : 'granted')
       }
     }
 
@@ -559,6 +592,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
             method: 'POST',
             body: JSON.stringify({
               profileId: this.profileId(),
+              profileUuid: this.profile?.profileUuid,
               consent: fullConsent,
               locale: this.config.core.locale ?? 'en',
               gpcDetected: gpcDerived || detectGPC(),
@@ -570,13 +604,13 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
           this.config.api.authToken,
         )
       } catch (err) {
-        console.warn('[Consenti] API consent submission failed:', err)
+        logger.warn('API consent submission failed:', err)
       }
     }
 
     // Sign and write atomically so the signature covers the exact persisted value
     const signingKey = this.profile.cookieSigningKey ?? this.config.core.cookieSigningKey
-    if (this.config.core.signCookies && signingKey) {
+    if (signingKey) {
       this.lastSignature = await this.consentStore.writeAndSign(fullConsent, signingKey)
     } else {
       this.consentStore.write(fullConsent)
@@ -670,10 +704,11 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
     const bannerEl = this.banner.build(
       bannerConfig,
       handlers,
-      this.config.core.privacyPolicyUrl,
+      undefined,
       locales,
       activeLocale,
       (locale) => this.switchLocale(locale),
+      this.config.hidePoweredBy ?? false,
     )
     root.appendChild(bannerEl)
     const overlay = this.banner.getOverlay()
@@ -708,8 +743,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
 
     const handlers = this.buildHandlers('modal')
     const existing = this.consentStore?.getConsent() ?? {}
-    const regulation = this.config.core.regulation ?? 'gdpr'
-    const dpdpaCfg = regulation === 'dpdpa' ? this.profile.dpdpa : undefined
+    const dpdpaCfg = this.profile.complianceGroup === 'opt-in-dpdpa' ? this.profile.dpdpa : undefined
     const locales = this.profile.locales
     const activeLocale = this.config.core.locale ?? 'en'
     this.modal.build(
@@ -721,6 +755,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
       locales,
       activeLocale,
       (locale) => { this.hideModal(); this.switchLocale(locale) },
+      !(this.config.hidePoweredBy ?? false),
     )
     // Hide banner while modal is open so only one panel is visible at a time.
     this.banner?.hide()
@@ -799,7 +834,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
           this.config.api?.authToken,
         )
       } catch (err) {
-        console.warn('[Consenti] API consent deletion failed:', err)
+        logger.warn('API consent deletion failed:', err)
       }
     }
 
@@ -888,7 +923,187 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
     this.profile = null
     this.initialized = false
     this.readyPromise = new Promise<void>((resolve) => { this.readyResolve = resolve })
-    this.init().catch((err) => console.warn('[Consenti] Locale switch error:', err))
+    this.init().catch((err) => logger.warn('Locale switch error:', err))
+  }
+
+  /**
+   * Returns `true` if the named cookie's consent is `'granted'`.
+   * When `requestValue` is `true`, returns the raw `ConsentStatus` string instead of a boolean,
+   * or `false` if the cookie is not in the consent map.
+   */
+  isCookieGranted(cookieId: string, requestValue = false): boolean | 'granted' | 'denied' | 'objected' {
+    if (!isClient()) return false
+    const status = this.getConsent()?.[cookieId]
+    if (requestValue) return status ?? false
+    return status === 'granted'
+  }
+
+  /**
+   * Checks consent for all cookies belonging to the given category.
+   *
+   * With `requestValue = false` (default): returns `true` only when every cookie in the
+   * category is `'granted'`, `false` otherwise.
+   *
+   * With `requestValue = true`: returns an array of one-key records — one per cookie in the
+   * category — e.g. `[{ analytics: 'granted' }, { pixel: 'denied' }]`.
+   *
+   * Returns `false` / `[]` if the category is not found or the widget is not yet initialized.
+   */
+  isCategoryGranted(categoryId: string, requestValue = false): boolean | { [cookieId: string]: 'granted' | 'denied' | 'objected' }[] {
+    if (!isClient() || !this.profile) return requestValue ? [] : false
+    const category = this.profile.preferenceModal.categories.find((c) => c.id === categoryId)
+    if (!category) return requestValue ? [] : false
+
+    const consent = this.getConsent()
+
+    if (requestValue) {
+      return category.cookies.map((cookieId) => ({
+        [cookieId]: (consent?.[cookieId] ?? 'denied') as 'granted' | 'denied' | 'objected',
+      }))
+    }
+
+    return category.cookies.every((cookieId) => consent?.[cookieId] === 'granted')
+  }
+
+  /**
+   * Programmatically accepts cookies and hides the banner.
+   *
+   * @param onlyMandatory - When `true`, only mandatory cookies are granted and all others
+   *                        are set to `'denied'`. Defaults to `false` (grant everything).
+   */
+  async grantAll(onlyMandatory = false): Promise<void> {
+    if (!isClient() || !this.profile) return
+    await this.submitConsent(this._buildGrantAllConsent(onlyMandatory))
+  }
+
+  /**
+   * Programmatically denies cookies and hides the banner.
+   *
+   * @param includingMandatory - When `true`, mandatory cookies are also denied. Defaults to
+   *                             `false` (mandatory cookies remain `'granted'`). Passing `true`
+   *                             logs a warning — ensure this is intentional.
+   */
+  async denyAll(includingMandatory = false): Promise<void> {
+    if (!isClient() || !this.profile) return
+    if (includingMandatory) {
+      logger.warn('denyAll called with includingMandatory=true — mandatory cookies will be denied. Ensure this is intentional.')
+    }
+    await this.submitConsent(this._buildDenyAllConsent(includingMandatory))
+  }
+
+  /**
+   * Subscribes to a Consenti widget event. The `consenti:` prefix is optional —
+   * both `'consentSubmitted'` and `'consenti:consentSubmitted'` are accepted.
+   *
+   * The same handler reference must be passed to `off()` to unsubscribe.
+   *
+   * @example
+   * ```ts
+   * const handler = (data) => console.log(data)
+   * widget.on('consentSubmitted', handler)
+   * // later:
+   * widget.off('consentSubmitted', handler)
+   * ```
+   */
+  on(event: ConsentiEventName, handler: (data: ConsentEvent) => void): void {
+    if (!isClient()) return
+    const name = event.startsWith('consenti:') ? event : `consenti:${event}`
+    const wrapped: EventListener = (e) => handler((e as CustomEvent<ConsentEvent>).detail)
+    const existing = this._eventHandlers.get(handler) ?? []
+    existing.push({ name, wrapped })
+    this._eventHandlers.set(handler, existing)
+    window.addEventListener(name, wrapped)
+  }
+
+  /**
+   * Removes a previously registered event handler. The same function reference passed to
+   * `on()` must be used here.
+   */
+  off(event: ConsentiEventName, handler: (data: ConsentEvent) => void): void {
+    if (!isClient()) return
+    const name = event.startsWith('consenti:') ? event : `consenti:${event}`
+    const entries = this._eventHandlers.get(handler)
+    if (!entries) return
+    const idx = entries.findIndex((e) => e.name === name)
+    if (idx === -1) return
+    const entry = entries[idx]
+    if (entry) window.removeEventListener(name, entry.wrapped)
+    entries.splice(idx, 1)
+    if (entries.length === 0) this._eventHandlers.delete(handler)
+  }
+
+  /**
+   * Returns the current version of the package and the active profile/consent versions.
+   * Useful for debugging and support diagnostics.
+   */
+  version(): { package: string; profileVersion: number | null; consentVersion: number } {
+    return {
+      package: __CONSENTI_VERSION__,
+      profileVersion: this.profile?.version ?? null,
+      consentVersion: 1,
+    }
+  }
+
+  /**
+   * Toggles or sets dark mode at runtime without re-initialising the widget.
+   * When `enable` is omitted, the current dark mode state is toggled.
+   */
+  setDarkMode(enable?: boolean): void {
+    if (!isClient()) return
+    this.config.darkMode = enable === undefined ? !this.config.darkMode : enable
+    this.applyDarkMode()
+    const isDark = this.config.darkMode ?? false
+    document.getElementById('consenti-modal')?.classList.toggle('consenti-root--dark', isDark)
+  }
+
+  /**
+   * Applies partial theme token overrides at runtime, merging them into the current theme.
+   * CSS custom properties on the root element are updated immediately.
+   */
+  setTheme(theme: Partial<ThemeConfig>): void {
+    if (!isClient()) return
+    this.config.core.theme = Object.assign({}, this.config.core.theme, theme)
+    this.applyTheme()
+  }
+
+  /**
+   * Deep-merges a partial config into the current widget config.
+   * Theme and dark mode side-effects are re-applied immediately.
+   * Changes to locale or profile require an explicit `switchLocale()` or `init()` call.
+   */
+  setConfig(config: DeepPartial<ConsentiConfig>): void {
+    this.config = deepMerge<ConsentiConfig>(this.config, config)
+    if (isClient()) {
+      this.applyTheme()
+      this.applyDarkMode()
+    }
+  }
+
+  /**
+   * Merges a partial profile override into the current profile and re-renders any visible UI.
+   * Does not make a network request — the resolved base profile from the last `init()` is reused.
+   *
+   * No-op before `init()` completes (while `resolvedBase` is null).
+   */
+  setProfile(override: DeepPartial<ResolvedProfile>): void {
+    if (!isClient() || !this.resolvedBase) return
+
+    this.config.profileOverride = this.config.profileOverride
+      ? deepMerge<DeepPartial<ResolvedProfile>>(this.config.profileOverride, override)
+      : override
+
+    this.profile = deepMerge<ResolvedProfile>(this.resolvedBase, this.config.profileOverride!)
+
+    const modalWasOpen = this.modal?.isOpen() ?? false
+    if (modalWasOpen) this.modal?.close()
+
+    if (this._bannerVariant !== null) {
+      const wasGpc = this._bannerVariant === 'gpc'
+      this._bannerVariant = null
+      this.showBanner(wasGpc)
+    }
+
+    if (modalWasOpen) this.showModal()
   }
 
   /**
@@ -904,6 +1119,14 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
     this.modal?.destroy()
     this.renderer?.unmount()
     this.broadcastChannel.disconnect()
+    if (isClient()) {
+      for (const entries of this._eventHandlers.values()) {
+        for (const { name, wrapped } of entries) {
+          window.removeEventListener(name, wrapped)
+        }
+      }
+      this._eventHandlers.clear()
+    }
     this.banner = null
     this.modal = null
     this.renderer = null

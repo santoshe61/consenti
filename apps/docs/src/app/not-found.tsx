@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import type { Metadata } from 'next'
-import { FileX2, ArrowLeft, BookOpen, Github, ShieldOff } from 'lucide-react'
+import { FileX2, ArrowLeft, BookOpen, ShieldOff } from 'lucide-react'
+import { FaGithub } from 'react-icons/fa'
 
 export const metadata: Metadata = {
   title: '404 — Page Not Found',
@@ -106,7 +107,7 @@ export default function NotFound() {
           href="https://github.com/santoshe61/consenti"
           className="inline-flex items-center gap-2 border-2 border-white/20 text-white/60 font-semibold px-6 py-3 rounded-xl no-underline hover:text-white hover:border-white/40 transition-colors text-sm"
         >
-          <Github size={16} />
+          <FaGithub size={16} />
           GitHub
         </a>
       </div>

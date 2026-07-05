@@ -8,6 +8,11 @@ export default function APPIPage() {
   return (
     <div className="prose max-w-none">
       <h1>APPI Compliance Guide (Japan)</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — opt-in for sensitive data and cross-border
+        transfers; opt-out for general third-party sharing.
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         Japan's <strong>Act on the Protection of Personal Information (APPI)</strong> was significantly
         revised in 2022 (enforced from April 2022) and is administered by the{' '}

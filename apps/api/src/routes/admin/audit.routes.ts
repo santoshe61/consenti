@@ -10,14 +10,15 @@ export function buildAdminAuditRoutes(
 ) {
   async function auth(req: Request, perm?: string) {
     const user = await authenticate(req, storage, authConfig, secret)
-    return { denied: authError(user, perm) }
+    return { user, denied: authError(user, perm) }
   }
 
   return {
     'GET /audit': async (req: Request, _p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'audit:view')
+        const { user, denied } = await auth(req, 'audit:view')
         if (denied) return denied
+        if (user?.allowedTenants.length && !user.allowedTenants.includes('default')) return json(200, { items: [], total: 0, page: 1, limit: 50 })
         const url = new URL(req.url)
         const action = getQueryParam(url, 'action')
         const resourceType = getQueryParam(url, 'resourceType')

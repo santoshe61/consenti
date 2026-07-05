@@ -8,6 +8,10 @@ export default function PDPAThailandPage() {
   return (
     <div className="prose max-w-none">
       <h1>PDPA Compliance Guide (Thailand)</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — opt-in with cross-border transfer rules enforced.
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         Thailand's <strong>Personal Data Protection Act B.E. 2562 (PDPA)</strong> was enacted in 2019
         and came into full enforcement on 1 June 2022. It is administered by the{' '}

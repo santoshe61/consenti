@@ -9,50 +9,65 @@ export default function UIEventsPage() {
     <div className="prose max-w-none">
       <h1>UI Widget — Events</h1>
       <p>
-        Consenti fires custom DOM events on <code>document</code> at every consent lifecycle step.
+        Consenti fires custom DOM events on <code>window</code> at every consent lifecycle step.
         All events are prefixed <code>consenti:</code> and carry a typed <code>detail</code> payload.
       </p>
 
       <h2>Event reference</h2>
       <table>
         <thead>
-          <tr><th>Event</th><th>Fired when</th><th>Detail type</th></tr>
+          <tr><th>Event</th><th>Fired when</th></tr>
         </thead>
         <tbody>
           <tr>
             <td><code>consenti:bannerInitialized</code></td>
             <td>Widget initialises and determines whether to show the banner</td>
-            <td><code>BannerInitializedDetail</code></td>
           </tr>
           <tr>
             <td><code>consenti:bannerVisibility</code></td>
             <td>Banner shows or hides</td>
-            <td><code>BannerVisibilityDetail</code></td>
           </tr>
           <tr>
             <td><code>consenti:modalVisibility</code></td>
             <td>Preference modal shows or hides</td>
-            <td><code>ModalVisibilityDetail</code></td>
           </tr>
           <tr>
             <td><code>consenti:consentBeingSubmitted</code></td>
             <td>User clicked a consent button (before API call)</td>
-            <td><code>ConsentBeingSubmittedDetail</code></td>
           </tr>
           <tr>
             <td><code>consenti:consentSubmitted</code></td>
             <td>Consent saved (cookie written + API call if configured)</td>
-            <td><code>ConsentSubmittedDetail</code></td>
           </tr>
         </tbody>
       </table>
 
-      <h2>Listening to events</h2>
-      <CodeBlock lang="ts" code={`document.addEventListener('consenti:consentSubmitted', (e: Event) => {
-  const detail = (e as CustomEvent<ConsentSubmittedDetail>).detail
-  console.log('Consent action:', detail.consentAction)  // 'accept_all' | 'reject_all' | 'custom' | 'update'
-  console.log('Consent values:', detail.consentJson)    // { analytics: 'granted', marketing: 'denied', ... }
-  console.log('Visitor ID:', detail.visitorId)
+      <h2>Typed API — on() / off()</h2>
+      <p>
+        The recommended way to subscribe to events is <code>widget.on()</code> / <code>widget.off()</code>.
+        This API is typed, handles the <code>CustomEvent</code> unwrapping for you, and cleans up
+        automatically when <code>widget.destroy()</code> is called.
+        The <code>consenti:</code> prefix on the event name is optional.
+      </p>
+      <CodeBlock lang="ts" code={`import type { ConsentEvent } from '@consenti/ui'
+
+const handler = (data: ConsentEvent) => {
+  console.log('Consent saved:', data.consent)
+  console.log('Action:', data.consentAction)
+  console.log('GPC detected:', data.gpcDetected)
+}
+
+widget.on('consentSubmitted', handler)      // 'consenti:' prefix is optional
+widget.off('consentSubmitted', handler)     // must pass the same function reference`} />
+
+      <h2>Raw DOM listeners</h2>
+      <p>Raw <code>window.addEventListener</code> calls work too and can coexist with <code>on()</code>:</p>
+      <CodeBlock lang="ts" code={`import type { ConsentEvent } from '@consenti/ui'
+
+window.addEventListener('consenti:consentSubmitted', (e: Event) => {
+  const detail = (e as CustomEvent<ConsentEvent>).detail
+  console.log('Consent action:', detail.consentAction) // 'accept_all' | 'reject_all' | 'custom' | 'update'
+  console.log('Consent values:', detail.consent)       // { analytics: 'granted', marketing: 'denied', ... }
   console.log('Page URL:', detail.pageUrl)
   console.log('GPC detected:', detail.gpcDetected)
 })`} />
@@ -124,16 +139,26 @@ dataLayer.push({
 
       <h2>ConsentScript — auto-load scripts on consent</h2>
       <p>
-        <code>ConsentScript</code> watches <code>consenti:consentSubmitted</code> and injects or removes a
-        <code>&lt;script&gt;</code> tag based on whether a specific cookie ID is granted:
+        <code>ConsentScript</code> watches <code>consenti:consentSubmitted</code> and injects or removes a{' '}
+        <code>&lt;script&gt;</code> tag based on whether a specific cookie ID is granted.
+        Consent is also evaluated immediately at construction time so existing consent is honoured without
+        waiting for the next submission event.
       </p>
       <CodeBlock lang="ts" code={`import { ConsentScript } from '@consenti/ui'
 
+// bind: true (default) — auto-removes script on consent revoke, re-injects on re-grant
 new ConsentScript({
-  cookieId: 'analytics',        // watch this cookie ID
+  cookieId: 'analytics',
   src: 'https://cdn.example.com/analytics.js',
   onLoad: () => console.log('Analytics loaded'),
-  onRevoke: () => console.log('Analytics revoked'),
+  onRevoke: () => console.log('Analytics removed'),
+})
+
+// bind: false — check consent once at construction; never attach a change listener
+new ConsentScript({
+  cookieId: 'analytics',
+  src: 'https://cdn.example.com/analytics.js',
+  bind: false,
 })`} />
 
       <h2>CookieTrigger — open banner/modal from any element</h2>

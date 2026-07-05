@@ -8,9 +8,13 @@ interface Credential { label: string; value: string; copyable?: boolean }
 function InlineCopy({ value }: { value: string }) {
   const [copied, setCopied] = useState(false)
   const copy = async () => {
-    await navigator.clipboard.writeText(value)
-    setCopied(true)
-    setTimeout(() => setCopied(false), 2000)
+    try {
+      await navigator.clipboard.writeText(value)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // Clipboard API unavailable (non-HTTPS or browser restriction)
+    }
   }
   return (
     <button

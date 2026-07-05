@@ -101,11 +101,11 @@ function mapHistory(r: RowConsentHistory): ConsentHistoryEntry {
 function mapVisitor(r: RowVisitor): Visitor {
   return {
     id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id,
-    ...(r.country        != null ? { country:       r.country        } : {}),
-    ...(r.region         != null ? { region:        r.region         } : {}),
-    ...(r.city           != null ? { city:          r.city           } : {}),
-    ...(r.ip_hash        != null ? { ipHash:        r.ip_hash        } : {}),
-    ...(r.user_agent_hash!= null ? { userAgentHash: r.user_agent_hash} : {}),
+    ...(r.country != null ? { country: r.country } : {}),
+    ...(r.region != null ? { region: r.region } : {}),
+    ...(r.city != null ? { city: r.city } : {}),
+    ...(r.ip_hash != null ? { ipHash: r.ip_hash } : {}),
+    ...(r.user_agent_hash != null ? { userAgentHash: r.user_agent_hash } : {}),
     firstSeen: r.first_seen, lastSeen: r.last_seen,
   }
 }
@@ -137,10 +137,10 @@ function mapPermission(r: RowPermission): Permission {
 function mapAuditLog(r: RowAuditLog): AuditLog {
   return {
     id: r.id, tenantId: r.tenant_id, action: r.action, resourceType: r.resource_type,
-    ...(r.user_id     != null ? { userId:     r.user_id                                } : {}),
-    ...(r.resource_id != null ? { resourceId: r.resource_id                            } : {}),
-    ...(r.old_data    != null ? { oldData:    JSON.parse(r.old_data) as unknown        } : {}),
-    ...(r.new_data    != null ? { newData:    JSON.parse(r.new_data) as unknown        } : {}),
+    ...(r.user_id != null ? { userId: r.user_id } : {}),
+    ...(r.resource_id != null ? { resourceId: r.resource_id } : {}),
+    ...(r.old_data != null ? { oldData: JSON.parse(r.old_data) as unknown } : {}),
+    ...(r.new_data != null ? { newData: JSON.parse(r.new_data) as unknown } : {}),
     createdAt: r.created_at,
   }
 }
@@ -150,7 +150,7 @@ function mapAuditLog(r: RowAuditLog): AuditLog {
 export class MySQLAdapter implements StorageAdapter {
   private pool!: Pool
 
-  constructor(private config: StorageConfig) {}
+  constructor(private config: StorageConfig) { }
 
   private async q<T extends RowDataPacket>(sql: string, params: (string | number | boolean | null)[] = []): Promise<T[]> {
     const [rows] = await this.pool.query<T[]>(sql, params)
@@ -169,11 +169,11 @@ export class MySQLAdapter implements StorageAdapter {
       this.pool = mysql.createPool(cfg.uri)
     } else {
       this.pool = mysql.createPool({
-        host:     cfg.host     ?? 'localhost',
-        port:     cfg.port     ?? 3306,
-        user:     cfg.user     ?? 'root',
+        host: cfg.host ?? 'localhost',
+        port: cfg.port ?? 3306,
+        user: cfg.user ?? 'root',
         password: cfg.password ?? '',
-        database: cfg.database ?? cfg.dbName ?? 'consenti',
+        database: cfg.database ?? 'consenti',
       })
     }
     await this.migrate()
@@ -247,9 +247,9 @@ export class MySQLAdapter implements StorageAdapter {
   async updateProfile(id: string, data: UpdateProfileInput): Promise<Profile> {
     const sets: string[] = ['version = version + 1']
     const vals: (string | number | boolean | null)[] = []
-    if (data.name != null)         { sets.push('name=?'); vals.push(data.name) }
-    if (data.defaultLocale != null){ sets.push('default_locale=?'); vals.push(data.defaultLocale) }
-    if (data.profileJson != null)  { sets.push('profile_json=?'); vals.push(JSON.stringify(data.profileJson)) }
+    if (data.name != null) { sets.push('name=?'); vals.push(data.name) }
+    if (data.defaultLocale != null) { sets.push('default_locale=?'); vals.push(data.defaultLocale) }
+    if (data.profileJson != null) { sets.push('profile_json=?'); vals.push(JSON.stringify(data.profileJson)) }
     vals.push(id)
     await this.exec(`UPDATE profiles SET ${sets.join(',')} WHERE id=?`, vals)
     const rows = await this.q<RowProfile>('SELECT * FROM profiles WHERE id=?', [id])
@@ -272,6 +272,11 @@ export class MySQLAdapter implements StorageAdapter {
     return rows.map(mapProfile)
   }
 
+  async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
+    const profiles = await this.getProfiles(tenantId)
+    return profiles.find(p => p.profileJson.complianceGroup === complianceGroup && p.profileJson.isActive) ?? null
+  }
+
   // ── Consents ─────────────────────────────────────────────────────────────────
 
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
@@ -279,7 +284,7 @@ export class MySQLAdapter implements StorageAdapter {
     await this.exec(
       'INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, profile_version, locale, consent_json, gpc_detected, source) VALUES (?,?,?,?,?,?,?,?,?)',
       [id, data.tenantId, data.visitorId, data.profileId, data.profileVersion, data.locale,
-       JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source],
+        JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source],
     )
     const rows = await this.q<RowConsent>('SELECT * FROM consent_records WHERE id=?', [id])
     const row = rows[0]
@@ -293,7 +298,7 @@ export class MySQLAdapter implements StorageAdapter {
     if (!existing) throw new Error(`Consent for visitor ${visitorId} not found`)
     const sets: string[] = ['consent_json=?']
     const vals: (string | number | boolean | null)[] = [JSON.stringify(data.consentJson)]
-    if (data.locale      != null) { sets.push('locale=?');       vals.push(data.locale) }
+    if (data.locale != null) { sets.push('locale=?'); vals.push(data.locale) }
     if (data.gpcDetected != null) { sets.push('gpc_detected=?'); vals.push(data.gpcDetected ? 1 : 0) }
     vals.push(visitorId)
     await this.exec(`UPDATE consent_records SET ${sets.join(',')} WHERE visitor_id=?`, vals)
@@ -332,8 +337,8 @@ export class MySQLAdapter implements StorageAdapter {
     let sql = 'SELECT * FROM consent_records WHERE tenant_id=?'
     const params: (string | number | boolean | null)[] = [f.tenantId]
     if (f.profileId != null) { sql += ' AND profile_id=?'; params.push(f.profileId) }
-    if (f.from != null)      { sql += ' AND created_at>=?'; params.push(f.from) }
-    if (f.to   != null)      { sql += ' AND created_at<=?'; params.push(f.to) }
+    if (f.from != null) { sql += ' AND created_at>=?'; params.push(f.from) }
+    if (f.to != null) { sql += ' AND created_at<=?'; params.push(f.to) }
     return { sql, params }
   }
 
@@ -344,7 +349,7 @@ export class MySQLAdapter implements StorageAdapter {
     await this.exec(
       'INSERT INTO consent_history (id, tenant_id, consent_record_id, visitor_id, old_json, new_json, action) VALUES (?,?,?,?,?,?,?)',
       [randomUUID(), tenantId, consentRecordId, visitorId,
-       oldJson ? JSON.stringify(oldJson) : null, JSON.stringify(newJson), action],
+      oldJson ? JSON.stringify(oldJson) : null, JSON.stringify(newJson), action],
     )
   }
 
@@ -360,8 +365,8 @@ export class MySQLAdapter implements StorageAdapter {
     await this.exec(
       'INSERT INTO visitors (id, tenant_id, visitor_id, country, region, city, ip_hash, user_agent_hash) VALUES (?,?,?,?,?,?,?,?)',
       [id, data.tenantId, data.visitorId,
-       data.country ?? null, data.region ?? null, data.city ?? null,
-       data.ipHash ?? null, data.userAgentHash ?? null],
+        data.country ?? null, data.region ?? null, data.city ?? null,
+        data.ipHash ?? null, data.userAgentHash ?? null],
     )
     const rows = await this.q<RowVisitor>('SELECT * FROM visitors WHERE id=?', [id])
     const row = rows[0]
@@ -373,8 +378,8 @@ export class MySQLAdapter implements StorageAdapter {
     const sets: string[] = ['last_seen=NOW()']
     const vals: (string | number | boolean | null)[] = []
     if (data.country != null) { sets.push('country=?'); vals.push(data.country) }
-    if (data.region  != null) { sets.push('region=?');  vals.push(data.region) }
-    if (data.city    != null) { sets.push('city=?');    vals.push(data.city) }
+    if (data.region != null) { sets.push('region=?'); vals.push(data.region) }
+    if (data.city != null) { sets.push('city=?'); vals.push(data.city) }
     vals.push(visitorId)
     await this.exec(`UPDATE visitors SET ${sets.join(',')} WHERE visitor_id=?`, vals)
     const rows = await this.q<RowVisitor>('SELECT * FROM visitors WHERE visitor_id=?', [visitorId])
@@ -396,7 +401,7 @@ export class MySQLAdapter implements StorageAdapter {
     let sql = 'SELECT * FROM visitors WHERE tenant_id=?'
     const params: (string | number | boolean | null)[] = [filters.tenantId]
     if (filters.from != null) { sql += ' AND first_seen>=?'; params.push(filters.from) }
-    if (filters.to   != null) { sql += ' AND first_seen<=?'; params.push(filters.to) }
+    if (filters.to != null) { sql += ' AND first_seen<=?'; params.push(filters.to) }
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
     const rows = await this.q<RowVisitor>(`${sql} ORDER BY first_seen DESC LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit])
@@ -427,12 +432,12 @@ export class MySQLAdapter implements StorageAdapter {
     for (const r of statusRows) {
       all += r.count
       if (r.status === 'granted') granted = r.count
-      if (r.status === 'denied')  denied  = r.count
+      if (r.status === 'denied') denied = r.count
     }
     return {
       totalConsents: total,
       acceptedPct: all > 0 ? Math.round((granted / all) * 100) : 0,
-      rejectedPct:  all > 0 ? Math.round((denied  / all) * 100) : 0,
+      rejectedPct: all > 0 ? Math.round((denied / all) * 100) : 0,
       totalVisitors: visitors,
       gpcDetectedCount: gpcCount,
     }
@@ -455,8 +460,8 @@ export class MySQLAdapter implements StorageAdapter {
       if (!result[r.cookie_id]) result[r.cookie_id] = { granted: 0, denied: 0, objected: 0 }
       const entry = result[r.cookie_id]
       if (entry) {
-        if (r.status === 'granted')  entry.granted  += r.count
-        if (r.status === 'denied')   entry.denied   += r.count
+        if (r.status === 'granted') entry.granted += r.count
+        if (r.status === 'denied') entry.denied += r.count
         if (r.status === 'objected') entry.objected += r.count
       }
     }
@@ -491,10 +496,10 @@ export class MySQLAdapter implements StorageAdapter {
   async updateUser(id: string, data: UpdateUserInput): Promise<AdminUser> {
     const sets: string[] = []
     const vals: (string | number | boolean | null)[] = []
-    if (data.name         != null) { sets.push('name=?');          vals.push(data.name) }
-    if (data.email        != null) { sets.push('email=?');         vals.push(data.email) }
+    if (data.name != null) { sets.push('name=?'); vals.push(data.name) }
+    if (data.email != null) { sets.push('email=?'); vals.push(data.email) }
     if (data.passwordHash != null) { sets.push('password_hash=?'); vals.push(data.passwordHash) }
-    if (data.isActive     != null) { sets.push('is_active=?');     vals.push(data.isActive ? 1 : 0) }
+    if (data.isActive != null) { sets.push('is_active=?'); vals.push(data.isActive ? 1 : 0) }
     if (sets.length > 0) { vals.push(id); await this.exec(`UPDATE users SET ${sets.join(',')} WHERE id=?`, vals) }
     const rows = await this.q<RowUser>('SELECT * FROM users WHERE id=?', [id])
     const row = rows[0]
@@ -551,7 +556,7 @@ export class MySQLAdapter implements StorageAdapter {
   async updateRole(id: string, data: UpdateRoleInput): Promise<Role> {
     const sets: string[] = []
     const vals: (string | number | boolean | null)[] = []
-    if (data.name        != null) { sets.push('name=?');        vals.push(data.name) }
+    if (data.name != null) { sets.push('name=?'); vals.push(data.name) }
     if (data.description != null) { sets.push('description=?'); vals.push(data.description) }
     if (sets.length > 0) { vals.push(id); await this.exec(`UPDATE roles SET ${sets.join(',')} WHERE id=?`, vals) }
     const rows = await this.q<RowRole>('SELECT * FROM roles WHERE id=?', [id])
@@ -582,13 +587,13 @@ export class MySQLAdapter implements StorageAdapter {
   async getUserRoles(userId: string, tenantId?: string): Promise<Role[]> {
     const rows = tenantId
       ? await this.q<RowRole>(
-          'SELECT r.* FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=? AND ur.tenant_id=?',
-          [userId, tenantId],
-        )
+        'SELECT r.* FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=? AND ur.tenant_id=?',
+        [userId, tenantId],
+      )
       : await this.q<RowRole>(
-          'SELECT r.* FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=?',
-          [userId],
-        )
+        'SELECT r.* FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=?',
+        [userId],
+      )
     return rows.map(mapRole)
   }
 
@@ -618,9 +623,9 @@ export class MySQLAdapter implements StorageAdapter {
     await this.exec(
       'INSERT INTO audit_logs (id, tenant_id, user_id, action, resource_type, resource_id, old_data, new_data) VALUES (?,?,?,?,?,?,?,?)',
       [randomUUID(), data.tenantId, data.userId ?? null, data.action, data.resourceType,
-       data.resourceId ?? null,
-       data.oldData != null ? JSON.stringify(data.oldData) : null,
-       data.newData != null ? JSON.stringify(data.newData) : null],
+      data.resourceId ?? null,
+      data.oldData != null ? JSON.stringify(data.oldData) : null,
+      data.newData != null ? JSON.stringify(data.newData) : null],
     )
   }
 
@@ -641,10 +646,10 @@ export class MySQLAdapter implements StorageAdapter {
   private buildAuditQuery(f: AuditFilters): { sql: string; params: (string | number | boolean | null)[] } {
     let sql = 'SELECT * FROM audit_logs WHERE tenant_id=?'
     const params: (string | number | boolean | null)[] = [f.tenantId]
-    if (f.action       != null) { sql += ' AND action=?';        params.push(f.action) }
+    if (f.action != null) { sql += ' AND action=?'; params.push(f.action) }
     if (f.resourceType != null) { sql += ' AND resource_type=?'; params.push(f.resourceType) }
-    if (f.from != null)         { sql += ' AND created_at>=?';   params.push(f.from) }
-    if (f.to   != null)         { sql += ' AND created_at<=?';   params.push(f.to) }
+    if (f.from != null) { sql += ' AND created_at>=?'; params.push(f.from) }
+    if (f.to != null) { sql += ' AND created_at<=?'; params.push(f.to) }
     return { sql, params }
   }
 
@@ -760,4 +765,10 @@ export class MySQLAdapter implements StorageAdapter {
   async getUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async getUITemplates(): Promise<never> { throw new Error('Not implemented') }
   async copyUITemplate(): Promise<never> { throw new Error('Not implemented') }
+
+  // Profile summary / analytics — not yet implemented for MySQL adapter
+  async listProfilesSummary(): Promise<never[]> { return [] }
+  async findProfilesUsingCookieTemplate(): Promise<never[]> { return [] }
+  async findProfilesUsingUITemplate(): Promise<never[]> { return [] }
+  async getOptInStats(): Promise<never> { throw new Error('Not implemented') }
 }

@@ -6,7 +6,6 @@ import {
   Check,
   Database,
   Eye,
-  Github,
   Globe,
   Lock,
   Minus,
@@ -19,6 +18,7 @@ import {
   X,
   Zap,
 } from 'lucide-react'
+import { FaGithub } from 'react-icons/fa'
 import {
   SiJavascript,
   SiReact,
@@ -349,7 +349,7 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-white/60">
             <span className="flex items-center gap-1.5">
-              <Github size={16} />
+              <FaGithub size={16} />
               Open Source
             </span>
             <span>Node 20+</span>

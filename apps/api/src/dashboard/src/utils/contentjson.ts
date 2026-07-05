@@ -43,9 +43,10 @@ function renderNode(node: ContentNode): string {
 // Convert an HTML string (from contenteditable or import) to ContentDoc
 export function htmlToJson(html: string): ContentDoc {
   if (!html || !html.trim()) return []
-  const container = document.createElement('div')
-  container.innerHTML = html
-  return collectNodes([...container.childNodes])
+  // DOMParser does not execute scripts or event handlers during parsing,
+  // unlike setting innerHTML which can fire onerror/onload before the whitelist filter runs.
+  const doc = new DOMParser().parseFromString(html, 'text/html')
+  return collectNodes([...doc.body.childNodes])
 }
 
 function collectNodes(nodes: ChildNode[]): ContentNode[] {

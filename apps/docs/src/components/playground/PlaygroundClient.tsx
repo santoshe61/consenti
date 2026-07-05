@@ -106,17 +106,16 @@ interface ThemeState {
   toggleBgOff: string
 }
 
+interface ComplianceState {
+  type: 'opt-in' | 'opt-out' | 'opt-out-strict' | 'opt-in-dpdpa' | 'opt-in-china' | 'opt-in-brazil' | 'general-privacy-consent' | 'notice-only' | ''
+}
+
 interface CoreState {
-  profileId: number
-  regulation: 'gdpr' | 'uk-gdpr' | 'ccpa' | 'cpra' | 'lgpd' | 'dpdpa' | 'pipeda' | 'popia' | 'pdpa-th' | 'appi' | 'kvkk'
   locale: string
   storage: 'cookie' | 'localStorage'
   cookieDomains: string
-  privacyPolicyUrl: string
   allowReceipt: boolean
   disableCssTemplate: boolean
-  signCookies: boolean
-  cookieSigningKey: string
   userId: string
 }
 
@@ -124,6 +123,7 @@ interface ApiState {
   enabled: boolean
   baseUrl: string
   authToken: string
+  complianceGroup: string
 }
 
 interface GtmState {
@@ -541,17 +541,14 @@ export function PlaygroundClient() {
     toggleBgOff: '#cccccc',
   })
 
+  const [compliance, setCompliance] = useState<ComplianceState>({ type: 'opt-in' })
+
   const [core, setCore] = useState<CoreState>({
-    profileId: 0,
-    regulation: 'gdpr',
     locale: 'en',
     storage: 'cookie',
     cookieDomains: '',
-    privacyPolicyUrl: '',
     allowReceipt: false,
     disableCssTemplate: false,
-    signCookies: false,
-    cookieSigningKey: '',
     userId: '',
   })
 
@@ -559,6 +556,7 @@ export function PlaygroundClient() {
     enabled: false,
     baseUrl: '',
     authToken: '',
+    complianceGroup: '',
   })
 
   const [gtm, setGtm] = useState<GtmState>({
@@ -603,7 +601,10 @@ export function PlaygroundClient() {
       enabled: true as const,
       ...(api.baseUrl ? { baseUrl: api.baseUrl } : {}),
       ...(api.authToken ? { authToken: api.authToken } : {}),
+      ...(api.complianceGroup ? { complianceGroup: api.complianceGroup } : {}),
     } : undefined
+
+    const complianceConfig = compliance.type ? { type: compliance.type } : undefined
 
     // When showLocaleSwitcher is enabled, inject a mock second locale so the widget
     // renders the switcher (it only shows when locales.length > 1).
@@ -613,18 +614,14 @@ export function PlaygroundClient() {
       ...(darkMode ? { darkMode: true } : {}),
       ...(!autoInit ? { autoInit: false } : {}),
       ...(apiConfig ? { api: apiConfig } : {}),
+      ...(complianceConfig ? { compliance: complianceConfig } : {}),
       core: {
-        ...(core.profileId ? { profileId: core.profileId } : {}),
         ...(core.allowReceipt ? { allowReceipt: true } : {}),
         ...(core.disableCssTemplate ? { disableCssTemplate: true } : {}),
         autoHonorGPC,
-        regulation: core.regulation,
         locale: core.locale || 'en',
         storage: core.storage,
         ...(core.cookieDomains ? { cookieDomains: core.cookieDomains } : {}),
-        ...(core.privacyPolicyUrl ? { privacyPolicyUrl: core.privacyPolicyUrl } : {}),
-        ...(core.signCookies ? { signCookies: true } : {}),
-        ...(core.signCookies && core.cookieSigningKey ? { cookieSigningKey: core.cookieSigningKey } : {}),
         ...(core.userId ? { userId: core.userId } : {}),
         ...(themeOverride ? {
           theme: {
@@ -699,7 +696,7 @@ export function PlaygroundClient() {
         },
       },
     }
-  }, [isDefault, darkMode, autoInit, banner, modal, gpc, themeOverride, theme, core, api, gtm, cookies, categories, bannerButtons, gpcButtons, modalButtons])
+  }, [isDefault, darkMode, autoInit, banner, modal, gpc, themeOverride, theme, compliance, core, api, gtm, cookies, categories, bannerButtons, gpcButtons, modalButtons])
 
   // ── Widget lifecycle ─────────────────────────────────────────────────────────
 
@@ -746,7 +743,7 @@ export function PlaygroundClient() {
   // Re-init when config changes (debounced)
   useEffect(() => {
     scheduleReinit(300)
-  }, [banner, modal, gpc, themeOverride, theme, core, api, gtm, cookies, categories, bannerButtons, gpcButtons, modalButtons, isDefault, darkMode, autoInit, scheduleReinit])
+  }, [banner, modal, gpc, themeOverride, theme, compliance, core, api, gtm, cookies, categories, bannerButtons, gpcButtons, modalButtons, isDefault, darkMode, autoInit, scheduleReinit])
 
   // Listen to consenti events
   useEffect(() => {
@@ -839,26 +836,26 @@ export function PlaygroundClient() {
   function renderSetupCore() {
     return (
       <div className="space-y-0">
-        <CtrlGroup title="Core Config">
-          <CtrlRow label="Regulation">
+        <CtrlGroup title="Compliance Group">
+          <CtrlRow label="compliance.type" hint="Controls opt-in / opt-out model and pre-built profile. Leave empty for auto-detection.">
             <Select
-              value={core.regulation}
-              onChange={(v) => setCore((p) => ({ ...p, regulation: v }))}
+              value={compliance.type}
+              onChange={(v) => setCompliance({ type: v })}
               options={[
-                { value: 'gdpr', label: 'gdpr — EU opt-in' },
-                { value: 'uk-gdpr', label: 'uk-gdpr — UK opt-in' },
-                { value: 'ccpa', label: 'ccpa — California opt-out' },
-                { value: 'cpra', label: 'cpra — California opt-out / opt-in' },
-                { value: 'lgpd', label: 'lgpd — Brazil opt-in' },
-                { value: 'dpdpa', label: 'dpdpa — India opt-in' },
-                { value: 'pipeda', label: 'pipeda — Canada opt-in' },
-                { value: 'popia', label: 'popia — South Africa opt-in' },
-                { value: 'pdpa-th', label: 'pdpa-th — Thailand opt-in' },
-                { value: 'appi', label: 'appi — Japan opt-in / opt-out' },
-                { value: 'kvkk', label: 'kvkk — Turkey opt-in' },
+                { value: '', label: '(auto-detect from browser locale)' },
+                { value: 'opt-in', label: 'opt-in — GDPR, UK GDPR, PIPEDA, POPIA, PDPA-TH, APPI, KVKK' },
+                { value: 'opt-out', label: 'opt-out — CCPA / US States' },
+                { value: 'opt-out-strict', label: 'opt-out-strict — CPRA (California 2023)' },
+                { value: 'opt-in-dpdpa', label: 'opt-in-dpdpa — DPDPA (India 2023)' },
+                { value: 'opt-in-china', label: 'opt-in-china — PIPL (China 2021)' },
+                { value: 'opt-in-brazil', label: 'opt-in-brazil — LGPD (Brazil)' },
+                { value: 'general-privacy-consent', label: 'general-privacy-consent — TCF v2.2, COPPA' },
+                { value: 'notice-only', label: 'notice-only — informational notice, no opt-in required' },
               ]}
             />
           </CtrlRow>
+        </CtrlGroup>
+        <CtrlGroup title="Core Config">
           <CtrlRow label="Locale">
             <TextInput value={core.locale} onChange={(v) => setCore((p) => ({ ...p, locale: v }))} placeholder="e.g. en, fr, fr-CA" />
           </CtrlRow>
@@ -875,9 +872,6 @@ export function PlaygroundClient() {
           <CtrlRow label="Cookie domains" hint="Comma-separated. First entry used as Domain attribute.">
             <TextInput value={core.cookieDomains} onChange={(v) => setCore((p) => ({ ...p, cookieDomains: v }))} placeholder=".example.com" />
           </CtrlRow>
-          <CtrlRow label="Privacy policy URL" hint="Auto-appended as a link in the banner body.">
-            <TextInput value={core.privacyPolicyUrl} onChange={(v) => setCore((p) => ({ ...p, privacyPolicyUrl: v }))} placeholder="https://example.com/privacy" />
-          </CtrlRow>
           <CtrlRow label="GPC mode (autoHonorGPC)">
             <Select
               value={gpc.mode}
@@ -889,14 +883,6 @@ export function PlaygroundClient() {
               ]}
             />
           </CtrlRow>
-          <CtrlRow>
-            <Checkbox checked={core.signCookies} onChange={(v) => setCore((p) => ({ ...p, signCookies: v }))} label="Sign cookies (HMAC-SHA256)" />
-          </CtrlRow>
-          {core.signCookies && (
-            <CtrlRow label="Signing key" hint="Never expose in production — use API mode to receive the key server-side.">
-              <TextInput value={core.cookieSigningKey} onChange={(v) => setCore((p) => ({ ...p, cookieSigningKey: v }))} placeholder="min 32-character secret" />
-            </CtrlRow>
-          )}
           <CtrlRow label="User ID (authenticated users)" hint="Overrides auto-generated visitor ID. Enables cross-device sync via API.">
             <TextInput value={core.userId} onChange={(v) => setCore((p) => ({ ...p, userId: v }))} placeholder="server-assigned UUID" />
           </CtrlRow>
@@ -925,23 +911,10 @@ export function PlaygroundClient() {
             <CtrlRow label="Auth token" hint="Bearer token for authenticated requests.">
               <TextInput value={api.authToken} onChange={(v) => setApi((p) => ({ ...p, authToken: v }))} placeholder="Bearer token" />
             </CtrlRow>
+            <CtrlRow label="Compliance group" hint="When set, skips /resolve-profile auto-resolution and always fetches this group's profile. Leave empty for auto-resolve.">
+              <TextInput value={api.complianceGroup} onChange={(v) => setApi((p) => ({ ...p, complianceGroup: v }))} placeholder="opt-in" />
+            </CtrlRow>
           </div>
-        </CtrlGroup>
-        <CtrlGroup title="Profile ID">
-          <p className="ctrl-hint mb-2">
-            Which consent profile to load. When API is disabled, the playground uses <code className="bg-slate-100 px-0.5 rounded">profileOverride</code> directly and this is ignored.
-          </p>
-          <CtrlRow label="Profile ID" hint={api.enabled ? 'Numeric ID of the profile to fetch from the API.' : 'Enable API mode above to use a profile ID.'}>
-            <input
-              type="number"
-              className="ctrl-input"
-              min={0}
-              value={core.profileId || ''}
-              onChange={(e) => setCore((p) => ({ ...p, profileId: Number(e.target.value) || 0 }))}
-              placeholder="0"
-              disabled={!api.enabled}
-            />
-          </CtrlRow>
         </CtrlGroup>
       </div>
     )

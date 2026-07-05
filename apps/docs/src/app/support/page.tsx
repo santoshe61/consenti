@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Check, Coffee, CreditCard, ExternalLink, Github, Heart } from 'lucide-react'
+import { Check, Coffee, CreditCard, ExternalLink, Heart } from 'lucide-react'
+import { FaGithub } from 'react-icons/fa'
 
 export const metadata: Metadata = { title: 'Support Consenti' }
 
@@ -94,7 +95,7 @@ export default function SupportPage() {
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold no-underline hover:bg-slate-800 transition-colors"
         >
-          <Github size={16} />
+          <FaGithub size={16} />
           Star on GitHub
         </a>
       </div>

@@ -181,5 +181,6 @@ export class ConsentService {
       resourceId: visitorId,
       ...(existing != null ? { oldData: existing } : {}),
     })
+    this.eventBus?.emit('consent.erased', { visitorId })
   }
 }

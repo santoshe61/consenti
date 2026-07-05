@@ -1,6 +1,18 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-50: #e8f0fb;
+  --color-brand-100: #c5d8f5;
+  --color-brand-400: #4a89dc;
+  --color-brand-500: #1565c0;
+  --color-brand-600: #1a3460;
+  --color-brand-700: #122547;
+  --color-brand-800: #0c1a33;
+  --color-brand-900: #060f1a;
+  --color-success: #43a047;
+  --font-family-mono: 'Fira Code', ui-monospace, 'Courier New', monospace;
+}
 
 @layer base {
   :root {
@@ -257,15 +269,15 @@
   }
 
   .action-btn-primary {
-    @apply action-btn bg-brand-500 text-white;
+    @apply px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0 bg-brand-500 text-white;
   }
 
   .action-btn-secondary {
-    @apply action-btn bg-brand-50 text-brand-600;
+    @apply px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0 bg-brand-50 text-brand-600;
   }
 
   .action-btn-danger {
-    @apply action-btn bg-red-600 text-white;
+    @apply px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0 bg-red-600 text-white;
   }
 
   .badge {
@@ -276,6 +288,40 @@
 code::after,
 code::before {
   content: none !important;
+}
+
+/* ── Algolia DocSearch brand overrides ──────────────────────────────────────── */
+:root {
+  --docsearch-primary-color: #1a3460;
+  --docsearch-highlight-color: #1a3460;
+  --docsearch-logo-color: #1a3460;
+  --docsearch-searchbox-background: rgba(255, 255, 255, 0.12);
+  --docsearch-searchbox-focus-background: rgba(255, 255, 255, 0.2);
+  --docsearch-searchbox-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  --docsearch-text-color: #fff;
+  --docsearch-muted-color: rgba(255, 255, 255, 0.55);
+  --docsearch-key-gradient: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+  --docsearch-key-shadow: none;
+}
+
+/* Button in navbar — inherit the nav's white text */
+.DocSearch-Button {
+  border-radius: 0.5rem !important;
+  width: 100% !important;
+}
+
+.DocSearch-Button-Placeholder,
+.DocSearch-Button-Keys kbd {
+  font-size: 0.75rem !important;
+}
+
+/* Modal overrides for light mode */
+.DocSearch-Modal {
+  --docsearch-searchbox-background: #f1f5f9;
+  --docsearch-searchbox-focus-background: #fff;
+  --docsearch-text-color: #1e293b;
+  --docsearch-muted-color: #64748b;
+  --docsearch-primary-color: #1a3460;
 }
 
 /* Mobile overflow — tables and code blocks scroll inside their container */

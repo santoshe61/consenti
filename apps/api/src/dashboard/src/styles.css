@@ -1,6 +1,5 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 select,
 input[type="text"],
@@ -21,18 +20,53 @@ input:not([type]) {
 }
 
 /* Dark mode overrides for common utility patterns */
-.dark .bg-white { background-color: #1f2937; }
-.dark .bg-gray-50 { background-color: #111827; }
-.dark .bg-gray-100 { background-color: #1f2937; }
-.dark .bg-gray-200 { background-color: #374151; }
-.dark .text-gray-900 { color: #f9fafb; }
-.dark .text-gray-800 { color: #f3f4f6; }
-.dark .text-gray-700 { color: #e5e7eb; }
-.dark .text-gray-600 { color: #d1d5db; }
-.dark .border-gray-200 { border-color: #374151; }
-.dark .border-gray-300 { border-color: #4b5563; }
-.dark .divide-gray-200 > * + * { border-color: #374151; }
-.dark .shadow-sm { box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.3); }
+.dark .bg-white {
+  background-color: #1f2937;
+}
+
+.dark .bg-gray-50 {
+  background-color: #111827;
+}
+
+.dark .bg-gray-100 {
+  background-color: #1f2937;
+}
+
+.dark .bg-gray-200 {
+  background-color: #374151;
+}
+
+.dark .text-gray-900 {
+  color: #f9fafb;
+}
+
+.dark .text-gray-800 {
+  color: #f3f4f6;
+}
+
+.dark .text-gray-700 {
+  color: #e5e7eb;
+}
+
+.dark .text-gray-600 {
+  color: #d1d5db;
+}
+
+.dark .border-gray-200 {
+  border-color: #374151;
+}
+
+.dark .border-gray-300 {
+  border-color: #4b5563;
+}
+
+.dark .divide-gray-200>*+* {
+  border-color: #374151;
+}
+
+.dark .shadow-sm {
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.3);
+}
 
 .dark select,
 .dark input[type='text'],
@@ -56,4 +90,13 @@ input:not([type]) {
 .dark [contenteditable] {
   background-color: #374151;
   color: #f9fafb;
+}
+
+select,
+button,
+input[type=button],
+input[type=submit],
+input[type=radio],
+input[type=checkbox] {
+  cursor: pointer;
 }

@@ -60,7 +60,14 @@ export function buildAdminUITemplateRoutes(storage: StorageAdapter, authConfig: 
       withErrorHandler(async () => {
         const { denied } = await auth(req, 'profile:delete')
         if (denied) return denied
-        await storage.deleteUITemplate(params['id']!)
+        const id = params['id']!
+        const profiles = await storage.findProfilesUsingUITemplate(id)
+        if (profiles.length > 0) {
+          return errorResponse(422, 'Cannot delete: template is used by profiles', {
+            profiles: profiles.map(p => ({ id: p.id, name: p.name, isActive: p.isActive })),
+          })
+        }
+        await storage.deleteUITemplate(id)
         return json(200, { ok: true })
       }),
 
@@ -74,6 +81,14 @@ export function buildAdminUITemplateRoutes(storage: StorageAdapter, authConfig: 
         const newName = (typeof body?.name === 'string' && body.name.trim()) ? body.name.trim() : `${src.name} (Copy)`
         const t = await storage.copyUITemplate(params['id']!, newName)
         return json(201, t)
+      }),
+
+    'GET /ui-templates/:id/profile-usage': async (req: Request, params: Record<string, string>): Promise<Response> =>
+      withErrorHandler(async () => {
+        const { denied } = await auth(req, 'profile:view')
+        if (denied) return denied
+        const usage = await storage.findProfilesUsingUITemplate(params['id']!)
+        return json(200, usage)
       }),
   }
 }

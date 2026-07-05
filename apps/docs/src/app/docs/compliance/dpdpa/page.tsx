@@ -8,6 +8,11 @@ export default function DPDPAPage() {
   return (
     <div className="prose max-w-none">
       <h1>DPDPA Compliance Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in-dpdpa</code> — India-specific opt-in with
+        fiduciary name, grievance officer in modal, and age gate (18+). GPC signal is ignored.
+        Use <code>compliance: {'{ type: \'opt-in-dpdpa\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         India's Digital Personal Data Protection Act 2023 (DPDPA) came into force in August 2023
         and is enforced by the Data Protection Board of India under the Ministry of Electronics

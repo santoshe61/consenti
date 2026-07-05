@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Github, Home, Menu, X, Package, ChevronDown, Sliders, Server, Coffee, Heart } from 'lucide-react'
+import { Home, Menu, X, Package, ChevronDown, Sliders, Server, Coffee, Heart } from 'lucide-react'
 import { SiNpm } from 'react-icons/si'
+import { FaGithub } from 'react-icons/fa'
 import { AskAIButton } from './AskAIButton'
 import { DarkModeToggle } from './DarkModeToggle'
+import { DocSearch } from './DocSearch'
 
 export function Navbar() {
   const pathname = usePathname()
@@ -52,14 +54,9 @@ export function Navbar() {
           </div>
         </Link>
 
-        <div className="flex-1 hidden md:block">
-          <div className="max-w-xs mx-auto relative">
-            <input
-              type="search"
-              placeholder="Search docs…"
-              className="w-full bg-white/10 text-white placeholder-white/50 text-sm px-3 py-1.5 rounded-lg border border-white/20 focus:outline-none focus:bg-white/20 focus:border-white/40"
-            />
-            <kbd className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-white/40 font-mono">⌘K</kbd>
+        <div className="flex-1 hidden md:flex justify-center">
+          <div className="w-full max-w-xs">
+            <DocSearch />
           </div>
         </div>
 
@@ -148,7 +145,7 @@ export function Navbar() {
             className="p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-md transition-colors"
             aria-label="GitHub"
           >
-            <Github size={20} />
+            <FaGithub size={20} />
           </a>
 
           <a
@@ -213,6 +210,7 @@ export function Navbar() {
             >
               Support Author
             </Link>
+
           </nav>
         </div>
       )}

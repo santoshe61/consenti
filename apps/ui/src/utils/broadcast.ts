@@ -13,6 +13,7 @@
 
 import type { ConsentiMessage, ConsentValue } from '../types'
 import { isClient } from './ssr'
+import { logger } from './console'
 
 export type { ConsentiMessage }
 
@@ -47,7 +48,7 @@ export class ConsentiChannel {
       }
     }
     this.channel.onmessageerror = () => {
-      console.warn('[Consenti] BroadcastChannel message error — ignoring')
+      logger.warn('BroadcastChannel message error — ignoring')
     }
   }
 

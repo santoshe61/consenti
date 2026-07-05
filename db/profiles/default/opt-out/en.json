@@ -1,0 +1,133 @@
+{
+  "id": "prof_e8a28bfdf686464d8f7b30bb6de3f005",
+  "version": 4,
+  "defaultLocale": "en",
+  "currentLocale": "en",
+  "locales": [
+    "en",
+    "da-DK"
+  ],
+  "cookies": [
+    {
+      "id": "functional",
+      "legalBasis": "mandatory",
+      "listenGpc": true,
+      "expiry": 365
+    },
+    {
+      "id": "r_adv",
+      "legalBasis": "consent",
+      "listenGpc": true,
+      "expiry": 365
+    }
+  ],
+  "mainBanner": {
+    "position": "bottom",
+    "overlayOpacity": 0,
+    "showClose": false,
+    "headingTag": "h2",
+    "heading": "Privacy Notice",
+    "htmlText": "We use cookies and similar technologies on this site. Under applicable US state privacy laws, you have the right to opt out of the sale or sharing of your personal data. Review our Privacy Policy or manage your preferences below.",
+    "buttons": [
+      {
+        "text": "Allow All",
+        "action": "custom",
+        "type": "primary",
+        "cookies": "*"
+      },
+      {
+        "text": "Opt Out",
+        "action": "custom",
+        "type": "accent",
+        "cookies": "!"
+      },
+      {
+        "text": "Manage Preferences",
+        "action": "manage",
+        "type": "secondary"
+      }
+    ]
+  },
+  "preferenceModal": {
+    "position": "right",
+    "overlayOpacity": 50,
+    "showClose": true,
+    "persistent": false,
+    "headingTag": "h2",
+    "heading": "Privacy Preferences",
+    "subheading": "Your US privacy rights",
+    "htmlText": "Manage your choices under US state privacy laws. You may opt out of the sale or sharing of your personal data at any time.",
+    "buttons": [
+      {
+        "text": "Save Preferences",
+        "action": "submit",
+        "type": "primary"
+      },
+      {
+        "text": "Allow All",
+        "action": "custom",
+        "type": "secondary",
+        "cookies": "*"
+      }
+    ],
+    "categories": [
+      {
+        "id": "necessary",
+        "heading": "Strictly Necessary",
+        "headingTag": "h3",
+        "htmlText": "Essential cookies required for core website functionality. Cannot be disabled.",
+        "mandatory": true,
+        "type": "consent",
+        "cookies": [
+          "necessary"
+        ]
+      },
+      {
+        "id": "analytics",
+        "heading": "Analytics",
+        "headingTag": "h3",
+        "htmlText": "Help us understand how visitors interact with our site using anonymous statistics.",
+        "mandatory": false,
+        "type": "consent",
+        "cookies": [
+          "analytics_storage"
+        ]
+      },
+      {
+        "id": "marketing",
+        "heading": "Marketing",
+        "headingTag": "h3",
+        "htmlText": "Deliver relevant advertisements and measure campaign effectiveness.",
+        "mandatory": false,
+        "type": "consent",
+        "cookies": [
+          "ad_storage",
+          "ad_user_data",
+          "ad_personalization"
+        ]
+      }
+    ]
+  },
+  "gpcBanner": {
+    "position": "bottom",
+    "overlayOpacity": 0,
+    "showClose": false,
+    "headingTag": "h2",
+    "heading": "Your Privacy Preference Recognised",
+    "htmlText": "We detected a Global Privacy Control (GPC) signal from your browser and applied your opt-out of sale and sharing, as required under applicable US state privacy laws.",
+    "buttons": [
+      {
+        "text": "Allow All",
+        "action": "custom",
+        "type": "primary",
+        "cookies": "*"
+      },
+      {
+        "text": "Opt Out",
+        "action": "custom",
+        "type": "accent",
+        "cookies": "!"
+      }
+    ]
+  }
+}

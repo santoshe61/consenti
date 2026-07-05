@@ -66,6 +66,44 @@
     }
   }
 
+  &__toggle-icon {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 10px;
+    height: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    transition: opacity 0.15s ease;
+    color: rgba(255, 255, 255, 0.9);
+
+    svg {
+      width: 10px;
+      height: 10px;
+      overflow: visible;
+    }
+
+    &--check {
+      left: 8px;
+      opacity: 0;
+
+      [aria-checked="true"] & {
+        opacity: 1;
+      }
+    }
+
+    &--cross {
+      right: 8px;
+      opacity: 1;
+
+      [aria-checked="true"] & {
+        opacity: 0;
+      }
+    }
+  }
+
   &__toggle-knob {
     position: absolute;
     top: 2px;

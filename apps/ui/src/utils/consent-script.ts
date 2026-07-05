@@ -27,6 +27,7 @@
 
 import type { ConsentiSetup } from '../core/consenti-setup'
 import { isClient } from './ssr'
+import { logger } from './console'
 
 /** Options for constructing a {@link ConsentScript} instance. */
 export interface ConsentScriptOptions {
@@ -36,8 +37,12 @@ export interface ConsentScriptOptions {
   widget: ConsentiSetup
   /** Remote script `src` URL to inject when consent is granted. */
   src?: string
-  /** Inline JavaScript content to execute when consent is granted. */
-  innerHTML?: string
+  /**
+   * Inline JavaScript to inject when consent is granted (e.g. a GTM snippet).
+   * WARNING: this string is assigned directly to `script.innerHTML` — only
+   * pass a static, trusted literal. Never pass user-supplied or remote content.
+   */
+  unsafeInnerHTML?: string
   /**
    * Additional HTML attributes applied to the injected `<script>` element.
    * Set a key to an empty string for boolean attributes (e.g. `{ async: '', defer: '' }`).
@@ -47,6 +52,12 @@ export interface ConsentScriptOptions {
   onLoad?: () => void
   /** Called after the `<script>` element has been removed from the DOM. */
   onRevoke?: () => void
+  /**
+   * When `true` (default), the script is automatically removed when consent is revoked and
+   * re-injected when consent is re-granted. Set to `false` to evaluate consent only once at
+   * construction time — no event listener is attached and the script is never auto-removed.
+   */
+  bind?: boolean
 }
 
 /**
@@ -71,7 +82,9 @@ export class ConsentScript {
 
     if (!isClient()) return
 
-    window.addEventListener('consenti:consentSubmitted', this.handler)
+    if (options.bind !== false) {
+      window.addEventListener('consenti:consentSubmitted', this.handler)
+    }
 
     // Evaluate immediately so any existing consent is reflected at construction time.
     this.evaluate()
@@ -90,9 +103,25 @@ export class ConsentScript {
 
   private inject(): void {
     const script = document.createElement('script')
-    if (this.options.src) script.src = this.options.src
-    if (this.options.innerHTML) script.innerHTML = this.options.innerHTML
+    if (this.options.src) {
+      // Reject javascript: URLs — only allow http(s)/protocol-relative/relative paths.
+      const src = this.options.src.trim()
+      if (/^javascript:/i.test(src)) {
+        logger.warn('ConsentScript: rejected src with javascript: protocol')
+        return
+      }
+      script.src = src
+    }
+    // unsafeInnerHTML is an intentional escape hatch for inline scripts (e.g. GTM snippet).
+    // The content is the caller's responsibility — only pass trusted, static strings.
+    if (this.options.unsafeInnerHTML) script.innerHTML = this.options.unsafeInnerHTML
     for (const [key, value] of Object.entries(this.options.attributes ?? {})) {
+      // Strip inline event handler attributes (on*) — they bypass CSP and are never
+      // a legitimate need here since the caller can use onLoad/onRevoke callbacks.
+      if (/^on/i.test(key)) {
+        logger.warn(`ConsentScript: rejected attribute "${key}" (inline event handlers are not allowed)`)
+        continue
+      }
       script.setAttribute(key, value)
     }
     document.head.appendChild(script)
@@ -112,7 +141,9 @@ export class ConsentScript {
    */
   destroy(): void {
     if (!isClient()) return
-    window.removeEventListener('consenti:consentSubmitted', this.handler)
+    if (this.options.bind !== false) {
+      window.removeEventListener('consenti:consentSubmitted', this.handler)
+    }
     this.revoke()
   }
 }

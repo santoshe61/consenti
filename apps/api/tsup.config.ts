@@ -13,6 +13,7 @@ export default defineConfig({
   outExtension: ({ format }) => ({ js: format === 'esm' ? '.js' : '.cjs' }),
   dts: { resolve: true },
   sourcemap: true,
+  minify: true,
   clean: true,
   target: 'node20',
   platform: 'node',

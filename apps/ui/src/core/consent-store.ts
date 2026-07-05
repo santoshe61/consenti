@@ -18,8 +18,16 @@
  * called in render loops by the React/Vue hooks).
  */
 
-import type { ConsentValue, ParsedConsent, CookieOptions } from '../types'
+import type { ConsentValue, ParsedConsent, CookieOptions, Cookie } from '../types'
 import { ConsentStorage } from '../utils/storage'
+import { logger } from '../utils/console'
+
+export function resolveConsentMaxAge(cookies: Cookie[]): number {
+  const minDays = cookies
+    .map(c => c.expiry ?? 365)
+    .reduce((min, d) => Math.min(min, d), 365)
+  return minDays * 24 * 60 * 60
+}
 
 const COOKIE_NAME_PREFIX = 'consenti'
 
@@ -113,6 +121,7 @@ export class ConsentStore {
   private storage: ConsentStorage
   private cachedConsent: ConsentValue | null = null
   private cachedTimestamp: string | null = null
+  private cookies: Cookie[] = []
 
   /**
    * @param userId        - Visitor UUID (from `consenti_uid` cookie).
@@ -127,6 +136,11 @@ export class ConsentStore {
     private cookieDomains?: string,
   ) {
     this.storage = new ConsentStorage(storageMode)
+  }
+
+  /** Set profile cookies so max-age can be derived from the shortest expiry. */
+  setProfileCookies(cookies: Cookie[]): void {
+    this.cookies = cookies
   }
 
   /** The full cookie / localStorage key for this visitor + profile combination. */
@@ -181,7 +195,7 @@ export class ConsentStore {
       const sig = (parts[2] ?? '').slice(4)
       const valid = await verifyValue(valueToVerify, sig, signingKey)
       if (!valid) {
-        console.warn('[Consenti] Cookie signature mismatch — consent cleared and banner will re-appear')
+        logger.warn('Cookie signature mismatch — consent cleared and banner will re-appear')
         this.delete()
         return null
       }
@@ -328,7 +342,7 @@ export class ConsentStore {
     const opts: CookieOptions = {
       path: '/',
       sameSite: 'Lax',
-      maxAge: 365 * 24 * 60 * 60,
+      maxAge: this.cookies.length > 0 ? resolveConsentMaxAge(this.cookies) : 365 * 24 * 60 * 60,
     }
     if (this.cookieDomains) {
       const domain = this.cookieDomains.split(',')[0]?.trim()

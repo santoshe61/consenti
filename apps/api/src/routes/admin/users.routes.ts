@@ -51,6 +51,7 @@ export function buildAdminUserRoutes(
             email: b['email'],
             password: b['password'],
             ...(typeof b['roleId'] === 'string' ? { roleId: b['roleId'] } : {}),
+            ...(Array.isArray(b['allowedTenants']) ? { allowedTenants: b['allowedTenants'] as string[] } : {}),
           },
           actor!.sub,
         )
@@ -75,6 +76,7 @@ export function buildAdminUserRoutes(
             ...(typeof b['email'] === 'string' ? { email: b['email'] } : {}),
             ...(b['isActive'] != null ? { isActive: Boolean(b['isActive']) } : {}),
             ...(typeof b['password'] === 'string' ? { password: b['password'] } : {}),
+            ...(Array.isArray(b['allowedTenants']) ? { allowedTenants: b['allowedTenants'] as string[] } : {}),
           },
           actor!.sub,
         )
