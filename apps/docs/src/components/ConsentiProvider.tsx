@@ -49,7 +49,7 @@ async function createWidget(dark: boolean): Promise<WidgetHandle> {
     },
     api: {
       enabled: true,
-      baseUrl: '',
+      baseUrl: process.env.NEXT_PUBLIC_API_URL!
     },
     plugins: [new DemoAnalyticsPlugin()],
   })

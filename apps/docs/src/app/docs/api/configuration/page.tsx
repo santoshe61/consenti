@@ -14,22 +14,46 @@ export default function APIConfigurationPage() {
         immediately.
       </p>
 
-      <CodeBlock lang="ts" filename="Zero-config quickstart" code={`import { createConsenti } from '@consenti/api'
+      <h2>Minimal config to get started</h2>
+      <p>
+        This is all you need. Copy it, set your password via an env var, and you have a working
+        server with admin dashboard.
+      </p>
+      <CodeBlock lang="ts" filename="server.ts" code={`import { createConsenti } from '@consenti/api'
+import http from 'node:http'
 
-// No config required — works out of the box
-const consenti = createConsenti({})
+const consenti = createConsenti({
+  storage: { driver: 'json', path: './consenti-data' },
+  auth: {
+    mode: 'local',
+    adminEmail: 'admin@example.com',
+    adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
+  },
+  dashboard: true,
+})
 
-// Set credentials via environment variables (recommended even for dev)
-// CONSENTI_ADMIN_EMAIL=user@consenti.dev
-// CONSENTI_ADMIN_PASSWORD=Consenti@123
-// CONSENTI_ADMIN_JWT_SECRET=your-jwt-secret`} />
+http.createServer(consenti.handler).listen(3001)
+// Admin → http://localhost:3001/consenti/
+// API   → http://localhost:3001/consenti/api/v1/`} />
 
       <Callout type="warning">
-        The zero-config defaults use an in-process JSON file store (<code>./consenti-data.json</code>)
-        and demo credentials. This is fine for local development and prototyping, but{' '}
-        <strong>not suitable for production or medium-to-large applications</strong>. Switch to a
-        SQLite or server database driver and set real credentials before deploying.
+        The <code>json</code> driver stores data in memory and flushes to disk. It is fine for
+        development, but <strong>switch to SQLite or a server database before production</strong>.
+        See <a href="#storage">storage</a> below.
       </Callout>
+
+      <Callout type="info">
+        The rest of this page is the complete configuration reference. You don&apos;t need to read
+        it all now — come back when you need to change a specific option like the database driver,
+        auth mode, or compliance settings.
+      </Callout>
+
+      <hr />
+
+      <h2>Full configuration reference</h2>
+      <p>
+        Every available option shown with its default value.
+      </p>
 
       <CodeBlock lang="ts" filename="Full config example" code={`import { createConsenti } from '@consenti/api'
 
@@ -110,7 +134,7 @@ const consenti = createConsenti({
 })`} />
 
       {/* ── storage ───────────────────────────────────────────────────────── */}
-      <h2>storage</h2>
+      <h2 id="storage">storage</h2>
       <p>
         Controls which database backend Consenti uses. The <code>driver</code> field selects
         the engine; the remaining fields depend on which driver you choose.

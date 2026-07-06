@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'PDPA Compliance Guide (Thailand)' }
+export const metadata: Metadata = {
+  title: 'PDPA Compliance Guide (Thailand)',
+  description: 'How to implement PDPA (Thailand Personal Data Protection Act) cookie consent with Consenti. Opt-in mode, audit logs, and auto geo-detection.',
+  keywords: ['PDPA', 'PDPA compliance', 'PDPA Thailand', 'Thai personal data protection act', 'cookie consent Thailand'],
+  alternates: { canonical: 'https://consenti.dev/docs/compliance/pdpa-th' },
+}
 
 export default function PDPAThailandPage() {
   return (

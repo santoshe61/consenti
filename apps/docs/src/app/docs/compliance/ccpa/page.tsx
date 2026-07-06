@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'CCPA / US State Privacy Laws' }
+export const metadata: Metadata = {
+  title: 'CCPA / US State Privacy Laws',
+  description: 'Implement CCPA, CPRA, and US state privacy law consent with Consenti. Opt-out mode, GPC signal detection, do-not-sell flows, and state-level geo-detection.',
+  keywords: ['CCPA', 'CPRA', 'CCPA compliance', 'opt-out consent', 'GPC', 'do not sell', 'California privacy', 'US state privacy laws'],
+  alternates: { canonical: 'https://consenti.dev/docs/compliance/ccpa' },
+}
 
 export default function CCPAPage() {
   return (

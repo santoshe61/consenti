@@ -18,6 +18,12 @@ export default defineConfig(({ command }) => ({
   root: __dirname,
   plugins: [preact(), tailwindcss()],
   resolve: {
+    // Force a single Preact instance across all packages bundled here.
+    // apps/api has its own node_modules/preact (patch version differs from root),
+    // and @consenti/ui resolves to the root copy. Two separate Preact instances
+    // means two separate options/__r chains: one sets currentComponent (q) during
+    // render while the other runs useContext, so q is always undefined → crash.
+    dedupe: ['preact', 'preact/compat', 'preact/hooks', 'preact/jsx-runtime'],
     alias: {
       // Allow internal imports from @consenti/ui source that aren't exposed via
       // the package "exports" field (e.g. src/styles/consenti-css.ts).

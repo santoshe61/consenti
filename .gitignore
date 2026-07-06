@@ -10,6 +10,7 @@ dist/
 *.db-shm
 *.db-wal
 *-deploy.tar.gz
+*.zip
 
 
 # ─── Environment / secrets ───────────────────────────────────────────────────
@@ -25,6 +26,7 @@ consenti-data.db
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+db
 
 # ─── OS ──────────────────────────────────────────────────────────────────────
 .DS_Store

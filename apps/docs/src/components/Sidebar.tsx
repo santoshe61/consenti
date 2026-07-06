@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Coffee, Heart, Layout, List, Server, ChevronDown, ChevronRight } from 'lucide-react'
+import { Coffee, Layout, List, Server, ChevronDown, ChevronRight } from 'lucide-react'
 import { FaGithub } from 'react-icons/fa'
 
 interface NavItem {
@@ -331,13 +331,6 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
           >
             <Coffee size={15} /> Support Consenti
-          </Link>
-          <Link
-            href="/author/"
-            {...(onClose ? { onClick: onClose } : {})}
-            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
-          >
-            <Heart size={15} /> Support Author
           </Link>
           <a
             href="https://github.com/santoshe61/consenti"

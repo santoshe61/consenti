@@ -716,7 +716,6 @@ export function PlaygroundClient() {
 
   const initWidget = useCallback(async () => {
     const { ConsentiSetup } = await import('@consenti/ui')
-    await import('@consenti/ui/dist/index.css')
 
     widgetRef.current?.destroy()
     const w = new ConsentiSetup(buildConfig()) as unknown as WidgetHandle

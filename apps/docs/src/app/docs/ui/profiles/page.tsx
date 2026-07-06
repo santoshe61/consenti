@@ -15,6 +15,48 @@ export default function UIProfilesPage() {
         the widget config itself.
       </p>
 
+      <h2>Minimal — get a working banner fast</h2>
+      <p>
+        You don&apos;t need to define a profile to get started. The widget ships 8 pre-built profiles
+        (one per compliance group) that load automatically.
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiSetup } from '@consenti/ui'
+
+// Pre-built GDPR profile loads automatically — no extra code needed.
+new ConsentiSetup({ compliance: { type: 'opt-in' } })`}
+      />
+      <p>
+        To tweak copy, buttons, or position without defining a full profile, use{' '}
+        <code>profileOverride</code>:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  profileOverride: {
+    mainBanner: {
+      heading: 'We value your privacy',
+      htmlText: 'We use cookies to improve your experience.',
+      buttons: [
+        { text: 'Accept All',     style: 'primary',   action: 'custom', cookies: '*' },
+        { text: 'Reject Optional',style: 'secondary', action: 'custom', cookies: '!' },
+        { text: 'Customize',      style: 'secondary', action: 'manage' },
+      ],
+    },
+  },
+})`}
+      />
+
+      <Callout type="info">
+        The rest of this page is the complete profiles reference: resolution order, all{' '}
+        <code>ConsentiProfile</code> fields, multi-locale, GPC banner, and more. Only read further
+        when you need full control over the banner structure or multi-locale support.
+      </Callout>
+
+      <hr />
+
       <h2>How profiles are resolved</h2>
       <p>
         Every time <code>new ConsentiSetup(config)</code> initialises, it resolves exactly one
@@ -132,7 +174,6 @@ const defaultCookies = [
       <CodeBlock
         lang="ts"
         code={`import { ConsentiProfile, ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 const profile = new ConsentiProfile({
   defaultLocale: 'en',

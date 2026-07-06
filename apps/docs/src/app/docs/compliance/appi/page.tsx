@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'APPI Compliance Guide (Japan)' }
+export const metadata: Metadata = {
+  title: 'APPI Compliance Guide (Japan)',
+  description: 'How to implement APPI (Act on the Protection of Personal Information) cookie consent in Japan with Consenti. Opt-in mode, audit logs, and geo-detection.',
+  keywords: ['APPI', 'APPI compliance', 'Japan personal data protection', 'cookie consent Japan', 'Act on the Protection of Personal Information'],
+  alternates: { canonical: 'https://consenti.dev/docs/compliance/appi' },
+}
 
 export default function APPIPage() {
   return (

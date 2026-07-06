@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'GDPR Compliance Guide' }
+export const metadata: Metadata = {
+  title: 'GDPR Compliance Guide',
+  description: 'Implement GDPR-compliant cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, immutable audit logs, and signed consent receipts.',
+  keywords: ['GDPR', 'GDPR cookie consent', 'GDPR compliance', 'opt-in consent', 'cookie banner GDPR', 'open source GDPR'],
+  alternates: { canonical: 'https://consenti.dev/docs/compliance/gdpr' },
+}
 
 export default function GDPRPage() {
   return (

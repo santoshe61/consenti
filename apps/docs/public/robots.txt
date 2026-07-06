@@ -5,6 +5,9 @@ Allow: /
 User-agent: GPTBot
 Allow: /
 
+User-agent: ChatGPT-User
+Allow: /
+
 User-agent: OAI-SearchBot
 Allow: /
 
@@ -26,5 +29,15 @@ Allow: /
 User-agent: Applebot-Extended
 Allow: /
 
-# LLM context file
-# https://consenti.dev/llms.txt
+User-agent: Meta-ExternalAgent
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# Sitemap
+Sitemap: https://consenti.dev/sitemap.xml
+
+# LLM-friendly documentation (plain text, no JavaScript required)
+# Summary:  https://consenti.dev/llms.txt
+# Full docs: https://consenti.dev/llms-full.txt

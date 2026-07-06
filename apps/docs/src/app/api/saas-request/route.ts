@@ -3,7 +3,7 @@ import { join } from 'node:path'
 import type { NextRequest } from 'next/server'
 import { verifyRecaptcha } from '@/lib/recaptcha-verify'
 
-const DB_PATH = join(process.cwd(), '../../../../db', 'consenti-saas-requests.json')
+const DB_PATH = join(process.env.CONSENTI_DATA_PATH ?? process.cwd() + '/db', 'consenti-saas-requests.json')
 
 const EMAIL_RE = /^[^@\s]{1,64}@[^@\s]+\.[^@\s]{2,}$/
 // Strip HTML tags and control characters from free-text fields

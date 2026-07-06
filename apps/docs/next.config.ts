@@ -14,7 +14,7 @@ const recaptchaFrameSrc = recaptchaKey ? 'https://www.google.com/recaptcha/ http
 
 let DOCS_CSP: string | string[] = [
   "default-src 'self'",
-  "style-src 'self' 'style-src-elem' 'unsafe-inline'",
+  "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: https:",
   "font-src 'self'",
   `connect-src 'self'${algoliaConnectSrc ? ` ${algoliaConnectSrc}` : ''}`,
@@ -29,6 +29,19 @@ if (process.env.NODE_ENV === "development") DOCS_CSP.push(`script-src 'self' 'un
 else DOCS_CSP.push(`script-src 'self' 'unsafe-inline'${recaptchaScriptSrc}`)
 
 DOCS_CSP = DOCS_CSP.join('; ')
+
+// CSP for /consenti/* routes — the API package serves Swagger UI from unpkg.com
+const CONSENTI_CSP = [
+  "default-src 'self'",
+  "style-src 'self' 'unsafe-inline' https://unpkg.com",
+  "img-src 'self' data: https:",
+  "font-src 'self' https://unpkg.com",
+  "connect-src 'self'",
+  "frame-ancestors 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+  "script-src 'self' 'unsafe-inline' https://unpkg.com",
+].join('; ')
 
 const SECURITY_HEADERS = [
   { key: 'X-Frame-Options', value: 'DENY' },
@@ -46,10 +59,25 @@ const nextConfig: NextConfig = {
     unoptimized: true,
   },
   async headers() {
-    return [{ source: '/(.*)', headers: SECURITY_HEADERS }]
+    return [
+      { source: '/(.*)', headers: SECURITY_HEADERS },
+      // Override CSP for the API package routes — Swagger UI loads from unpkg.com
+      {
+        source: '/consenti/(.*)',
+        headers: [{ key: 'Content-Security-Policy', value: CONSENTI_CSP }],
+      },
+    ]
   },
   async redirects() {
     return [
+      // Canonicalise: www → non-www (covers both http+www and https+www)
+      {
+        source: '/:path*',
+        has: [{ type: 'host', value: 'www.consenti.dev' }],
+        destination: 'https://consenti.dev/:path*',
+        permanent: true,
+      },
+      // App shortcuts
       { source: '/demo', destination: '/demo-playground/frontend', permanent: false },
       { source: '/demo/', destination: '/demo-playground/frontend', permanent: false },
       { source: '/demo-playground', destination: '/demo-playground/frontend', permanent: false },

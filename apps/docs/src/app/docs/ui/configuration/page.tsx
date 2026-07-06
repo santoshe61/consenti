@@ -14,11 +14,38 @@ export default function UIConfigurationPage() {
         with an empty config object, auto-detecting the compliance group from the browser.
       </p>
 
+      <h2>Minimal config to get started</h2>
+      <p>
+        This is all you need for a fully working consent banner. Everything below is optional.
+      </p>
+      <CodeBlock
+        lang="ts"
+        filename="main.ts"
+        code={`import { ConsentiSetup } from '@consenti/ui'
+
+// Auto-detects compliance from browser locale (GDPR, CCPA, etc.)
+const widget = new ConsentiSetup({})
+
+// Or pin a specific compliance group:
+// new ConsentiSetup({ compliance: { type: 'opt-in' } })   // GDPR
+// new ConsentiSetup({ compliance: { type: 'opt-out' } })  // CCPA`}
+      />
+
+      <Callout type="info">
+        The rest of this page is the complete configuration reference. You don&apos;t need to read
+        it all now — come back when you need to change a specific option like theming, locale,
+        GPC handling, or GTM integration.
+      </Callout>
+
+      <hr />
+
+      <h2>Full configuration reference</h2>
+      <p>Every available option shown with its default value.</p>
+
       <CodeBlock
         lang="ts"
         filename="Full config — every field shown"
         code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({
   // ── Compliance group (optional) ──────────────────────────────────────────────
@@ -342,9 +369,8 @@ new ConsentiSetup({
             <td><code>false</code></td>
             <td>
               When <code>true</code>, no <code>&lt;style&gt;</code> tag is injected at all.
-              Use this when you import{' '}
-              <code>@consenti/ui/dist/index.css</code> via your bundler to avoid
-              duplicate styles. All BEM class names still apply.
+              Use this when you provide your own stylesheet and want full control over
+              every rule. All BEM class names still apply.
             </td>
           </tr>
           <tr>

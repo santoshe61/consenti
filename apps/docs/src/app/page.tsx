@@ -35,6 +35,9 @@ import { QuickStartTabs } from '@/components/QuickStartTabs'
 
 export const metadata: Metadata = {
   title: 'Consenti — Open Source Cookie Consent & CMP',
+  alternates: {
+    canonical: '/',
+  },
 }
 
 const features = [
@@ -321,63 +324,77 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
   return (
     <div className="bg-white dark:bg-gray-950">
       {/* Hero */}
-      <section
-        className="text-white text-center py-24 px-6"
-        style={{ background: 'linear-gradient(135deg, #020617 0%, #1a3460 40%, #1565c0 75%, #43a047 100%)' }}
-      >
-        <div className="max-w-4xl mx-auto">
-          <div className="inline-flex items-center gap-2 bg-white/10 text-white/80 text-xs font-semibold px-3 py-1.5 rounded-full mb-8 border border-white/20">
-            <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
+      <section className="hero-section text-white text-center py-24 px-6 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[900px] h-[500px] rounded-full bg-brand-500/10 blur-[100px] -translate-y-1/3" />
+        </div>
+        <div className="max-w-4xl mx-auto relative">
+          <div className="font-mono text-[11px] text-white/35 mb-8 tracking-widest uppercase">
             Apache 2.0 · Zero runtime dependencies · TypeScript strict
           </div>
-          <h1 className="text-5xl sm:text-6xl font-extrabold mb-6 tracking-tight leading-[1.1]">
+          <h1 className="text-5xl sm:text-6xl font-bold mb-6 tracking-[-0.03em] leading-[1.1]">
             Open-Source Cookie Consent<br />
             <span className="text-green-300">Zero Dependencies</span>
           </h1>
-          <p className="text-xl text-white/80 max-w-2xl mx-auto mb-10 leading-relaxed">
+          <p className="text-lg text-white/60 max-w-2xl mx-auto mb-10 leading-relaxed">
             Drop in one import. GDPR, CCPA, TCF, and GPC compliant.
             Works with any stack. Admin dashboard included. Backend optional.
           </p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/docs/getting-started/" className="inline-flex items-center gap-2 bg-white dark:!bg-white text-brand-600 font-bold px-7 py-3.5 rounded-xl no-underline hover:bg-blue-50 transition-colors text-base shadow-lg">
-              Get Started →
-            </Link>
-            <Link href="/demo-playground/frontend" className="inline-flex items-center gap-2 bg-transparent border-2 border-white/40 text-white font-semibold px-7 py-3.5 rounded-xl no-underline hover:border-white hover:bg-white/10 transition-colors text-base">
-              Live Demo
-            </Link>
+          {/* Install command */}
+          <div className="flex items-center justify-center mb-10">
+            <div className="inline-flex items-center gap-3 bg-white/[0.04] border border-white/10 rounded-lg px-5 py-3 font-mono text-sm text-white/70">
+              <span className="text-green-400 select-none">$</span>
+              <span>npm install @consenti/ui</span>
+              <span className="text-white/20">·</span>
+              <span className="text-white/40 text-xs">optional backend:</span>
+              <span className="text-white/60">npm install @consenti/api</span>
+            </div>
           </div>
 
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-white/60">
-            <span className="flex items-center gap-1.5">
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link href="/docs/getting-started/quick-start/" className="inline-flex items-center gap-2 bg-white dark:!bg-white text-brand-700 font-semibold px-6 py-3 rounded-lg no-underline hover:bg-blue-50 transition-colors text-sm">
+              Quick Start →
+            </Link>
+            <Link href="/demo-playground/frontend" className="inline-flex items-center gap-2 bg-transparent border border-white/20 text-white/80 font-medium px-6 py-3 rounded-lg no-underline hover:border-white/40 hover:text-white transition-colors text-sm">
+              Live Demo
+            </Link>
+            <a href="https://github.com/bestwebs/consenti" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-transparent border border-white/10 text-white/50 font-medium px-5 py-3 rounded-lg no-underline hover:border-white/20 hover:text-white/70 transition-colors text-sm">
               <FaGithub size={16} />
-              Open Source
-            </span>
+              GitHub
+            </a>
+          </div>
+
+          <div className="mt-10 flex flex-wrap items-center justify-center gap-6 font-mono text-[11px] text-white/25 tracking-wide">
+            <span>Apache 2.0</span>
             <span>Node 20+</span>
             <span>ES2020+</span>
             <span>TypeScript Strict</span>
+            <span>Zero Runtime Deps</span>
           </div>
         </div>
       </section>
 
       {/* Features */}
       <section className="max-w-7xl mx-auto px-6 py-20">
-        <div className="text-center mb-14">
-          <h2 className="text-3xl font-extrabold text-slate-900 dark:text-gray-100 mb-4">Everything you need. Nothing you don't.</h2>
-          <p className="text-slate-500 dark:text-gray-400 text-lg max-w-4xl mx-auto">Start with just the UI widget — no backend required. Add the backend module only if you need server-side records or an admin dashboard. Both ship zero runtime dependencies.</p>
+        <div className="text-center mb-12">
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">Everything you need. Nothing you don't.</h2>
+          <p className="text-slate-500 dark:text-gray-400 max-w-3xl mx-auto text-[15px]">Start with just the UI widget — no backend required. Add the backend module only if you need server-side records or an admin dashboard. Both ship zero runtime dependencies.</p>
         </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {features.map((f) => {
             const Icon = f.icon
             return (
-              <div key={f.title} className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-slate-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
-                <div className="w-10 h-10 bg-brand-50 dark:bg-brand-700/20 rounded-xl flex items-center justify-center mb-3">
-                  <Icon size={20} className="text-brand-500" />
+              <div key={f.title} className="group flex gap-4 p-5 rounded-lg border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-brand-100 dark:hover:border-brand-900 transition-colors">
+                <div className="shrink-0 w-8 h-8 rounded-md bg-brand-50 dark:bg-brand-900/40 flex items-center justify-center mt-0.5">
+                  <Icon size={16} className="text-brand-500 dark:text-brand-400" />
                 </div>
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <h3 className="text-base font-bold text-slate-900 dark:text-gray-100">{f.title}</h3>
-                  <span className="shrink-0 text-[10px] font-semibold text-brand-500 bg-brand-50 dark:bg-brand-700/20 px-2 py-0.5 rounded-full whitespace-nowrap">{f.tag}</span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start gap-2 mb-1.5 flex-wrap">
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-gray-100 leading-tight">{f.title}</h3>
+                    <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-gray-600 shrink-0">{f.tag}</span>
+                  </div>
+                  <p className="text-[13px] text-slate-500 dark:text-gray-400 leading-relaxed">{f.desc}</p>
                 </div>
-                <p className="text-sm text-slate-500 dark:text-gray-400 leading-relaxed">{f.desc}</p>
               </div>
             )
           })}
@@ -385,14 +402,18 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
       </section>
 
       {/* Why Consenti */}
-      <section className="py-20 px-6 section-gradient-light">
+      <section className="py-20 px-6 bg-slate-50/70 dark:bg-[#060e1c]">
         <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-14">
-            <span className="inline-block text-xs font-semibold tracking-widest text-brand-500 uppercase mb-3">Why Consenti</span>
-            <h2 className="text-4xl font-extrabold text-slate-900 dark:text-gray-100 mb-4">
+          <div className="text-center mb-12">
+            <span className="inline-flex items-center gap-2 font-mono text-xs text-brand-400 dark:text-brand-300 mb-4">
+              <span className="w-5 h-px bg-brand-300 dark:bg-brand-600 inline-block" aria-hidden="true" />
+              Why Consenti
+              <span className="w-5 h-px bg-brand-300 dark:bg-brand-600 inline-block" aria-hidden="true" />
+            </span>
+            <h2 className="text-3xl font-bold text-slate-900 dark:text-gray-100 mb-4 tracking-tight">
               Built different from every other CMP
             </h2>
-            <p className="text-slate-500 dark:text-gray-400 text-lg max-w-2xl mx-auto">
+            <p className="text-slate-500 dark:text-gray-400 max-w-2xl mx-auto text-[15px]">
               SaaS CMPs like Cookiebot, OneTrust, and Cassie own your consent data and charge monthly.
               Other open-source alternatives like Klaro, orestbida, and ConsentStack are UI-only — no backend, no audit log.
               Consenti is the only open-source CMP with a full stack included.
@@ -400,16 +421,18 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
           </div>
 
           {/* Reason cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-16">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-16">
             {whyReasons.map((r) => {
               const Icon = r.icon
               return (
-                <div key={r.title} className="bg-white dark:bg-gray-800 rounded-2xl p-6 border border-slate-100 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
-                  <div className="w-10 h-10 bg-green-50 dark:bg-green-900/20 rounded-xl flex items-center justify-center mb-4">
-                    <Icon size={20} className="text-green-600 dark:text-green-400" />
+                <div key={r.title} className="flex gap-4 p-5 rounded-lg border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                  <div className="shrink-0 w-8 h-8 rounded-md bg-green-50 dark:bg-green-900/20 flex items-center justify-center mt-0.5">
+                    <Icon size={16} className="text-green-600 dark:text-green-400" />
                   </div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-gray-100 mb-2">{r.title}</h3>
-                  <p className="text-sm text-slate-500 dark:text-gray-400 leading-relaxed">{r.desc}</p>
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-gray-100 mb-1.5 leading-tight">{r.title}</h3>
+                    <p className="text-[13px] text-slate-500 dark:text-gray-400 leading-relaxed">{r.desc}</p>
+                  </div>
                 </div>
               )
             })}
@@ -477,12 +500,12 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
       {/* Compliance table */}
       <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-10">
-          <h2 className="text-4xl font-extrabold text-slate-900 dark:text-gray-100 mb-3">Compliance Coverage</h2>
-          <p className="text-slate-500 dark:text-gray-400 text-lg max-w-4xl mx-auto">Built to meet the most stringent global privacy regulations out of the box.</p>
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">Compliance Coverage</h2>
+          <p className="text-slate-500 dark:text-gray-400 max-w-3xl mx-auto text-[15px]">Built to meet the most stringent global privacy regulations out of the box.</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
           {compliance.map((row) => (
-            <div key={row.law} className="flex items-start gap-3 bg-white dark:bg-gray-800 border border-slate-100 dark:border-gray-700 rounded-xl px-4 py-3 hover:border-slate-200 dark:hover:border-gray-600 hover:shadow-sm transition-all group">
+            <div key={row.law} className="flex items-start gap-3 bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 rounded-lg px-4 py-3 hover:border-slate-200 dark:hover:border-gray-700 transition-colors group">
               {/* Flag */}
               <span className="text-xl leading-none mt-0.5 shrink-0">{row.flag}</span>
               {/* Body */}
@@ -530,25 +553,28 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
       </section>
 
       {/* Integrations */}
-      <section style={{ background: 'linear-gradient(160deg, #0f1f3d 0%, #1a3460 60%, #122547 100%)' }} className="py-20 px-6">
-        <div className="max-w-6xl mx-auto">
+      <section className="hero-section py-20 px-6 border-y border-white/5 relative overflow-hidden">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div className="absolute bottom-0 right-1/4 w-[500px] h-[300px] bg-brand-500/8 rounded-full blur-[80px]" />
+        </div>
+        <div className="max-w-6xl mx-auto relative">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-extrabold text-white mb-3">Works with your stack</h2>
-            <p className="text-white/60 text-lg">No migration required. Consenti adapts to whatever you're already running.</p>
+            <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Works with your stack</h2>
+            <p className="text-white/50 text-[15px]">No migration required. Consenti adapts to whatever you're already running.</p>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {integrations.map((i) => (
               <div
                 key={i.name}
-                className="group flex flex-col items-center gap-3 bg-white/5 hover:bg-white border border-white/10 hover:border-transparent rounded-2xl p-6 cursor-default transition-all duration-200 hover:shadow-xl hover:-translate-y-1"
+                className="group flex flex-col items-center gap-2.5 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] hover:border-white/[0.15] rounded-lg p-5 cursor-default transition-colors"
               >
                 <div
-                  className="w-14 h-14 rounded-xl flex items-center justify-center shadow-sm group-hover:scale-110 transition-transform duration-200"
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
                   style={{ backgroundColor: i.bg }}
                 >
-                  <i.Icon size={32} style={{ color: i.iconColor }} />
+                  <i.Icon size={28} style={{ color: i.iconColor }} />
                 </div>
-                <span className="text-sm font-semibold text-white/80 group-hover:text-slate-800 transition-colors text-center leading-tight">
+                <span className="text-sm font-medium text-white/60 group-hover:text-white/80 transition-colors text-center leading-tight">
                   {i.name}
                 </span>
               </div>
@@ -558,18 +584,19 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
       </section>
 
       {/* CTA */}
-      <section className="py-20 px-6">
-        <div
-          className="max-w-3xl mx-auto rounded-3xl p-12 text-center text-white"
-          style={{ background: 'linear-gradient(135deg, #1a3460 0%, #1565c0 60%, #43a047 100%)' }}
-        >
-          <h2 className="text-3xl font-extrabold mb-4">Ready to add Consenti?</h2>
-          <p className="text-white/80 text-lg mb-8">One import. Full GDPR compliance. No external dependencies.</p>
-          <div className="flex flex-wrap items-center justify-center gap-4">
-            <Link href="/docs/getting-started/" className="inline-flex items-center gap-2 bg-white dark:!bg-white text-brand-600 font-bold px-7 py-3.5 rounded-xl no-underline hover:bg-blue-50 transition-colors text-base">
-              Read the Docs →
+      <section className="py-20 px-6 bg-[#04111f] border-t border-white/5">
+        <div className="max-w-3xl mx-auto text-center text-white">
+          <h2 className="text-3xl font-bold mb-3 tracking-tight">Ready to add Consenti?</h2>
+          <p className="text-white/50 text-[15px] mb-5 leading-relaxed">One import. Full GDPR compliance. No external dependencies.</p>
+          <div className="inline-flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded px-4 py-2 font-mono text-sm text-white/60 mb-8">
+            <span className="text-green-400 select-none">$</span>
+            <span>npm install @consenti/ui</span>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <Link href="/docs/getting-started/quick-start/" className="inline-flex items-center gap-2 bg-white dark:!bg-white text-brand-700 font-semibold px-6 py-3 rounded-lg no-underline hover:bg-blue-50 transition-colors text-sm">
+              Quick Start →
             </Link>
-            <Link href="/demo-playground/frontend" className="inline-flex items-center gap-2 border-2 border-white/40 text-white font-semibold px-7 py-3.5 rounded-xl no-underline hover:border-white hover:bg-white/10 transition-colors text-base">
+            <Link href="/demo-playground/frontend" className="inline-flex items-center gap-2 border border-white/20 text-white/80 font-medium px-6 py-3 rounded-lg no-underline hover:border-white/40 hover:text-white transition-colors text-sm">
               Try Live Demo
             </Link>
           </div>

@@ -49,7 +49,6 @@ export default function NoticeOnlyPage() {
       <CodeBlock
         lang="ts"
         code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 new ConsentiSetup({
   compliance: { type: 'notice-only' },

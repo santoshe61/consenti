@@ -1,6 +1,20 @@
 import type { Metadata } from 'next'
+import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import '@docsearch/css'
+
+const inter = Inter({
+  subsets: ['latin'],
+  variable: '--font-inter',
+  display: 'swap',
+})
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ['latin'],
+  variable: '--font-mono-jetbrains',
+  display: 'swap',
+  weight: ['400', '500', '600'],
+})
 import { ConsentiProvider } from '@/components/ConsentiProvider'
 import { DocsMenuProvider } from '@/contexts/docs-menu-context'
 import { ThemeProvider } from '@/contexts/theme-context'
@@ -48,7 +62,7 @@ const jsonLd = {
         'i18n / locale support',
         'CSS custom properties theming (no Shadow DOM)',
       ],
-      softwareRequirements: 'Node.js 24 LTS or newer; Browser: Chrome 80+, Firefox 74+, Safari 13.1+',
+      softwareRequirements: 'Node.js 20+; Browser: Chrome 80+, Firefox 74+, Safari 13.1+',
       author: { '@type': 'Person', name: 'Santosh Ojha', url: 'https://santosh.top' },
     },
     {
@@ -91,7 +105,7 @@ const jsonLd = {
           name: 'How do I install Consenti?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Install the UI widget with: npm install @consenti/ui. For the backend: npm install @consenti/api. Both packages have zero external runtime dependencies.',
+            text: 'Install the UI widget with: npm install @consenti/ui. Then import and initialise: import { ConsentiSetup } from \'@consenti/ui\'; new ConsentiSetup({ compliance: { type: \'opt-in\' } }). No CSS import needed — styles are injected automatically. For the backend: npm install @consenti/api. Both packages have zero external runtime dependencies.',
           },
         },
         {
@@ -123,7 +137,39 @@ const jsonLd = {
           name: 'Is Consenti free and open source?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. Consenti is released under the Apache 2.0 license. It is free to use, modify, and distribute.',
+            text: 'Yes. Consenti is released under the Apache 2.0 license. It is free to use, modify, and distribute. It is a self-hosted alternative to commercial CMPs like OneTrust and Cookiebot.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Does Consenti support PDPA (Thailand)?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Yes. Consenti fully supports the Thai Personal Data Protection Act (PDPA). Configure it with compliance: { type: \'pdpa-th\' } or use type: \'auto\' to detect Thai visitors automatically and apply PDPA opt-in consent requirements. The consent banner, preference modal, and audit logs all meet PDPA requirements.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Does Consenti support APPI (Japan)?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Yes. Consenti supports Japan\'s Act on the Protection of Personal Information (APPI). Use compliance: { type: \'appi\' } or type: \'auto\' for geo-based detection. Consenti handles APPI opt-in consent with proper audit trails.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'What is an open source CMP?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'An open-source Consent Management Platform (CMP) is a tool that manages cookie consent and privacy compliance, where the source code is publicly available for inspection, modification, and self-hosting. Consenti is an open-source CMP licensed under Apache 2.0, offering the same features as commercial CMPs (GDPR, CCPA, TCF v2.2, admin dashboard, consent records) without licensing fees or vendor lock-in.',
+          },
+        },
+        {
+          '@type': 'Question',
+          name: 'Does Consenti work without importing CSS?',
+          acceptedAnswer: {
+            '@type': 'Answer',
+            text: 'Yes. The @consenti/ui widget automatically injects its styles into the page when ConsentiSetup initialises — no separate CSS import is required. You only need to import the CSS explicitly if you want to preload it to avoid flash of unstyled content, or if you set core.disableCssTemplate: true to provide your own styles.',
           },
         },
       ],
@@ -132,6 +178,7 @@ const jsonLd = {
 }
 
 export const metadata: Metadata = {
+  metadataBase: new URL('https://consenti.dev'),
   title: {
     default: 'Consenti — Open Source Cookie Consent & CMP',
     template: '%s — Consenti Docs',
@@ -143,9 +190,18 @@ export const metadata: Metadata = {
     'GDPR',
     'CMP',
     'consent management platform',
+    'open source CMP',
     'CCPA',
     'TCF',
     'GPC',
+    'PDPA Thailand',
+    'PDPA compliance',
+    'APPI compliance Japan',
+    'LGPD Brazil',
+    'PIPL China',
+    'DPDPA India',
+    'POPIA South Africa',
+    'KVKK Turkey',
     'open source',
     'TypeScript',
     'zero dependencies',
@@ -154,6 +210,9 @@ export const metadata: Metadata = {
     'cookie banner',
     'React cookie consent',
     'Next.js GDPR',
+    'self-hosted consent management',
+    'OneTrust alternative',
+    'Cookiebot alternative',
   ],
   authors: [{ name: 'Santosh Ojha', url: 'https://santosh.top' }],
   openGraph: {
@@ -174,9 +233,6 @@ export const metadata: Metadata = {
     follow: true,
     googleBot: { index: true, follow: true },
   },
-  alternates: {
-    canonical: 'https://consenti.dev',
-  },
   icons: {
     icon: '/icon.svg',
   },
@@ -184,7 +240,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${jetbrainsMono.variable}`}>
       <head>
         <script
           dangerouslySetInnerHTML={{
@@ -196,6 +252,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
         <link rel="canonical" href="https://consenti.dev" />
+        <link rel="alternate" type="text/plain" title="Consenti Documentation for AI / LLMs" href="https://consenti.dev/llms-full.txt" />
       </head>
       <body>
         <ThemeProvider>

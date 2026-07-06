@@ -15,7 +15,6 @@ export default function UIFrameworksPage() {
 
 import { useEffect } from 'react'
 import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 export function ConsentSetup() {
   useEffect(() => {
@@ -64,7 +63,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 import { useEffect, useRef } from 'react'
 import type { ConsentiSetup as WidgetType } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 export function ConsentSetup() {
   const widgetRef = useRef<WidgetType | null>(null)
@@ -88,7 +86,6 @@ export function ConsentSetup() {
       <CodeBlock lang="ts" filename="composables/useConsenti.ts" code={`// For Nuxt: wrap in process.client check
 import { onMounted, onUnmounted } from 'vue'
 import { useConsent } from '@consenti/ui/vue'
-import '@consenti/ui/dist/index.css'
 
 export { useConsent }
 
@@ -102,7 +99,6 @@ let widget: Awaited<typeof import('@consenti/ui')>['ConsentiSetup'] | null = nul
 
 onMounted(async () => {
   const { ConsentiSetup } = await import('@consenti/ui')
-  await import('@consenti/ui/dist/index.css')
   widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
 })
 
@@ -162,7 +158,6 @@ export class MyComponent {
 
       <h2>Vanilla JS</h2>
       <CodeBlock lang="js" filename="main.js" code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({
   core: { regulation: 'gdpr', locale: 'en' },

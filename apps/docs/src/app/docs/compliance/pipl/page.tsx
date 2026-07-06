@@ -119,7 +119,6 @@ export default function PIPLPage() {
       <CodeBlock
         lang="ts"
         code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 new ConsentiSetup({
   compliance: { type: 'opt-in-china' },

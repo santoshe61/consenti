@@ -12,9 +12,8 @@ export default function UIInstallationPage() {
       <h2>npm (recommended)</h2>
       <Terminal code="npm install @consenti/ui" />
 
-      <p>Then import the CSS and the class:</p>
-      <CodeBlock lang="ts" code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'`} />
+      <p>Then import and initialise — no CSS import needed, styles are injected automatically:</p>
+      <CodeBlock lang="ts" code={`import { ConsentiSetup } from '@consenti/ui'`} />
 
       <h2>CDN / UMD (no build step)</h2>
       <p>
@@ -41,16 +40,20 @@ import '@consenti/ui/dist/index.css'`} />
         </thead>
         <tbody>
           <tr>
-            <td>Import from package (recommended)</td>
-            <td><code>import '@consenti/ui/dist/index.css'</code></td>
+            <td>Auto-inject (default)</td>
+            <td>Nothing to do — <code>ConsentiSetup</code> injects a <code>&lt;style&gt;</code> tag on first render</td>
           </tr>
           <tr>
-            <td>Skip all CSS (bring your own)</td>
-            <td>Set <code>core.disableCssTemplate: true</code> in config — no styles injected at all</td>
+            <td>Preload CSS (optional, avoids FOUC)</td>
+            <td><code>import '@consenti/ui/dist/index.css'</code> in your bundler entry, or a <code>&lt;link&gt;</code> tag</td>
           </tr>
           <tr>
-            <td>CSS custom properties only</td>
-            <td>Import CSS, then override <code>--consenti-*</code> variables in your own stylesheet</td>
+            <td>Disable auto-inject (bring your own styles)</td>
+            <td>Set <code>core.disableCssTemplate: true</code> — no <code>&lt;style&gt;</code> tag is injected at all</td>
+          </tr>
+          <tr>
+            <td>Token overrides only</td>
+            <td>Leave auto-inject on, override <code>--consenti-*</code> CSS custom properties in your stylesheet</td>
           </tr>
         </tbody>
       </table>

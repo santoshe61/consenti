@@ -1,0 +1,808 @@
+# Consenti — Full Documentation
+
+> Open-source Cookie Consent & Consent Management Platform (CMP). Zero external runtime dependencies. Apache 2.0 license.
+
+Consenti is a full-featured CMP built for developers. It ships as two independent npm packages and is a self-hosted, open-source alternative to enterprise CMPs like OneTrust, Cookiebot, and Syrenis Cassie.
+
+- Source: https://github.com/santoshe61/consenti
+- npm UI: https://www.npmjs.com/package/@consenti/ui
+- npm API: https://www.npmjs.com/package/@consenti/api
+- Docs: https://consenti.dev/docs/getting-started/
+- Summary (llms.txt): https://consenti.dev/llms.txt
+
+---
+
+## Packages
+
+- `@consenti/ui` — Browser widget. Renders the consent banner and preference modal. CSS is auto-injected at runtime — no separate CSS import needed. Handles GPC signal detection, cross-tab sync via BroadcastChannel, Google Consent Mode v2, GTM integration, i18n (locale resolution), and accessibility (WCAG AAA, focus trap, ARIA roles).
+- `@consenti/api` — Node.js backend module. Records consent to SQLite, MongoDB, PostgreSQL, or MySQL via a StorageAdapter interface. Serves a built-in Preact admin dashboard at `/consenti/`. Provides a REST API. Implements RBAC, multiple auth modes (local, OIDC, SAML), immutable audit logs, and GDPR right-to-erasure endpoint.
+
+---
+
+## Key Technical Facts
+
+- Runtime: Node 20+ (backend) / ES2020+ browsers (Chrome 80+, Firefox 74+, Safari 13.1+)
+- UI zero external runtime deps: `document.cookie`, `BroadcastChannel`, `crypto.subtle`, `fetch`, `localStorage`
+- API zero external runtime deps: `node:sqlite` (Node 22.5+), `node:crypto`, `node:fs`, `node:path`
+- Build: tsup (ESM + UMD for UI; CJS + ESM for API), Turborepo monorepo, npm workspaces
+- Security: IPs stored as SHA-256 hashes only, passwords via scrypt (native), JWT via HMAC-SHA256 (native), signed consent cookies using HMAC
+- User IDs: `crypto.randomUUID()` — no PII stored
+- License: Apache 2.0
+- Language: TypeScript strict mode throughout
+
+---
+
+## Compliance Coverage
+
+| Regulation | Jurisdiction | Mode | Status |
+|---|---|---|---|
+| GDPR | EU / EEA | Opt-in | Full |
+| UK GDPR | United Kingdom | Opt-in | Full |
+| CCPA / CPRA | California, USA | Opt-out | Full |
+| VCDPA / CPA / CTDPA | Virginia, Colorado, Connecticut | Opt-out | Full |
+| LGPD | Brazil | Opt-in | Full |
+| PIPL | China | Opt-in | Full |
+| PDPA | Thailand | Opt-in | Full |
+| APPI | Japan | Opt-in | Full |
+| DPDPA | India | Opt-in | Full |
+| POPIA | South Africa | Opt-in | Full |
+| PIPEDA / Law 25 | Canada / Quebec | Opt-in | Full |
+| KVKK | Turkey | Opt-in | Full |
+| TCF v2.2 | IAB / Global | Vendor consent | Full |
+| GPC | Global | Signal detection | Full |
+| COPPA | USA (children) | Age gate | Partial |
+| Notice-only | Any | Informational | Full |
+
+---
+
+## Introduction
+
+Consenti is an open-source, zero-dependency Consent Management Platform (CMP). It handles the complete consent lifecycle — banner display, preference management, GPC detection, GTM / Google Consent Mode v2 integration, and compliance for GDPR, CCPA, CPRA, and ten other regulations.
+
+### Frontend-only vs Full-stack
+
+The UI widget works entirely in the browser with no server needed. The backend is optional and adds server-side consent storage, a profile management dashboard, multi-tenant support, and audit logs.
+
+| | Frontend-only | With backend |
+|---|---|---|
+| Consent storage | Browser cookie or localStorage | Server database (SQLite, MongoDB, PostgreSQL) |
+| Profile management | Defined in code | Admin dashboard — no code changes to update copy |
+| Consent audit log | No | Yes — every record stored with timestamp and visitor ID |
+| Multi-site / multi-tenant | No | Yes |
+| Setup effort | One import, one constructor call | npm install @consenti/api, mounts onto your existing server |
+
+Tip: Start frontend-only. The switch to full-stack later is one config line: `api.enabled: true`.
+
+### What happens on a first visit
+
+1. The widget initialises and resolves the active profile (code-defined, API-fetched, or built-in default)
+2. It reads any existing consent record from the browser cookie or localStorage
+3. If no valid record exists → the banner appears
+4. The user clicks Accept / Reject / Customize
+5. Consent is saved to the browser and (if configured) POSTed to the backend
+6. `consenti:consentSubmitted` fires with the full consent record
+7. On every subsequent visit → the banner stays hidden unless consent has expired or the profile version changed
+
+---
+
+## UI Widget — Installation
+
+### npm (recommended)
+
+```bash
+npm install @consenti/ui
+```
+
+Import and initialise — no CSS import needed, styles are injected automatically:
+
+```ts
+import { ConsentiSetup } from '@consenti/ui'
+```
+
+### CDN / UMD (no build step)
+
+```html
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@consenti/ui/dist/index.css" />
+<script src="https://cdn.jsdelivr.net/npm/@consenti/ui/dist/index.umd.js"></script>
+<script>
+  const { ConsentiSetup } = ConsentiUI
+  new ConsentiSetup({ core: { regulation: 'gdpr' } })
+</script>
+```
+
+### ESM in the browser (no bundler)
+
+```html
+<script type="module">
+  import { ConsentiSetup } from 'https://esm.sh/@consenti/ui'
+  new ConsentiSetup({ core: { regulation: 'gdpr' } })
+</script>
+```
+
+### CSS options
+
+| Approach | How |
+|---|---|
+| Auto-inject (default) | Nothing to do — ConsentiSetup injects a style tag on first render |
+| Preload CSS (optional, avoids FOUC) | `import '@consenti/ui/dist/index.css'` in your bundler entry |
+| Disable auto-inject (bring your own styles) | Set `core.disableCssTemplate: true` |
+| Token overrides only | Override `--consenti-*` CSS custom properties in your stylesheet |
+
+### Package structure
+
+```
+@consenti/ui/
+├── dist/
+│   ├── index.mjs           ← ESM entry
+│   ├── index.umd.js        ← UMD entry (CDN)
+│   ├── index.d.ts          ← TypeScript types
+│   ├── index.css           ← Default styles
+│   ├── react.mjs           ← React hook
+│   ├── vue.mjs             ← Vue composable
+│   └── angular.mjs         ← Angular service
+```
+
+---
+
+## UI Widget — Quick Start (Frontend Only)
+
+```bash
+npm install @consenti/ui
+```
+
+Pass an empty config and Consenti auto-detects the right compliance group from the browser's locale — GDPR for EU visitors, CCPA for California, etc.
+
+```ts
+import { ConsentiSetup } from '@consenti/ui'
+// No CSS import needed — styles are auto-injected at runtime
+
+const widget = new ConsentiSetup({
+  compliance: { type: 'auto' },   // geo-based: GDPR for EU, CCPA for CA, etc.
+})
+```
+
+### Check consent before loading scripts
+
+```ts
+widget.onReady((consent) => {
+  if (consent.analytics) initAnalytics()
+  if (consent.marketing) initAds()
+})
+```
+
+### Specific compliance mode
+
+```ts
+// GDPR opt-in
+new ConsentiSetup({ compliance: { type: 'opt-in' } })
+
+// CCPA opt-out
+new ConsentiSetup({ compliance: { type: 'opt-out' } })
+
+// TCF v2.2
+new ConsentiSetup({ compliance: { type: 'tcf' } })
+```
+
+---
+
+## UI Widget — Quick Start (Frontend + Backend)
+
+### Backend (Node.js / Express)
+
+```bash
+npm install @consenti/api
+```
+
+```ts
+import express from 'express'
+import { createConsenti } from '@consenti/api'
+
+const app = express()
+
+const consenti = createConsenti({
+  storage: { driver: 'node:sqlite', path: './consenti-data' },
+  auth: {
+    mode: 'local',
+    adminEmail: 'admin@example.com',
+    adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
+  },
+  dashboard: true,
+})
+
+app.use(consenti.router)
+app.listen(3000)
+// Admin dashboard → http://localhost:3000/consenti/
+```
+
+### Frontend — connect to backend
+
+```ts
+import { ConsentiSetup } from '@consenti/ui'
+
+const widget = new ConsentiSetup({
+  compliance: { type: 'auto' },
+  api: { enabled: true, baseUrl: 'https://your-api.example.com' },
+})
+```
+
+---
+
+## UI Widget — Framework Integrations
+
+### React
+
+```ts
+import { useConsent } from '@consenti/ui/react'
+
+function CookieBanner() {
+  const { consent, acceptAll, rejectAll } = useConsent()
+  return consent ? null : <Banner onAccept={acceptAll} onReject={rejectAll} />
+}
+```
+
+### Vue 3
+
+```ts
+import { useConsent } from '@consenti/ui/vue'
+
+const { consent, acceptAll, rejectAll } = useConsent()
+```
+
+### Angular
+
+```ts
+import { ConsentiService } from '@consenti/ui/angular'
+
+@Component({ ... })
+export class AppComponent {
+  constructor(private consenti: ConsentiService) {
+    this.consenti.onReady(consent => { ... })
+  }
+}
+```
+
+### Next.js App Router
+
+```tsx
+// app/layout.tsx
+'use client'
+import { useEffect } from 'react'
+import { ConsentiSetup } from '@consenti/ui'
+
+export default function RootLayout({ children }) {
+  useEffect(() => {
+    new ConsentiSetup({ compliance: { type: 'auto' } })
+  }, [])
+  return <html><body>{children}</body></html>
+}
+```
+
+### Nuxt
+
+```ts
+// plugins/consenti.client.ts
+import { ConsentiSetup } from '@consenti/ui'
+
+export default defineNuxtPlugin(() => {
+  new ConsentiSetup({ compliance: { type: 'auto' } })
+})
+```
+
+---
+
+## UI Widget — DOM Events
+
+All events are `CustomEvent`s fired on `document`:
+
+| Event | When | Detail |
+|---|---|---|
+| `consenti:bannerInitialized` | Widget ready, banner status known | `{ visible: boolean }` |
+| `consenti:bannerVisibility` | Banner shown or hidden | `{ visible: boolean }` |
+| `consenti:modalVisibility` | Preference modal shown or hidden | `{ visible: boolean }` |
+| `consenti:consentBeingSubmitted` | User clicked accept/reject (before write) | consent object |
+| `consenti:consentSubmitted` | Consent saved | full consent record |
+
+```ts
+document.addEventListener('consenti:consentSubmitted', (e: CustomEvent) => {
+  const { analytics, marketing, functional } = e.detail
+  if (analytics) loadAnalytics()
+})
+```
+
+---
+
+## UI Widget — API Methods
+
+```ts
+const widget = new ConsentiSetup({ ... })
+
+// Read current consent
+const consent = widget.getConsent()
+// → { analytics: 'granted', marketing: 'denied', functional: 'granted', ... }
+
+// Accept all categories
+widget.acceptAll()
+
+// Reject all non-mandatory categories
+widget.rejectAll()
+
+// Accept specific categories
+widget.acceptCategories(['analytics', 'functional'])
+
+// Open preference modal
+widget.openModal()
+
+// Close preference modal
+widget.closeModal()
+
+// Check if a category is granted
+widget.isGranted('analytics') // → true | false
+
+// Re-show the banner (e.g. after clicking "Cookie Settings")
+widget.showBanner()
+```
+
+---
+
+## UI Widget — Profiles (Appearance & Text)
+
+Profiles control banner text, button labels, positioning, and styling without touching JavaScript. Create and manage profiles in the admin dashboard, then reference by slug:
+
+```ts
+const widget = new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  profileSlug: 'my-profile',   // optional — falls back to active default profile
+})
+```
+
+Or define a profile inline (no backend needed):
+
+```ts
+const widget = new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  profileOverride: {
+    id: 'my-profile',
+    version: 1,
+    text: {
+      bannerTitle: 'We value your privacy',
+      bannerDescription: 'We use cookies to improve your experience.',
+      acceptAll: 'Accept All',
+      rejectAll: 'Reject All',
+      customize: 'Customize',
+    },
+    position: 'bottom-center',  // 'bottom-left' | 'bottom-right' | 'bottom-center' | 'top'
+    categories: [
+      { id: 'analytics', name: 'Analytics', description: 'Usage statistics', mandatory: false },
+      { id: 'marketing', name: 'Marketing', description: 'Targeted ads', mandatory: false },
+    ],
+  },
+})
+```
+
+---
+
+## Backend API — Installation
+
+Node.js 22+ required (Node 24 for `node:sqlite` built-in).
+
+```bash
+npm install @consenti/api
+```
+
+### Standalone (node:http)
+
+```ts
+import { createServer } from 'node:http'
+import { createConsenti } from '@consenti/api'
+
+const consenti = createConsenti({
+  storage: { driver: 'node:sqlite', path: './consenti-data' },
+  auth: {
+    mode: 'local',
+    adminEmail: 'admin@example.com',
+    adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
+  },
+  dashboard: true,
+})
+
+await consenti.ready
+
+const server = createServer(consenti.handler)
+server.listen(3001)
+// Admin dashboard → http://localhost:3001/consenti/
+// REST API        → http://localhost:3001/consenti/api/v1/
+```
+
+### Express
+
+```ts
+import express from 'express'
+import { createConsenti } from '@consenti/api'
+
+const app = express()
+const consenti = createConsenti({
+  storage: { driver: 'node:sqlite', path: './consenti-data' },
+  auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: process.env.CONSENTI_ADMIN_PASSWORD! },
+  dashboard: true,
+})
+app.use(consenti.router)
+app.listen(3000)
+```
+
+### Fastify
+
+```ts
+import Fastify from 'fastify'
+import { createConsenti } from '@consenti/api'
+
+const fastify = Fastify()
+const consenti = createConsenti({ ... })
+await fastify.register(consenti.fastifyHandler)
+await fastify.listen({ port: 3000 })
+```
+
+### Next.js App Router
+
+```ts
+// app/consenti/[...path]/route.ts
+import { createConsenti } from '@consenti/api'
+import type { NextRequest } from 'next/server'
+
+let consenti: Awaited<ReturnType<typeof createConsenti>>
+
+async function getConsenti() {
+  if (!consenti) {
+    consenti = createConsenti({
+      storage: { driver: 'node:sqlite', path: './consenti-data' },
+      auth: { mode: 'local', adminEmail: process.env.CONSENTI_ADMIN_EMAIL!, adminPassword: process.env.CONSENTI_ADMIN_PASSWORD! },
+    })
+  }
+  return consenti
+}
+
+export async function GET(req: NextRequest) {
+  const c = await getConsenti()
+  return c.nextHandler(req)
+}
+export const POST = GET
+export const DELETE = GET
+```
+
+---
+
+## Backend API — Storage Drivers
+
+| Driver | Package | Notes |
+|---|---|---|
+| `json` | built-in | File-based, dev/small sites |
+| `node:sqlite` | built-in (Node 22.5+) | Zero-install SQLite, recommended |
+| `node-sqlite3-wasm` | `node-sqlite3-wasm` | WASM SQLite, Node 20+ |
+| `better-sqlite3` | `better-sqlite3` | Native SQLite |
+| `postgresql` | `pg` | Production recommended |
+| `mysql` | `mysql2` | Production recommended |
+| `mongodb` | `mongodb` | Production recommended |
+
+```ts
+// PostgreSQL
+createConsenti({
+  storage: { driver: 'postgresql', connectionString: process.env.DATABASE_URL! },
+})
+
+// MongoDB
+createConsenti({
+  storage: { driver: 'mongodb', uri: process.env.MONGODB_URI!, database: 'consenti' },
+})
+
+// MySQL
+createConsenti({
+  storage: { driver: 'mysql', host: 'localhost', database: 'consenti', user: 'root', password: process.env.MYSQL_PASSWORD! },
+})
+```
+
+---
+
+## Backend API — Auth Modes
+
+### Local (username + password)
+
+```ts
+auth: {
+  mode: 'local',
+  adminEmail: 'admin@example.com',
+  adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
+  jwtSecret: process.env.CONSENTI_JWT_SECRET!,  // optional, auto-generated if omitted
+}
+```
+
+### OIDC (SSO — Google, Auth0, Okta, etc.)
+
+```ts
+auth: {
+  mode: 'oidc',
+  oidc: {
+    issuer: 'https://accounts.google.com',
+    clientId: process.env.OIDC_CLIENT_ID!,
+    clientSecret: process.env.OIDC_CLIENT_SECRET!,
+    redirectUri: 'https://your-app.example.com/consenti/auth/callback',
+  },
+}
+```
+
+### SAML
+
+```ts
+auth: {
+  mode: 'saml',
+  saml: {
+    entryPoint: 'https://your-idp.example.com/sso',
+    issuer: 'consenti',
+    cert: process.env.SAML_CERT!,
+  },
+}
+```
+
+---
+
+## Backend API — REST Routes
+
+### Public Routes (no auth required)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/consenti/api/v1/profile` | Get active profile for a domain |
+| POST | `/consenti/api/v1/consent` | Record a consent decision |
+| GET | `/consenti/api/v1/consent/:visitorId` | Get consent record for visitor |
+| DELETE | `/consenti/api/v1/consent/:visitorId` | GDPR right-to-erasure |
+| GET | `/consenti/api/v1/consent/:visitorId/verify` | Verify if consent is still valid |
+
+### Admin Routes (JWT required)
+
+| Method | Path | Description |
+|---|---|---|
+| GET | `/consenti/api/v1/admin/profiles` | List all profiles |
+| POST | `/consenti/api/v1/admin/profiles` | Create profile |
+| PUT | `/consenti/api/v1/admin/profiles/:id` | Update profile |
+| DELETE | `/consenti/api/v1/admin/profiles/:id` | Delete profile |
+| GET | `/consenti/api/v1/admin/consents` | List consent records (paginated) |
+| GET | `/consenti/api/v1/admin/audit-logs` | List audit log entries |
+| GET | `/consenti/api/v1/admin/stats` | Dashboard statistics |
+
+---
+
+## GDPR Compliance Guide
+
+Consenti is built from the ground up around GDPR requirements (Regulation (EU) 2016/679).
+
+### Key requirements and how Consenti meets them
+
+| Requirement | Implementation |
+|---|---|
+| Freely given | No content gating; overlay opacity defaults to 0 |
+| Specific | Per-cookie granularity — each cookie has its own consent entry |
+| Informed | `htmlText` on categories, `legitimateInterest.description` for LI basis |
+| Unambiguous | No pre-ticked boxes; all non-mandatory cookies default to `'denied'` |
+| Easy to withdraw | `DELETE /consenti/api/v1/consent/:visitorId` (same prominence as granting) |
+| Records kept | Immutable `consent_history` table; `audit_logs` for admin actions |
+
+### Right to erasure (Article 17)
+
+```http
+DELETE /consenti/api/v1/consent/:visitorId
+```
+
+This deletes all entries in `consent_records`, `consent_history`, and the `visitors` record (IP hash, UA hash, geolocation). The visitor ID is a random UUID containing no PII.
+
+### Data minimisation (Article 5(1)(c))
+
+- IP addresses are stored as SHA-256 hashes only
+- User agents are stored as SHA-256 hashes only
+- Consent records contain only: visitor UUID, profile ID, consent choices, timestamp, source
+
+### Consent records as evidence
+
+Every consent record includes:
+- `profile_version` — which version of the cookie policy the user consented to
+- `created_at` / `updated_at` — exact ISO 8601 timestamps
+- `source` — `'banner'`, `'api'`, or `'import'`
+- `consent_history` — immutable append-only log of every change
+
+### Legitimate Interest (Article 6(1)(f))
+
+```json
+{
+  "id": "ad_personalization",
+  "type": "legitimate_interest",
+  "legitimateInterest": {
+    "enabled": true,
+    "description": "We show relevant ads under legitimate interest."
+  }
+}
+```
+
+Status values for LI cookies: `"granted"` (user did not object) or `"objected"` (user exercised Art. 21 right to object).
+
+### Re-consent on profile version bump
+
+When you update a profile (e.g. adding new cookies), the `version` field increments. The widget's `verify` endpoint returns `{ valid: false, reasons: ['profile_version_mismatch'] }` for consents given under an older version, triggering re-consent.
+
+---
+
+## CCPA / US State Privacy Laws
+
+Consenti supports opt-out consent models required by CCPA, VCDPA, CPA, CTDPA, TDPSA, and similar US state laws.
+
+### Opt-out model vs. GDPR opt-in
+
+| | GDPR | CCPA / US States |
+|---|---|---|
+| Default | All non-mandatory cookies denied | All non-mandatory cookies granted |
+| Trigger | Banner on first visit | Silent auto-consent; provide opt-out UI |
+| GPC | Optional honour | Required to honour |
+
+### Enabling CCPA mode
+
+```ts
+new ConsentiSetup({
+  compliance: { type: 'opt-out' },
+})
+```
+
+### GPC — Global Privacy Control
+
+The GPC signal (`navigator.globalPrivacyControl === true`) is treated as an opt-out under CCPA. When `autoHonorGPC: 'strict'` is set:
+1. Widget detects GPC signal
+2. Automatically denies all `listenGpc: true` cookies
+3. Writes consent record immediately without showing banner
+4. `gpc_detected: true` is stored on the consent record
+
+### "Do Not Sell" / Opt-out button
+
+```json
+{
+  "text": "Do Not Sell My Data",
+  "type": "reject",
+  "cookies": "!"
+}
+```
+
+The `'!'` action sets all non-mandatory cookies to `'denied'` and writes the consent record.
+
+### State-by-state coverage
+
+| Law | Jurisdiction | Opt-out mechanism |
+|---|---|---|
+| CCPA / CPRA | California | GPC + reject button |
+| VCDPA | Virginia | Opt-out link |
+| CPA | Colorado | GPC + opt-out link |
+| CTDPA | Connecticut | Opt-out link |
+| TDPSA | Texas | Opt-out link |
+
+---
+
+## TCF v2.2 (IAB Transparency & Consent Framework)
+
+TCF v2.2 is required for publishers using programmatic advertising via the IAB's vendor ecosystem.
+
+```ts
+new ConsentiSetup({
+  compliance: { type: 'tcf' },
+  tcf: {
+    publisherCC: 'DE',     // your country code
+    purposeOneTreatment: false,
+  },
+})
+```
+
+Consenti generates a valid TCF consent string (TC string) and exposes the `__tcfapi` JavaScript API required by ad tech vendors.
+
+### Stacks
+
+TCF v2.2 supports "stacks" — pre-grouped purposes that simplify the consent UI. Consenti supports all 11 official IAB stacks.
+
+---
+
+## Google Consent Mode v2
+
+Consenti pushes consent state to the GTM `dataLayer` automatically when Google Consent Mode v2 is enabled:
+
+```ts
+new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  googleConsentMode: { enabled: true },
+})
+```
+
+This fires `gtag('consent', 'update', { ... })` with `analytics_storage`, `ad_storage`, `ad_user_data`, and `ad_personalization` values derived from the user's consent choices.
+
+---
+
+## Plugins
+
+Plugins extend the backend API to forward consent records to data warehouses and analytics platforms.
+
+### BigQuery
+
+```ts
+import { createConsenti } from '@consenti/api'
+import { bigQueryPlugin } from '@consenti/api/plugins/bigquery'
+
+createConsenti({
+  plugins: [
+    bigQueryPlugin({
+      projectId: process.env.GCP_PROJECT_ID!,
+      dataset: 'consent_data',
+      table: 'consent_records',
+    }),
+  ],
+})
+```
+
+### Segment
+
+```ts
+import { segmentPlugin } from '@consenti/api/plugins/segment'
+
+createConsenti({
+  plugins: [
+    segmentPlugin({
+      writeKey: process.env.SEGMENT_WRITE_KEY!,
+    }),
+  ],
+})
+```
+
+### Snowflake
+
+```ts
+import { snowflakePlugin } from '@consenti/api/plugins/snowflake'
+
+createConsenti({
+  plugins: [
+    snowflakePlugin({
+      account: process.env.SNOWFLAKE_ACCOUNT!,
+      username: process.env.SNOWFLAKE_USER!,
+      password: process.env.SNOWFLAKE_PASSWORD!,
+      database: 'CONSENT_DB',
+      schema: 'PUBLIC',
+      table: 'CONSENT_RECORDS',
+    }),
+  ],
+})
+```
+
+---
+
+## Links
+
+- [Getting Started](https://consenti.dev/docs/getting-started/)
+- [Quick Start](https://consenti.dev/docs/getting-started/quick-start/)
+- [UI Widget Overview](https://consenti.dev/docs/ui/)
+- [UI Installation](https://consenti.dev/docs/ui/installation/)
+- [UI Configuration Reference](https://consenti.dev/docs/ui/configuration/)
+- [UI Events](https://consenti.dev/docs/ui/events/)
+- [UI API Methods](https://consenti.dev/docs/ui/methods/)
+- [Themes & CSS Custom Properties](https://consenti.dev/docs/ui/themes/)
+- [Framework Guides (React, Vue, Angular, Next.js, Nuxt)](https://consenti.dev/docs/ui/frameworks/)
+- [Profiles](https://consenti.dev/docs/ui/profiles/)
+- [Backend API Overview](https://consenti.dev/docs/api/)
+- [Backend Installation](https://consenti.dev/docs/api/installation/)
+- [Backend Configuration Reference](https://consenti.dev/docs/api/configuration/)
+- [REST API Routes](https://consenti.dev/docs/api/routes/)
+- [Admin Dashboard](https://consenti.dev/docs/api/dashboard/)
+- [GDPR Guide](https://consenti.dev/docs/compliance/gdpr/)
+- [UK GDPR Guide](https://consenti.dev/docs/compliance/uk-gdpr/)
+- [CCPA / US State Privacy Laws](https://consenti.dev/docs/compliance/ccpa/)
+- [PDPA Thailand Guide](https://consenti.dev/docs/compliance/pdpa-th/)
+- [APPI Japan Guide](https://consenti.dev/docs/compliance/appi/)
+- [LGPD Brazil Guide](https://consenti.dev/docs/compliance/lgpd/)
+- [PIPL China Guide](https://consenti.dev/docs/compliance/pipl/)
+- [DPDPA India Guide](https://consenti.dev/docs/compliance/dpdpa/)
+- [POPIA South Africa Guide](https://consenti.dev/docs/compliance/popia/)
+- [PIPEDA Canada Guide](https://consenti.dev/docs/compliance/pipeda/)
+- [KVKK Turkey Guide](https://consenti.dev/docs/compliance/kvkk/)
+- [TCF v2.2 Guide](https://consenti.dev/docs/compliance/tcf/)
+- [COPPA Guide](https://consenti.dev/docs/compliance/coppa/)
+- [Interactive Playground](https://consenti.dev/demo-playground/frontend)
+- [GitHub Repository](https://github.com/santoshe61/consenti)
+- [npm — @consenti/ui](https://www.npmjs.com/package/@consenti/ui)
+- [npm — @consenti/api](https://www.npmjs.com/package/@consenti/api)

@@ -118,7 +118,7 @@ export default function UIOverviewPage() {
           <tr><td><code>@consenti/ui/vue</code></td><td><code>useConsent</code> composable</td><td>Vue / Nuxt</td></tr>
           <tr><td><code>@consenti/ui/angular</code></td><td><code>ConsentiService</code>, <code>ConsentiModule</code></td><td>Angular</td></tr>
           <tr><td><code>@consenti/ui/testing</code></td><td><code>mockConsent</code>, test helpers</td><td>Unit tests</td></tr>
-          <tr><td><code>@consenti/ui/dist/index.css</code></td><td>Default styles</td><td>Import in your build or HTML</td></tr>
+          <tr><td><code>@consenti/ui/dist/index.css</code></td><td>Default styles</td><td>Auto-injected at runtime; import explicitly only to preload or override</td></tr>
         </tbody>
       </table>
 

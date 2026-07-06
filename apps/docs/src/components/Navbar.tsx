@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Menu, X, Package, ChevronDown, Sliders, Server, Coffee, Heart } from 'lucide-react'
+import { Home, Menu, X, ChevronDown, Sliders, Server, Coffee } from 'lucide-react'
 import { SiNpm } from 'react-icons/si'
 import { FaGithub } from 'react-icons/fa'
 import { AskAIButton } from './AskAIButton'
@@ -18,7 +18,7 @@ export function Navbar() {
   const isHomeActive = pathname === '/'
   const isDemoActive = pathname?.startsWith('/demo-playground')
   const isDocsActive = pathname?.startsWith('/docs')
-  const isSupportActive = pathname === '/support' || pathname === '/author'
+  const isSupportActive = pathname === '/support'
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -35,7 +35,7 @@ export function Navbar() {
   const closeMobile = () => setMobileMenuOpen(false)
 
   return (
-    <header className="sticky top-0 z-50 bg-brand-600 text-white shadow-md w-full">
+    <header className="sticky top-0 z-50 bg-[#04111f]/96 border-b border-white/[0.06] text-white w-full">
       {/* Main nav row */}
       <div className="flex items-center gap-4 px-4 py-3">
         <button
@@ -48,7 +48,7 @@ export function Navbar() {
         </button>
 
         <Link href="/" className="flex items-center gap-2.5 no-underline shrink-0 relative">
-          <Image src="/logo-dark.svg" alt="Consenti" width={160} height={44} className="rounded-lg" unoptimized />
+          <Image src="/logo-dark.svg" alt="Consenti" width={160} height={44} className="rounded-lg sm:w-40 md:w-48 w-32" unoptimized />
           <div className="hidden sm:block absolute bottom-[-4px] right-[24px]">
             <div className="text-[10px] text-white/60 mt-0.5">Open Source CMP</div>
           </div>
@@ -63,7 +63,7 @@ export function Navbar() {
         <nav className="ml-auto flex items-center gap-1">
           <Link
             href="/"
-            className={`hidden sm:flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md no-underline transition-colors ${isHomeActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`hidden lg:flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md no-underline transition-colors ${isHomeActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
             <Home size={15} />
             Home
@@ -71,13 +71,13 @@ export function Navbar() {
 
           <Link
             href="/docs/getting-started/"
-            className={`hidden sm:block text-sm px-3 py-1.5 rounded-md no-underline transition-colors ${isDocsActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+            className={`hidden lg:block text-sm px-3 py-1.5 rounded-md no-underline transition-colors ${isDocsActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
             Docs
           </Link>
 
           {/* Demo & Playground dropdown */}
-          <div className="hidden sm:block relative group">
+          <div className="hidden lg:block relative group">
             <button
               className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-md transition-colors bg-transparent border-0 cursor-pointer ${isDemoActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
             >
@@ -108,31 +108,14 @@ export function Navbar() {
             </div>
           </div>
 
-          {/* Support dropdown (desktop) */}
-          <div className="hidden sm:block relative group">
-            <button
-              className={`flex items-center gap-1 text-sm px-3 py-1.5 rounded-md transition-colors bg-transparent border-0 cursor-pointer ${isSupportActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
-            >
-              Support
-              <ChevronDown size={14} className="transition-transform group-hover:rotate-180" />
-            </button>
-            <div className="absolute right-0 top-full mt-1 w-48 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-slate-200 dark:border-gray-700 py-1.5 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150">
-              <Link
-                href="/support"
-                className={`flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-colors ${pathname === '/support' ? 'text-brand-600 dark:text-cyan-400 bg-brand-50 dark:bg-gray-700 font-semibold' : 'text-slate-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-cyan-400 hover:bg-brand-50 dark:hover:bg-gray-700'}`}
-              >
-                <Coffee size={15} />
-                Support Consenti
-              </Link>
-              <Link
-                href="/author"
-                className={`flex items-center gap-3 px-4 py-2.5 text-sm no-underline transition-colors ${pathname === '/author' ? 'text-brand-600 dark:text-cyan-400 bg-brand-50 dark:bg-gray-700 font-semibold' : 'text-slate-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-cyan-400 hover:bg-brand-50 dark:hover:bg-gray-700'}`}
-              >
-                <Heart size={15} />
-                Support Author
-              </Link>
-            </div>
-          </div>
+          <Link
+            href="/support"
+            className={`hidden sm:flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md no-underline transition-colors ${isSupportActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+          >
+            <Coffee size={15} className='hidden lg:block' />
+            <Coffee size={24} className='block lg:hidden' />
+            <span className='hidden lg:flex'>Support</span>
+          </Link>
 
           <AskAIButton />
 
@@ -162,7 +145,7 @@ export function Navbar() {
 
       {/* Mobile menu panel */}
       {mobileMenuOpen && (
-        <div className="lg:hidden border-t border-white/10 bg-brand-700">
+        <div className="lg:hidden border-t border-white/[0.06] bg-[#020c1a]">
           <nav className="px-2 py-2 flex flex-col gap-0.5">
             <Link
               href="/"
@@ -195,20 +178,12 @@ export function Navbar() {
               <Server size={14} /> Backend Demo
             </Link>
 
-            <div className="px-3 pt-3 pb-1 text-[11px] font-semibold text-white/40 uppercase tracking-wide">Support</div>
             <Link
               href="/support"
               onClick={closeMobile}
-              className={`flex items-center gap-2 text-sm px-3 py-2 pl-5 rounded-md no-underline transition-colors ${pathname === '/support' ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+              className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md no-underline transition-colors ${pathname === '/support' ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
             >
-              Support Consenti
-            </Link>
-            <Link
-              href="/author"
-              onClick={closeMobile}
-              className={`flex items-center gap-2 text-sm px-3 py-2 pl-5 rounded-md no-underline transition-colors ${pathname === '/author' ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
-            >
-              Support Author
+              <Coffee size={15} /> Support
             </Link>
 
           </nav>

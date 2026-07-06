@@ -1,5 +1,4 @@
 import { type ConsentiServerConfig, createConsenti } from '@consenti/api'
-import path from "node:path"
 
 type ConsentReturnType = ReturnType<typeof createConsenti>
 
@@ -12,9 +11,9 @@ const g = global as typeof globalThis & {
 // In development, reset the singleton whenever this module is re-evaluated (Next.js hot reload).
 // This ensures branding / config edits take effect without a full server restart.
 if (process.env.NODE_ENV !== 'production') {
-  g._consenti = undefined
-  g._consentiReady = undefined
-  g._consentiError = undefined
+  delete g._consenti;
+  delete g._consentiReady;
+  delete g._consentiError;
 }
 
 const config: ConsentiServerConfig = {
@@ -22,21 +21,17 @@ const config: ConsentiServerConfig = {
   dashboard: true,
   storage: {
     driver: 'json',
-    path: 'db/consenti-data.json',
+    path: process.env.CONSENTI_DATA_PATH ?? './consenti-data',
   },
   auth: {
     mode: 'local',
-    jwtSecret: process.env.CONSENTI_JWT_SECRET ?? 'consenti-docs-dev-secret-2024',
-    adminEmail: 'user@consenti.dev',
-    adminPassword: 'Consenti@123',
+    jwtSecret: process.env.CONSENTI_JWT_SECRET ?? 'consenti-docs-dev-secret-2026',
+    adminEmail: process.env.CONSENTI_ADMIN_EMAIL ?? 'user@consenti.dev',
+    adminPassword: process.env.CONSENTI_ADMIN_PASSWORD ?? 'Consenti@123',
   },
-  compliance: { gdpr: true, ccpa: true, gpc: true },
+  compliance: { type: 'opt-in', gpc: true },
   rateLimit: { enabled: true, windowMs: 60_000, maxRequests: 120 },
   dataRetention: { purgeAfterDays: 7 },
-  branding: {
-    appName: "Consenti Ji",
-    appLogoPath: path.resolve(path.dirname(process.cwd()), "/logo.svg")
-  }
 }
 
 export async function getConsenti(): Promise<ConsentReturnType | null> {
