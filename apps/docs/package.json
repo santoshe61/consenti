@@ -1,7 +1,7 @@
 {
   "name": "@consenti/docs",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.2.0",
   "scripts": {
     "dev": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 next dev --port 3000 --webpack",
     "build": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 next build --webpack",
