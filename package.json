@@ -20,7 +20,7 @@
     "test": "turbo test",
     "changeset": "changeset",
     "version-packages": "changeset version && node scripts/sync-root-version.mjs",
-    "publish-packages": "npx turbo build && changeset publish"
+    "publish-packages": "npx turbo build --filter=@consenti/ui --filter=@consenti/api && changeset publish"
   },
   "devDependencies": {
     "@changesets/cli": "^2.31.0",
