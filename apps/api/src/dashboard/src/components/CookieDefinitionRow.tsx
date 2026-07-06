@@ -1,5 +1,7 @@
 import type { TemplateCookie } from '../utils/templates'
 import { VendorPicker } from './VendorPicker'
+import { TcfPurposePicker } from './TcfPurposePicker'
+import { useT } from '../context/locale'
 
 interface CookieDefinitionRowProps {
   cookie: TemplateCookie
@@ -12,21 +14,23 @@ interface CookieDefinitionRowProps {
 }
 
 export function CookieDefinitionRow({ cookie, idx, onChange, onRemove, duplicateIds, tcfEnabled, showCpra }: CookieDefinitionRowProps) {
+  const t = useT()
   const set = <K extends keyof TemplateCookie>(k: K, v: TemplateCookie[K]) => onChange({ ...cookie, [k]: v })
   const idEmpty = !cookie.id.trim()
   const idDup = !idEmpty && (duplicateIds?.has(cookie.id.trim()) ?? false)
   const idError = idEmpty ? 'Required' : idDup ? 'Duplicate ID' : ''
   const expiryError = cookie.expiry < 1 ? 'Must be ≥ 1' : ''
+  const isMandatory = cookie.legalBasis === 'mandatory'
 
   const rowBg = idx !== undefined
     ? (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50')
     : 'bg-white'
 
   return (
-    <tr class={`border-b align-middle text-xs ${rowBg}`}>
+    <tr class={`border-b align-top text-xs ${rowBg}`}>
       <td class="py-2.5 pr-3 pl-1">
         <input
-          class={`border rounded px-2 py-1.5 w-40 font-mono ${idError ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+          class={`border rounded px-2 py-1.5 w-60 font-mono ${idError ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
           value={cookie.id}
           onInput={e => set('id', (e.target as HTMLInputElement).value)}
           placeholder="analytics_storage"
@@ -35,30 +39,23 @@ export function CookieDefinitionRow({ cookie, idx, onChange, onRemove, duplicate
       </td>
       <td class="py-2.5 pr-3">
         <select
-          class="border border-gray-300 rounded pl-2 pr-4 py-1.5 text-xs w-36"
-          value={cookie.type}
-          onChange={e => set('type', (e.target as HTMLSelectElement).value as TemplateCookie['type'])}
+          class="border border-gray-300 rounded pl-2 pr-4 py-1.5 text-xs w-40"
+          value={cookie.legalBasis}
+          onChange={e => set('legalBasis', (e.target as HTMLSelectElement).value as TemplateCookie['legalBasis'])}
         >
           <option value="consent">Consent</option>
           <option value="legitimate_interest">Legitimate Interest</option>
+          <option value="mandatory">{t('cookieTemplates.col.mandatoryShort')}</option>
         </select>
       </td>
       <td class="py-2.5 pr-3 text-center">
         <input
           type="checkbox"
           class="w-4 h-4 accent-blue-600"
-          checked={cookie.mandatory}
-          onChange={e => set('mandatory', (e.target as HTMLInputElement).checked)}
-        />
-      </td>
-      <td class="py-2.5 pr-3 text-center">
-        <input
-          type="checkbox"
-          class="w-4 h-4 accent-blue-600"
           checked={cookie.listenGpc}
-          disabled={cookie.mandatory}
+          disabled={isMandatory}
           onChange={e => set('listenGpc', (e.target as HTMLInputElement).checked)}
-          title={cookie.mandatory ? 'Mandatory cookies are never auto-denied by GPC' : ''}
+          title={isMandatory ? t('cookieTemplates.editor.gpcMandatoryTitle') : ''}
         />
       </td>
       <td class="py-2.5 pr-3">
@@ -76,18 +73,22 @@ export function CookieDefinitionRow({ cookie, idx, onChange, onRemove, duplicate
         {expiryError && <p class="text-xs text-red-500 mt-0.5">{expiryError}</p>}
       </td>
       {tcfEnabled && (
-        <td class="py-2.5 pr-3">
+        <td class="py-2.5 pr-3 min-w-[160px]">
           <VendorPicker
             vendorId={cookie.tcfVendorId}
-            vendorName={cookie.tcfVendorId ? `Vendor ${cookie.tcfVendorId}` : undefined}
+            vendorName={cookie.tcfVendorName}
             onSelect={v => onChange({
               ...cookie,
               tcfVendorId: v?.id ?? undefined,
+              tcfVendorName: v?.name ?? undefined,
               tcfPurposes: v?.purposes ?? undefined,
             })}
           />
-          {cookie.tcfPurposes && cookie.tcfPurposes.length > 0 && (
-            <p class="text-gray-400 mt-0.5">Purposes: {cookie.tcfPurposes.join(', ')}</p>
+          {cookie.tcfVendorId != null && (
+            <TcfPurposePicker
+              selected={cookie.tcfPurposes ?? []}
+              onChange={ids => set('tcfPurposes', ids.length > 0 ? ids : undefined)}
+            />
           )}
         </td>
       )}

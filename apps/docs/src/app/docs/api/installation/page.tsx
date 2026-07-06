@@ -27,8 +27,8 @@ import { createConsenti } from '@consenti/api'
 const app = express()
 
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
-  auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: 'secret' },
+  storage: { driver: 'node:sqlite', path: './consenti-data' },  // directory, not a file
+  auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: process.env.CONSENTI_ADMIN_PASSWORD! },
   dashboard: true,
 })
 
@@ -39,15 +39,15 @@ app.listen(3000, () => {
   console.log('Admin at http://localhost:3000/consenti/')
 })`} />
 
-      <h2>No existing server yet? Use the built-in starter</h2>
+      <h2>Standalone — no existing server</h2>
       <p>
-        If you have no Node.js server at all, <code>consenti.start(port)</code> spins one up for
-        you as a convenience — useful for a dedicated consent service or local development.
+        Use the plain <code>node:http</code> handler when you have no existing HTTP framework.
       </p>
-      <CodeBlock lang="ts" filename="server.ts" code={`import { createConsenti } from '@consenti/api'
+      <CodeBlock lang="ts" filename="server.ts" code={`import { createServer } from 'node:http'
+import { createConsenti } from '@consenti/api'
 
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
+  storage: { driver: 'node:sqlite', path: './consenti-data' },
   auth: {
     mode: 'local',
     adminEmail: 'admin@example.com',
@@ -56,28 +56,29 @@ const consenti = createConsenti({
   dashboard: true,
 })
 
-await consenti.start(3001)
-// → Admin dashboard at http://localhost:3001/consenti/
-// → REST API at http://localhost:3001/consenti/api/v1/`} />
+await consenti.ready   // wait for DB + bootstrap
+
+const server = createServer(consenti.handler)
+server.listen(3001, () => {
+  console.log('Admin dashboard → http://localhost:3001/consenti/')
+  console.log('REST API        → http://localhost:3001/consenti/api/v1/')
+})`} />
 
       <h2>With Fastify</h2>
       <CodeBlock lang="ts" filename="app.ts" code={`import Fastify from 'fastify'
 import { createConsenti } from '@consenti/api'
 
-const app = Fastify()
+const fastify = Fastify()
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
-  auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: 'secret' },
+  storage: { driver: 'node:sqlite', path: './consenti-data' },
+  auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: process.env.CONSENTI_ADMIN_PASSWORD! },
   dashboard: true,
 })
 
-// Use the plain Node handler via a Fastify raw handler
-app.all('/consenti/*', async (req, reply) => {
-  reply.hijack()
-  consenti.handler(req.raw, reply.raw)
-})`} />
+await fastify.register(consenti.fastifyHandler)
+await fastify.listen({ port: 3000 })`} />
 
-      <h2>With Next.js API routes</h2>
+      <h2>With Next.js App Router</h2>
       <CodeBlock lang="ts" filename="app/consenti/[...path]/route.ts" code={`import { createConsenti } from '@consenti/api'
 import type { NextRequest } from 'next/server'
 
@@ -86,19 +87,23 @@ let consenti: Awaited<ReturnType<typeof createConsenti>>
 async function getConsenti() {
   if (!consenti) {
     consenti = createConsenti({
-      storage: { driver: 'sqlite', path: './consenti.db' },
-      auth: { mode: 'local', adminEmail: process.env.CONSENTI_ADMIN_EMAIL!, adminPassword: process.env.CONSENTI_ADMIN_PASSWORD! },
+      storage: { driver: 'node:sqlite', path: './consenti-data' },
+      auth: {
+        mode: 'local',
+        adminEmail: process.env.CONSENTI_ADMIN_EMAIL!,
+        adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
+      },
     })
   }
   return consenti
 }
 
-export async function GET(req: NextRequest) {
+async function consentiHandler(req: NextRequest) {
   const c = await getConsenti()
   return c.handleRequest(req)
 }
 
-export { GET as POST, GET as PUT, GET as DELETE, GET as PATCH }`} />
+export { consentiHandler as GET, consentiHandler as POST, consentiHandler as PUT, consentiHandler as DELETE, consentiHandler as PATCH }`} />
 
       <Callout type="tip">
         The <code>consenti.handler</code> is a standard <code>http.IncomingMessage → http.ServerResponse</code> handler.
@@ -106,22 +111,40 @@ export { GET as POST, GET as PUT, GET as DELETE, GET as PATCH }`} />
       </Callout>
 
       <h2>First run</h2>
-      <p>On first start with SQLite, Consenti:</p>
+      <p>On first start, Consenti:</p>
       <ol>
-        <li>Creates the database file at the configured path</li>
-        <li>Runs all migrations (creates <code>visitors</code>, <code>consent_records</code>, <code>consent_history</code>, <code>profiles</code>, <code>admin_users</code>, <code>audit_logs</code> tables)</li>
+        <li>Creates the storage directory at the configured <code>storage.path</code> with <code>db/</code>, <code>profiles/</code>, and <code>logs/</code> subdirectories</li>
+        <li>Runs all migrations (creates <code>visitors</code>, <code>consent_records</code>, <code>consent_history</code>, <code>profiles</code>, <code>admin_users</code>, <code>audit_logs</code> tables and DB indexes)</li>
         <li>Creates the admin user from <code>auth.adminEmail</code> + <code>auth.adminPassword</code></li>
         <li>Seeds the default profile (<code>profileId: '0'</code>)</li>
       </ol>
       <p>Subsequent starts run pending migrations only.</p>
 
       <h2>Environment variables</h2>
-      <CodeBlock lang="bash" filename=".env" code={`CONSENTI_ADMIN_PASSWORD=your-strong-password
-NODE_ENV=production
-# Optional:
-CONSENTI_DB_PATH=./data/consenti.db
-CONSENTI_BASE_PATH=/consent         # change /consenti prefix
-CONSENTI_ADMIN_JWT_SECRET=your-jwt-secret          # auto-generated if not set`} />
+      <p>All config fields can be set via environment variables. Code config takes precedence over env vars.</p>
+      <CodeBlock lang="bash" filename=".env" code={`# Auth
+CONSENTI_ADMIN_EMAIL=user@consenti.dev
+CONSENTI_ADMIN_PASSWORD=your-strong-password
+CONSENTI_ADMIN_JWT_SECRET=your-jwt-secret   # auto-generated if not set (sessions expire on restart)
+
+# Storage
+CONSENTI_DB_DRIVER=node:sqlite              # default: json
+CONSENTI_DB_PATH=./consenti-data            # directory path
+CONSENTI_DB_URI=postgresql://...            # server drivers (pg, mysql, mongodb)
+CONSENTI_DB_DATABASE=consenti               # database name override
+
+# Routing
+CONSENTI_BASE_PATH=/cmp                     # change /consenti prefix (default: /consenti)
+
+# Rate limiting
+CONSENTI_RATE_LIMIT_WINDOW_MS=60000         # default: 60000
+CONSENTI_RATE_LIMIT_MAX_REQUESTS=60         # default: 60
+
+# Body size
+CONSENTI_MAX_BODY_SIZE=1048576              # default: 1 MB
+
+# Node.js
+NODE_ENV=production                         # suppresses stack traces in error responses`} />
     </div>
   )
 }

@@ -40,8 +40,8 @@ async function createWidget(dark: boolean): Promise<WidgetHandle> {
 
   const widget = new ConsentiSetup({
     darkMode: dark,
+    compliance: { type: 'opt-in' },
     core: {
-      regulation: 'gdpr',
       locale: 'en',
       storage: 'cookie',
       allowReceipt: true,
@@ -49,7 +49,7 @@ async function createWidget(dark: boolean): Promise<WidgetHandle> {
     },
     api: {
       enabled: true,
-      baseUrl: '',
+      baseUrl: process.env.NEXT_PUBLIC_API_URL!
     },
     plugins: [new DemoAnalyticsPlugin()],
   })

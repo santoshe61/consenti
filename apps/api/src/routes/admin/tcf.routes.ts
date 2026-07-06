@@ -23,7 +23,7 @@ export function buildAdminTcfRoutes(
         if (!gvl) return json(503, { error: 'GVL not available. Enable tcf.enabled in config.' })
         const url = new URL(req.url)
         const search = url.searchParams.get('q')?.toLowerCase()
-        const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 100))
+        const page = Math.max(1, parseInt(url.searchParams.get('page') ?? '1', 10))
         const limit = Math.min(200, Math.max(1, parseInt(url.searchParams.get('limit') ?? '100', 10)))
         const vendors = Object.values(gvl.vendors)
         const filtered = search

@@ -2,7 +2,12 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'GDPR Compliance Guide' }
+export const metadata: Metadata = {
+  title: 'GDPR Compliance Guide',
+  description: 'Implement GDPR-compliant cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, immutable audit logs, and signed consent receipts.',
+  keywords: ['GDPR', 'GDPR cookie consent', 'GDPR compliance', 'opt-in consent', 'cookie banner GDPR', 'open source GDPR'],
+  alternates: { canonical: 'https://consenti.dev/docs/compliance/gdpr' },
+}
 
 export default function GDPRPage() {
   return (
@@ -12,6 +17,13 @@ export default function GDPRPage() {
         Consenti is built from the ground up around GDPR requirements.
         All core design decisions follow the six lawfulness principles in Article 5.
       </p>
+
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — covers GDPR (EU / EEA), UK GDPR,
+        PIPEDA (Canada), POPIA (South Africa), PDPA-TH (Thailand), APPI (Japan), and KVKK (Turkey).
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your{' '}
+        <code>ConsentiSetup</code> config to activate the opt-in consent model.
+      </Callout>
 
       <h2>Official references</h2>
       <ul>

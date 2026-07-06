@@ -8,6 +8,10 @@ export default function UKGDPRPage() {
   return (
     <div className="prose max-w-none">
       <h1>UK GDPR Compliance Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — same model as GDPR.
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         After Brexit, the United Kingdom retained the EU GDPR in domestic law as the <strong>UK GDPR</strong>,
         supplemented by the Data Protection Act 2018 (DPA 2018). The result is a framework that is nearly

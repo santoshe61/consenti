@@ -10,31 +10,67 @@ export default function UIConfigurationPage() {
       <h1>UI Widget — Configuration</h1>
       <p>
         <code>new ConsentiSetup(config)</code> accepts a single{' '}
-        <code>ConsentiConfig</code> object. Only <code>core</code> is required — every other
-        top-level key is optional and can be omitted entirely.
+        <code>ConsentiConfig</code> object. All top-level keys are optional — the widget works
+        with an empty config object, auto-detecting the compliance group from the browser.
       </p>
+
+      <h2>Minimal config to get started</h2>
+      <p>
+        This is all you need for a fully working consent banner. Everything below is optional.
+      </p>
+      <CodeBlock
+        lang="ts"
+        filename="main.ts"
+        code={`import { ConsentiSetup } from '@consenti/ui'
+
+// Auto-detects compliance from browser locale (GDPR, CCPA, etc.)
+const widget = new ConsentiSetup({})
+
+// Or pin a specific compliance group:
+// new ConsentiSetup({ compliance: { type: 'opt-in' } })   // GDPR
+// new ConsentiSetup({ compliance: { type: 'opt-out' } })  // CCPA`}
+      />
+
+      <Callout type="info">
+        The rest of this page is the complete configuration reference. You don&apos;t need to read
+        it all now — come back when you need to change a specific option like theming, locale,
+        GPC handling, or GTM integration.
+      </Callout>
+
+      <hr />
+
+      <h2>Full configuration reference</h2>
+      <p>Every available option shown with its default value.</p>
 
       <CodeBlock
         lang="ts"
         filename="Full config — every field shown"
         code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({
-  // ── Required ────────────────────────────────────────────────────────────────
+  // ── Compliance group (optional) ──────────────────────────────────────────────
+  compliance: {
+    type: 'opt-in',              // see Compliance groups table below
+    geoDataProvider: undefined,  // custom function to resolve visitor country
+    ageGate: {
+      minAge: 18,
+      defaultDeny: true,
+    },
+  },
+
+  // ── Core behaviour (optional) ───────────────────────────────────────────────
   core: {
-    profileId: 1,               // 0 = built-in default; >0 = local or API profile
-    regulation: 'gdpr',         // controls opt-in/opt-out behaviour
-    locale: 'en',               // BCP 47; falls back to language prefix, then 'en'
-    autoHonorGPC: true,         // false | true | 'strict'
-    storage: 'cookie',          // 'cookie' | 'localStorage'
+    tenantId: 'my-site',         // logical identifier for this installation
+    locale: 'en',                // BCP 47; falls back to language prefix, then 'en'
+    autoHonorGPC: true,          // false | true | 'strict'
+    storage: 'cookie',           // 'cookie' | 'localStorage'
     cookieDomains: '.example.com',
-    privacyPolicyUrl: '/privacy',
-    signCookies: true,
-    cookieSigningKey: 'min-32-char-secret',
     allowReceipt: true,
     disableCssTemplate: false,
     userId: 'server-assigned-uuid', // authenticated users only
+    usePrebuiltProfiles: true,   // load pre-built profiles instead of constructing from config
+    cacheResolvedProfiles: true, // cache resolved profile in sessionStorage (1h TTL)
+    console: ['error', 'warn'],  // log levels to emit; 'error' | 'warn' | 'info' | 'debug'
     theme: {
       bgColor: '#ffffff',
       textColor: '#1a1a1a',
@@ -65,11 +101,17 @@ const widget = new ConsentiSetup({
   // ── Auto Initialize widget (optional) ────────────────────────────────────────
   autoInit: true,
 
+  // ── Hide Powered By Consenti text from banner/modal (optional) ───────────────
+  hidePoweredBy: false,
+
   // ── Backend API (optional) ──────────────────────────────────────────────────
   api: {
     enabled: true,
     baseUrl: 'https://your-site.com',
     authToken: '',
+    tenantId: 'my-site',         // tenant identifier sent with API requests
+    complianceGroup: 'opt-in',   // skip auto-resolution; always fetch this group's profile
+    trustDomain: false,          // bypass domain allowlist check (dev/test only)
   },
 
   // ── Integrations (optional) ─────────────────────────────────────────────────
@@ -95,87 +137,163 @@ const widget = new ConsentiSetup({
 
       <hr />
 
-      <h2>core</h2>
+      <h2>compliance</h2>
       <p>
-        Controls widget behaviour, consent storage, compliance regulation, and theming.
-        The only truly required field is <code>core</code> itself — all keys within it have
-        sensible defaults.
+        Selects which consent model the widget applies. When omitted, Consenti auto-detects the
+        appropriate group from the browser's <code>navigator.language</code> and optional geo data.
       </p>
-
-      <h3>Profile &amp; locale</h3>
       <table>
         <thead>
           <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>profileId</code></td>
-            <td><code>number</code></td>
-            <td><code>0</code></td>
+            <td><code>type</code></td>
+            <td><code>string</code></td>
+            <td>auto-detected</td>
+            <td>Compliance group key. See the Compliance groups table below.</td>
+          </tr>
+          <tr>
+            <td><code>geoDataProvider</code></td>
+            <td><code>WidgetCountryResolverFn</code></td>
+            <td><code>undefined</code></td>
             <td>
-              Which profile to load. <code>0</code> = built-in GDPR default.
-              Any other value requires a <a href="/docs/ui/profiles/">local ConsentiProfile</a> or
-              API mode to be configured. See the{' '}
-              <a href="/docs/ui/profiles/">Profiles guide</a> for details.
+              Custom async function that returns the visitor's ISO 3166-1 alpha-2 country code.
+              Used to improve auto-detection when the default locale-based heuristic is not
+              accurate enough. Called once per session.
+            </td>
+          </tr>
+          <tr>
+            <td><code>ageGate</code></td>
+            <td><code>AgeGateWidgetConfig</code></td>
+            <td><code>undefined</code></td>
+            <td>
+              Age gate configuration. When set, the widget shows an age-verification step before
+              the consent banner. <code>minAge</code> defaults to <code>18</code>.
+              <code>defaultDeny</code> pre-denies all non-mandatory cookies when the user is under-age.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>Compliance groups</h3>
+      <table>
+        <thead>
+          <tr><th>type</th><th>Model</th><th>Covered regulations</th><th>Notes</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code className='whitespace-nowrap'>opt-in</code></td><td>Opt-in</td><td>GDPR, UK GDPR, PIPEDA, POPIA, PDPA-TH, APPI, KVKK</td><td>Banner on first visit; all non-mandatory cookies denied until granted. Default when no type given and browser locale maps to EU/EEA.</td></tr>
+          <tr><td><code className='whitespace-nowrap'>opt-out</code></td><td>Opt-out</td><td>CCPA, US state laws</td><td>All cookies default to <code>granted</code>; consent written silently; no banner unless user visits a "Do Not Sell" page.</td></tr>
+          <tr><td><code className='whitespace-nowrap'>opt-out-strict</code></td><td>Strict Opt-out</td><td>CPRA (California 2023)</td><td>Supersedes CCPA. Opt-out for sale/sharing; opt-in required for sensitive data. GPC triggers both Do Not Sell and Do Not Share.</td></tr>
+          <tr><td><code className='whitespace-nowrap'>opt-in-dpdpa</code></td><td>Opt-in (DPDPA)</td><td>DPDPA (India 2023)</td><td>Fiduciary name + grievance officer rendered in modal. Age gate required for children under 18. GPC signal ignored.</td></tr>
+          <tr><td><code className='whitespace-nowrap'>opt-in-china</code></td><td>Opt-in (China)</td><td>PIPL (China 2021)</td><td>Separate consent required for each processing purpose. Cross-border transfer rules enforced.</td></tr>
+          <tr><td><code className='whitespace-nowrap'>opt-in-brazil</code></td><td>Opt-in (Brazil)</td><td>LGPD</td><td>10 lawful bases; ANPD-enforced; parental consent gate for under-12.</td></tr>
+          <tr><td><code className='whitespace-nowrap'>general-privacy-consent</code></td><td>General consent</td><td>TCF v2.2, COPPA, general privacy notices</td><td>Full-flexibility mode: no region-specific behaviours enforced. Configure the banner entirely via your profile.</td></tr>
+          <tr><td><code className='whitespace-nowrap'>notice-only</code></td><td>Notice only</td><td>Informational / no opt-in law applies</td><td>Consent written automatically as <code>granted</code> for all cookies. Banner shown once as a notice, no action required.</td></tr>
+        </tbody>
+      </table>
+
+      <CodeBlock
+        lang="ts"
+        filename="Using a custom geo resolver"
+        code={`import type { WidgetCountryResolverFn } from '@consenti/ui'
+
+const geoResolver: WidgetCountryResolverFn = async () => {
+  const res = await fetch('/api/geo')
+  const { country } = await res.json()
+  return country // e.g. 'DE', 'US', 'IN'
+}
+
+new ConsentiSetup({
+  compliance: {
+    type: 'opt-in',
+    geoDataProvider: geoResolver,
+  },
+})`}
+      />
+
+      <hr />
+
+      <h2>core</h2>
+      <p>
+        Controls widget behaviour, consent storage, and theming. All keys are optional.
+      </p>
+
+      <h3>Tenant &amp; locale</h3>
+      <table>
+        <thead>
+          <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>tenantId</code></td>
+            <td><code>string</code></td>
+            <td><code>undefined</code></td>
+            <td>
+              Logical identifier for this installation. Sent with API requests and used to
+              namespace consent records when multiple Consenti instances share the same backend.
             </td>
           </tr>
           <tr>
             <td><code>locale</code></td>
             <td><code>string</code></td>
-            <td><code>&apos;en&apos;</code></td>
+            <td><code>'en'</code></td>
             <td>
-              BCP 47 locale code, e.g. <code>&apos;fr&apos;</code>, <code>&apos;fr-CA&apos;</code>.
+              BCP 47 locale code, e.g. <code>'fr'</code>, <code>'fr-CA'</code>.
               Resolution order: exact match → language prefix → <code>defaultLocale</code>.
             </td>
           </tr>
         </tbody>
       </table>
 
-      <h3>Compliance</h3>
+      <h3>GPC</h3>
       <table>
         <thead>
           <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td><code>regulation</code></td>
-            <td><code>string</code></td>
-            <td><code>&apos;gdpr&apos;</code></td>
-            <td>
-              Controls opt-in vs opt-out behaviour and what is shown. See full list below.
-            </td>
-          </tr>
-          <tr>
             <td><code>autoHonorGPC</code></td>
-            <td><code>boolean | &apos;strict&apos;</code></td>
+            <td><code>boolean | 'strict'</code></td>
             <td><code>false</code></td>
             <td>
-              How to handle the browser&apos;s Global Privacy Control signal.
+              How to handle the browser's Global Privacy Control signal.
               <code>false</code> = ignore. <code>true</code> = pre-deny{' '}
               <code>listenGpc</code> cookies and show the GPC banner variant.
-              <code>&apos;strict&apos;</code> = pre-deny and write consent silently — no banner shown.
+              <code>'strict'</code> = pre-deny and write consent silently — no banner shown.
+              Individual profiles can also set <code>gpcMode</code> per-profile; this field
+              overrides that when explicitly set.
             </td>
           </tr>
         </tbody>
       </table>
 
-      <h4>Supported regulations</h4>
+      <h3>Profile resolution</h3>
       <table>
         <thead>
-          <tr><th>Value</th><th>Region</th><th>Model</th><th>Notes</th></tr>
+          <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
         </thead>
         <tbody>
-          <tr><td><code className='whitespace-nowrap'>gdpr</code></td><td>EU / EEA</td><td>Opt-in</td><td>Default. Banner on first visit; all non-mandatory cookies denied until granted.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>uk-gdpr</code></td><td>UK</td><td>Opt-in</td><td>Same model as GDPR; ICO-enforced; age gate at 13.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>ccpa</code></td><td>California (US)</td><td>Opt-out</td><td>All cookies default to <code>granted</code>; consent written silently; no banner.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>cpra</code></td><td>California (US)</td><td>Opt-out / Opt-in</td><td>Supersedes CCPA from Jan 2023. Opt-out for sale/sharing; opt-in required for sensitive data. GPC triggers both Do Not Sell and Do Not Share.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>lgpd</code></td><td>Brazil</td><td>Opt-in</td><td>10 lawful bases; ANPD-enforced; parental consent gate at under-12.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>dpdpa</code></td><td>India</td><td>Opt-in</td><td>Fiduciary name + grievance officer rendered in modal; GPC signal ignored. Requires <code>profileConfig.dpdpa</code>.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>pipeda</code></td><td>Canada</td><td>Opt-in</td><td>PIPEDA + Quebec Law 25 (GDPR-aligned).</td></tr>
-          <tr><td><code className='whitespace-nowrap'>popia</code></td><td>South Africa</td><td>Opt-in</td><td>8 processing conditions; Information Regulator-enforced.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>pdpa-th</code></td><td>Thailand</td><td>Opt-in</td><td>Cross-border transfer rules enforced; PDPC-enforced.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>appi</code></td><td>Japan</td><td>Opt-in / Opt-out</td><td>Opt-in for sensitive data and overseas transfers; opt-out for general third-party sharing.</td></tr>
-          <tr><td><code className='whitespace-nowrap'>kvkk</code></td><td>Turkey</td><td>Opt-in</td><td>Explicit consent for sensitive personal data; KVK Board-enforced.</td></tr>
+          <tr>
+            <td><code>usePrebuiltProfiles</code></td>
+            <td><code>boolean</code></td>
+            <td><code>true</code></td>
+            <td>
+              When <code>true</code>, Consenti lazy-loads the pre-built profile chunk for the
+              resolved compliance group. Set to <code>false</code> to use only profiles defined
+              via <code>ConsentiProfile</code> or <code>profileOverride</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>cacheResolvedProfiles</code></td>
+            <td><code>boolean</code></td>
+            <td><code>true</code></td>
+            <td>
+              When <code>true</code>, the resolved profile URL from the API's{' '}
+              <code>/resolve-profile</code> endpoint is cached in <code>sessionStorage</code>{' '}
+              with a 1-hour TTL, avoiding redundant network requests on every page load.
+            </td>
+          </tr>
         </tbody>
       </table>
 
@@ -187,8 +305,8 @@ const widget = new ConsentiSetup({
         <tbody>
           <tr>
             <td><code>storage</code></td>
-            <td><code>&apos;cookie&apos; | &apos;localStorage&apos;</code></td>
-            <td><code>&apos;cookie&apos;</code></td>
+            <td><code>'cookie' | 'localStorage'</code></td>
+            <td><code>'cookie'</code></td>
             <td>
               Where consent is persisted in the browser.
               <code>cookie</code> works across subdomains when <code>cookieDomains</code> is set.
@@ -201,39 +319,13 @@ const widget = new ConsentiSetup({
             <td><code>string</code></td>
             <td><code>undefined</code></td>
             <td>
-              Comma-separated domain list, e.g. <code>&apos;.example.com,.sub.example.com&apos;</code>.
+              Comma-separated domain list, e.g. <code>'.example.com,.sub.example.com'</code>.
               The first entry is used as the <code>Domain</code> attribute on the consent cookie,
               making it readable on all subdomains of that domain.
             </td>
           </tr>
-          <tr>
-            <td><code>signCookies</code></td>
-            <td><code>boolean</code></td>
-            <td><code>false</code></td>
-            <td>
-              Sign the consent cookie with HMAC-SHA256 to detect tampering.
-              Requires <code>cookieSigningKey</code> when API mode is disabled.
-              In API mode the server supplies the key — never expose it in client config.
-            </td>
-          </tr>
-          <tr>
-            <td><code>cookieSigningKey</code></td>
-            <td><code>string</code></td>
-            <td><code>undefined</code></td>
-            <td>
-              HMAC signing secret used with <code>signCookies: true</code> in frontend-only
-              mode. Minimum 32 characters. Rotate this key to invalidate all existing signed
-              consent records.
-            </td>
-          </tr>
         </tbody>
       </table>
-
-      <Callout type="warning">
-        Never expose <code>cookieSigningKey</code> in public client-side bundles on production
-        sites that handle real user data. Use API mode instead — the server returns the signing
-        key securely so it never appears in the browser.
-      </Callout>
 
       <h3>Visitors &amp; receipts</h3>
       <table>
@@ -259,13 +351,13 @@ const widget = new ConsentiSetup({
             <td>
               When <code>true</code>, a &quot;Download consent receipt&quot; checkbox appears
               in the preference modal footer. Checking it before saving triggers a JSON
-              download containing a timestamped record of the user&apos;s choices.
+              download containing a timestamped record of the user's choices.
             </td>
           </tr>
         </tbody>
       </table>
 
-      <h3>CSS &amp; privacy link</h3>
+      <h3>CSS &amp; logging</h3>
       <table>
         <thead>
           <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
@@ -277,19 +369,18 @@ const widget = new ConsentiSetup({
             <td><code>false</code></td>
             <td>
               When <code>true</code>, no <code>&lt;style&gt;</code> tag is injected at all.
-              Use this when you import{' '}
-              <code>@consenti/ui/dist/index.css</code> via your bundler to avoid
-              duplicate styles. All BEM class names still apply.
+              Use this when you provide your own stylesheet and want full control over
+              every rule. All BEM class names still apply.
             </td>
           </tr>
           <tr>
-            <td><code>privacyPolicyUrl</code></td>
-            <td><code>string</code></td>
-            <td><code>undefined</code></td>
+            <td><code>console</code></td>
+            <td><code>Array&lt;'error' | 'warn' | 'info' | 'debug'&gt;</code></td>
+            <td><code>['error']</code></td>
             <td>
-              When set, a &quot;Privacy Policy&quot; link is automatically appended to the banner
-              body text and opens in a new tab. No need to include it manually in
-              <code>htmlText</code>.
+              Log levels to emit to the browser console. Pass an empty array to suppress all
+              output. Add <code>'debug'</code> during development to trace profile resolution
+              and consent storage.
             </td>
           </tr>
         </tbody>
@@ -320,7 +411,7 @@ const widget = new ConsentiSetup({
           <tr><td><code>fontFamily</code></td><td><code className='whitespace-nowrap'>--consenti-font-family</code></td><td><code className='whitespace-nowrap'>system-ui, sans-serif</code></td><td>Font stack applied to all widget text.</td></tr>
           <tr><td><code>fontSizeBase</code></td><td><code className='whitespace-nowrap'>--consenti-font-size-base</code></td><td><code className='whitespace-nowrap'>14px</code></td><td>Base font size for body content.</td></tr>
           <tr><td><code>fontSizeHeading</code></td><td><code className='whitespace-nowrap'>--consenti-font-size-heading</code></td><td><code className='whitespace-nowrap'>inherit</code></td><td>Font size for banner and modal headings.</td></tr>
-          <tr><td><code>fontSizeMultiplier</code></td><td><code className='whitespace-nowrap'>--consenti-font-size-mult</code></td><td><code className='whitespace-nowrap'>1</code></td><td>Scale multiplier applied to all font sizes. <code>&apos;1.1&apos;</code> = 10% larger throughout.</td></tr>
+          <tr><td><code>fontSizeMultiplier</code></td><td><code className='whitespace-nowrap'>--consenti-font-size-mult</code></td><td><code className='whitespace-nowrap'>1</code></td><td>Scale multiplier applied to all font sizes. <code>'1.1'</code> = 10% larger throughout.</td></tr>
           <tr><td><code>borderRadius</code></td><td><code className='whitespace-nowrap'>--consenti-border-radius</code></td><td><code className='whitespace-nowrap'>8px</code></td><td>Border-radius for banner and modal containers.</td></tr>
           <tr><td><code>buttonBorderRadius</code></td><td><code className='whitespace-nowrap'>--consenti-border-radius-btn</code></td><td><code className='whitespace-nowrap'>4px</code></td><td>Border-radius applied to all button elements.</td></tr>
           <tr><td><code>toggleBgOn</code></td><td><code className='whitespace-nowrap'>--consenti-toggle-bg-on</code></td><td><code className='whitespace-nowrap'>#1565c0</code></td><td>Background of toggle switches in the ON (granted) state.</td></tr>
@@ -332,8 +423,8 @@ const widget = new ConsentiSetup({
         lang="ts"
         filename="Minimal theme override"
         code={`new ConsentiSetup({
+  compliance: { type: 'opt-in' },
   core: {
-    regulation: 'gdpr',
     theme: {
       primaryColor: '#7c3aed',      // purple accent
       primaryTextColor: '#ffffff',
@@ -350,8 +441,8 @@ const widget = new ConsentiSetup({
       <h2>api</h2>
       <p>
         Connects the widget to the Consenti backend. When enabled, consent records are posted to
-        the API and the active profile is fetched from it. Disabled by default — the widget works
-        fully offline without it.
+        the API and the active profile is resolved via <code>/resolve-profile</code>. Disabled
+        by default — the widget works fully offline without it.
       </p>
       <table>
         <thead>
@@ -363,8 +454,9 @@ const widget = new ConsentiSetup({
             <td><code>boolean</code></td>
             <td><code>false</code></td>
             <td>
-              When <code>true</code>, the widget fetches the profile from the API and posts
-              consent records to it. Falls back to a local profile if the API request fails.
+              When <code>true</code>, the widget calls <code>/resolve-profile</code> to find the
+              best profile for the visitor and posts consent records to the API.
+              Falls back to a pre-built profile if the API request fails.
             </td>
           </tr>
           <tr>
@@ -380,11 +472,39 @@ const widget = new ConsentiSetup({
           <tr>
             <td><code>authToken</code></td>
             <td><code>string</code></td>
-            <td><code>&apos;&apos;</code></td>
+            <td><code>''</code></td>
             <td>
               Sent as <code>Authorization: Bearer &lt;token&gt;</code> on every API request.
               Leave empty for public / unauthenticated access.
-              Only needed when the API profile requires authentication.
+            </td>
+          </tr>
+          <tr>
+            <td><code>tenantId</code></td>
+            <td><code>string</code></td>
+            <td><code>undefined</code></td>
+            <td>
+              Tenant identifier sent with API requests. Required when the backend serves multiple
+              tenants. Must match the tenant configured in the dashboard.
+            </td>
+          </tr>
+          <tr>
+            <td><code>complianceGroup</code></td>
+            <td><code>string</code></td>
+            <td><code>undefined</code></td>
+            <td>
+              When set, skips the <code>/resolve-profile</code> auto-resolution call and always
+              fetches the profile for this specific compliance group. Useful for regional
+              deployments or A/B testing.
+            </td>
+          </tr>
+          <tr>
+            <td><code>trustDomain</code></td>
+            <td><code>boolean</code></td>
+            <td><code>false</code></td>
+            <td>
+              Bypasses the domain allowlist check on the resolved profile. Only use during local
+              development or trusted server-side rendering. Never set to <code>true</code> in
+              production.
             </td>
           </tr>
         </tbody>
@@ -392,21 +512,34 @@ const widget = new ConsentiSetup({
 
       <CodeBlock
         lang="ts"
-        filename="API mode"
+        filename="API mode — auto-resolve"
         code={`new ConsentiSetup({
-  core: { profileId: 3, regulation: 'gdpr', locale: 'de' },
   api: {
     enabled: true,
     baseUrl: 'https://consent.example.com', // API is on a subdomain
+  },
+  // compliance group resolved automatically per-visitor via /resolve-profile
+})`}
+      />
+
+      <CodeBlock
+        lang="ts"
+        filename="API mode — fixed compliance group"
+        code={`new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  api: {
+    enabled: true,
+    baseUrl: 'https://consent.example.com',
+    complianceGroup: 'opt-in', // always fetch the GDPR-model profile
   },
 })`}
       />
 
       <Callout type="info">
         When <code>api.enabled</code> is <code>true</code> and the network request fails (offline,
-        server error), the widget silently falls back to the local profile registry, then to the
-        built-in default. Consent submission retries are not automatic — use the{' '}
-        <a href="/docs/ui/events/">events</a> API to implement your own retry logic.
+        server error), the widget silently falls back to the pre-built profile for the detected
+        compliance group, then to the built-in default. Consent submission retries are not
+        automatic — use the <a href="/docs/ui/events/">events</a> API to implement your own retry logic.
       </Callout>
 
       <hr />
@@ -427,14 +560,14 @@ const widget = new ConsentiSetup({
             <td><code>string</code></td>
             <td><code>undefined</code></td>
             <td>
-              GTM container ID, e.g. <code>&apos;GTM-XXXXXX&apos;</code>.
+              GTM container ID, e.g. <code>'GTM-XXXXXX'</code>.
               Required to enable any dataLayer pushes. Omit to skip GTM entirely.
             </td>
           </tr>
           <tr>
             <td><code>dataLayer</code></td>
             <td><code>string</code></td>
-            <td><code>&apos;dataLayer&apos;</code></td>
+            <td><code>'dataLayer'</code></td>
             <td>
               Name of the dataLayer array on <code>window</code>. Override only when your
               site uses a custom variable name (rare).
@@ -447,7 +580,7 @@ const widget = new ConsentiSetup({
             <td>
               Allowlist of Consenti event names to push. An empty array (default) means
               push all consent events. Pass specific names to filter, e.g.{' '}
-              <code>[&apos;consentSubmitted&apos;]</code>.
+              <code>['consentSubmitted']</code>.
             </td>
           </tr>
           <tr>
@@ -478,7 +611,7 @@ const widget = new ConsentiSetup({
         lang="ts"
         filename="GTM + Consent Mode v2"
         code={`new ConsentiSetup({
-  core: { regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   utils: {
     gtm: {
       containerId: 'GTM-XXXXXX',
@@ -503,7 +636,7 @@ const widget = new ConsentiSetup({
         code={`import { SegmentPlugin } from '@consenti/ui-plugin-segment'
 
 new ConsentiSetup({
-  core: { regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   plugins: [
     new SegmentPlugin({ writeKey: 'YOUR_WRITE_KEY' }),
   ],
@@ -519,7 +652,7 @@ new ConsentiSetup({
       <h2>profileOverride</h2>
       <p>
         Accepts a <code>Partial&lt;ResolvedProfile&gt;</code> that is deep-merged on top of the
-        resolved profile after it has been loaded (from the API, a local{' '}
+        resolved profile after it has been loaded (from the API, a pre-built profile, a local{' '}
         <code>ConsentiProfile</code>, or the built-in default). Only the keys you supply are
         applied — everything else is left unchanged.
       </p>
@@ -532,7 +665,7 @@ new ConsentiSetup({
         filename="Override banner position per page"
         code={`// Checkout page — move banner out of the way
 new ConsentiSetup({
-  core: { profileId: profile.getId() },
+  compliance: { type: 'opt-in' },
   profileOverride: {
     mainBanner: { position: 'right-bottom' },
   },
@@ -542,7 +675,7 @@ new ConsentiSetup({
         lang="ts"
         filename="Override buttons only"
         code={`new ConsentiSetup({
-  core: { profileId: profile.getId() },
+  compliance: { type: 'opt-in' },
   profileOverride: {
     mainBanner: {
       buttons: [
@@ -586,7 +719,7 @@ new ConsentiSetup({
         filename="Mount into a specific wrapper"
         code={`// HTML: <div id="consent-wrapper"></div>
 new ConsentiSetup({
-  core: { profileId: 1 },
+  compliance: { type: 'opt-in' },
   rootEl: '#consent-wrapper',   // CSS selector
   // rootEl: document.getElementById('consent-wrapper')!,  // or HTMLElement directly
 })`}
@@ -600,29 +733,20 @@ new ConsentiSetup({
         <code>consenti-root--dark</code> class to the root element, which overrides all CSS custom
         properties to their dark equivalents.
       </p>
-      <p>
-        Dark mode can also be authored per-profile in the dashboard (step 1 of profile creation).
-        The <code>ConsentiConfig.darkMode</code> setting takes precedence over the profile-level
-        flag.
-      </p>
       <CodeBlock
         lang="ts"
         filename="Dark mode"
         code={`new ConsentiSetup({
-  core: { profileId: 1 },
+  compliance: { type: 'opt-in' },
   darkMode: true,
 })
 
 // Or detect the user's OS preference:
 new ConsentiSetup({
-  core: { profileId: 1 },
+  compliance: { type: 'opt-in' },
   darkMode: window.matchMedia('(prefers-color-scheme: dark)').matches,
 })`}
       />
-      <p>
-        To customise the dark palette, override the CSS custom properties on{' '}
-        <code>.consenti-root--dark</code> in your own stylesheet after importing the widget CSS.
-      </p>
 
       <hr />
 
@@ -630,9 +754,7 @@ new ConsentiSetup({
       <p>
         By default the widget begins initialising immediately when the constructor runs. Set{' '}
         <code>autoInit: false</code> to prevent this — the widget will not touch the DOM until
-        you explicitly call <code>widget.init()</code>. This is useful when the mount point does
-        not yet exist in the DOM at construction time (e.g. in SPAs where the container renders
-        asynchronously).
+        you explicitly call <code>widget.init()</code>.
       </p>
       <table>
         <thead>
@@ -656,7 +778,7 @@ new ConsentiSetup({
         lang="ts"
         filename="Deferred initialisation"
         code={`const widget = new ConsentiSetup({
-  core: { regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   rootEl: '#consent-mount',
   autoInit: false,
 })
@@ -668,96 +790,32 @@ widget.onReady(() => console.log('Ready:', widget.hasConsent()))`}
 
       <hr />
 
-      <h2>Locale switcher</h2>
-      <p>
-        When a profile has multiple locales configured, you can show a 🌐 globe button next to the
-        close button on the banner and/or modal. Clicking it reveals a dropdown of all available
-        locales; selecting one reinitialises the widget with the new locale.
-      </p>
-      <p>
-        Enable it per surface via the profile configuration:
-      </p>
-      <CodeBlock
-        lang="ts"
-        filename="Enable locale switcher via profileOverride"
-        code={`new ConsentiSetup({
-  core: { profileId: 1, locale: 'en' },
-  profileOverride: {
-    mainBanner: { showLocaleSwitcher: true },
-    preferenceModal: { showLocaleSwitcher: true },
-  },
-})`}
-      />
-      <p>
-        In the dashboard, toggle <strong>Show locale switcher</strong> on any banner or modal tab
-        inside the UI Template editor. The switcher is hidden automatically when only one locale is
-        available, regardless of the flag.
-      </p>
-
-      <hr />
-
-      <h2>Link buttons</h2>
-      <p>
-        Buttons with <code>action: &apos;link&apos;</code> are rendered as{' '}
-        <code>&lt;a&gt;</code> elements in a separate <code>.consenti-banner__links</code> (or{' '}
-        <code>.consenti-modal__links</code>) container, below the body text — separate from the
-        action button row. Use them for Privacy Policy, Terms of Service, or any other navigation
-        link.
-      </p>
-      <CodeBlock
-        lang="ts"
-        filename="Link buttons in a local profile"
-        code={`new ConsentiProfile({
-  id: 1,
-  defaultLocale: 'en',
-  translations: {
-    en: {
-      mainBanner: {
-        position: 'bottom',
-        htmlText: 'We use cookies to improve your experience.',
-        buttons: [
-          { text: 'Accept All',  style: 'primary', action: 'custom', cookies: '*' },
-          { text: 'Manage',      style: 'secondary', action: 'manage' },
-          // Link buttons — rendered as <a> below the body text
-          { text: 'Privacy Policy', style: 'text', action: 'link', url: '/privacy' },
-          { text: 'Terms',          style: 'text', action: 'link', url: '/terms' },
-        ],
-      },
-      // ...
-    },
-  },
-  cookies: [{ id: 'analytics', expiry: 365 }],
-})`}
-      />
-      <p>
-        The <code>style</code> option controls the link appearance (same BEM modifier classes as
-        buttons). The default style when <code>action === &apos;link&apos;</code> is{' '}
-        <code>&apos;text&apos;</code>. In the dashboard, select <strong>Link (open URL)</strong>{' '}
-        in the Action dropdown of the button editor to reveal the URL field.
-      </p>
-
-      <hr />
-
       <h2>Minimal configs by use case</h2>
 
-      <h3>Simplest possible — built-in profile, no backend</h3>
+      <h3>Simplest possible — auto-detect compliance</h3>
       <CodeBlock
         lang="ts"
-        code={`new ConsentiSetup({ core: { regulation: 'gdpr' } })`}
+        code={`new ConsentiSetup({ })`}
+      />
+
+      <h3>Explicit GDPR opt-in</h3>
+      <CodeBlock
+        lang="ts"
+        code={`new ConsentiSetup({ compliance: { type: 'opt-in' } })`}
       />
 
       <h3>CCPA opt-out (no banner)</h3>
       <CodeBlock
         lang="ts"
-        code={`new ConsentiSetup({ core: { regulation: 'ccpa' } })`}
+        code={`new ConsentiSetup({ compliance: { type: 'opt-out' } })`}
       />
 
       <h3>Cross-subdomain consent</h3>
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
+  compliance: { type: 'opt-in' },
   core: {
-    regulation: 'gdpr',
     storage: 'cookie',
     cookieDomains: '.example.com', // shared across app.example.com, www.example.com, etc.
   },
@@ -770,7 +828,6 @@ widget.onReady(() => console.log('Ready:', widget.hasConsent()))`}
         code={`// Server renders the page with the authenticated user's UUID
 new ConsentiSetup({
   core: {
-    regulation: 'gdpr',
     userId: '{{ server_user_id }}',
   },
   api: { enabled: true },
@@ -781,8 +838,8 @@ new ConsentiSetup({
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
+  compliance: { type: 'opt-in' },
   core: {
-    regulation: 'gdpr',
     autoHonorGPC: 'strict', // deny silently, no banner shown
   },
   utils: {
@@ -797,12 +854,15 @@ new ConsentiSetup({
       <CodeBlock
         lang="ts"
         code={`import type {
-  ConsentiConfig,   // top-level config object
-  CoreConfig,       // core section
-  ApiConfig,        // api section
-  UtilsConfig,      // utils section
-  GtmConfig,        // utils.gtm section
-  ThemeConfig,      // core.theme section
+  ConsentiConfig,          // top-level config object
+  ComplianceWidgetConfig,  // compliance section
+  AgeGateWidgetConfig,     // compliance.ageGate section
+  WidgetCountryResolverFn, // custom geo resolver function type
+  CoreConfig,              // core section
+  ApiConfig,               // api section
+  UtilsConfig,             // utils section
+  GtmConfig,               // utils.gtm section
+  ThemeConfig,             // core.theme section
 } from '@consenti/ui'`}
       />
     </div>

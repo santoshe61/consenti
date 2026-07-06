@@ -35,6 +35,8 @@ export class Modal {
   private passthrough = false
   /** Screen width (px) below which the modal goes full-screen. 0 = disabled. */
   private mobileBreakpoint = 576
+  /** Saved body overflow value — restored when modal closes. */
+  private savedBodyOverflow: string | undefined = undefined
 
   /**
    * Constructs the modal DOM from the given config.
@@ -58,6 +60,7 @@ export class Modal {
     locales?: string[],
     activeLocale?: string,
     onLocaleSwitch?: (locale: string) => void,
+    hidePoweredBy = false,
   ): void {
     this.mobileBreakpoint = config.mobileFullScreenBreakpoint ?? 576
     const position = config.position ?? 'center'
@@ -87,6 +90,9 @@ export class Modal {
     const header = document.createElement('div')
     header.className = 'consenti-modal__header'
 
+    const body = document.createElement('div')
+    body.className = 'consenti-modal__body'
+
     if (config.heading) {
       const headingTag = config.headingTag ?? 'h2'
       const heading = document.createElement(headingTag)
@@ -95,6 +101,13 @@ export class Modal {
       heading.textContent = config.heading
       header.appendChild(heading)
       wrapper.setAttribute('aria-labelledby', 'consenti-modal-heading')
+    }
+
+    if (config.subheading) {
+      const sub = document.createElement('p')
+      sub.className = 'consenti-modal__subheading'
+      sub.textContent = config.subheading
+      header.appendChild(sub)
     }
 
     // Header controls: locale switcher + close
@@ -123,18 +136,11 @@ export class Modal {
     }
     container.appendChild(header)
 
-    if (config.subheading) {
-      const sub = document.createElement('p')
-      sub.className = 'consenti-modal__subheading'
-      sub.textContent = config.subheading
-      container.appendChild(sub)
-    }
-
     if (config.htmlText) {
       const desc = document.createElement('div')
       desc.className = 'consenti-modal__text'
       desc.innerHTML = config.htmlText
-      container.appendChild(desc)
+      body.appendChild(desc)
     }
 
     // Render link-action buttons as styled anchors below the intro text
@@ -155,9 +161,6 @@ export class Modal {
       container.appendChild(linksContainer)
     }
 
-    const body = document.createElement('div')
-    body.className = 'consenti-modal__body'
-
     const categories = document.createElement('div')
     categories.className = 'consenti-modal__categories'
 
@@ -169,17 +172,20 @@ export class Modal {
     container.appendChild(body)
 
     if (allowReceipt) {
-      container.appendChild(this.buildReceiptOption())
+      body.appendChild(this.buildReceiptOption())
     }
 
     if (dpdpaConfig) {
       const notice = document.createElement('div')
       notice.className = 'consenti-modal__dpdpa-notice'
+      const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#x27;')
+      const safeEmail = dpdpaConfig.grievanceEmail.includes('@') && !dpdpaConfig.grievanceEmail.toLowerCase().startsWith('javascript:')
+        ? dpdpaConfig.grievanceEmail : ''
       notice.innerHTML = [
-        `<strong>Data Fiduciary:</strong> ${dpdpaConfig.dataFiduciary}.`,
-        dpdpaConfig.purposeDescription ? ` <strong>Purpose:</strong> ${dpdpaConfig.purposeDescription}.` : '',
+        `<strong>Data Fiduciary:</strong> ${esc(dpdpaConfig.dataFiduciary)}.`,
+        dpdpaConfig.purposeDescription ? ` <strong>Purpose:</strong> ${esc(dpdpaConfig.purposeDescription)}.` : '',
         ` You may withdraw consent at any time or contact our Grievance Officer at`,
-        ` <a href="mailto:${dpdpaConfig.grievanceEmail}">${dpdpaConfig.grievanceEmail}</a>.`,
+        safeEmail ? ` <a href="mailto:${esc(safeEmail)}">${esc(safeEmail)}</a>.` : '.',
       ].join('')
       container.appendChild(notice)
     }
@@ -190,6 +196,17 @@ export class Modal {
       btns.appendChild(buildButton(btn, handlers))
     }
     container.appendChild(btns)
+
+    const pb = document.createElement('a')
+    pb.href = 'https://consenti.dev'
+    pb.className = 'consenti-modal__powered-by'
+    pb.textContent = 'Powered by Consenti'
+    pb.setAttribute('target', '_blank')
+    pb.setAttribute('rel', 'noopener noreferrer')
+    if (hidePoweredBy) {
+      pb.classList.add('consenti-d-none')
+    }
+    body.appendChild(pb)
 
     wrapper.appendChild(container)
 
@@ -233,6 +250,18 @@ export class Modal {
     toggle.setAttribute('aria-checked', String(defaultOn))
     toggle.setAttribute('aria-labelledby', `consenti-cat-${cat.id}-heading`)
     if (isMandatory) toggle.setAttribute('aria-disabled', 'true')
+
+    const checkIcon = document.createElement('span')
+    checkIcon.className = 'consenti-category__toggle-icon consenti-category__toggle-icon--check'
+    checkIcon.setAttribute('aria-hidden', 'true')
+    checkIcon.innerHTML = '<svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M1.5 5L4 7.5L8.5 2.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>'
+    toggle.appendChild(checkIcon)
+
+    const crossIcon = document.createElement('span')
+    crossIcon.className = 'consenti-category__toggle-icon consenti-category__toggle-icon--cross'
+    crossIcon.setAttribute('aria-hidden', 'true')
+    crossIcon.innerHTML = '<svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
+    toggle.appendChild(crossIcon)
 
     const knob = document.createElement('span')
     knob.className = 'consenti-category__toggle-knob'
@@ -304,12 +333,19 @@ export class Modal {
     if (!this.el) return
     this.triggerEl = triggerEl ?? (document.activeElement as HTMLElement)
     if (this.receiptCheckbox) this.receiptCheckbox.checked = false
-    if (this.mobileBreakpoint > 0 && window.innerWidth <= this.mobileBreakpoint) {
+    const isFullscreen = this.mobileBreakpoint > 0 && window.innerWidth <= this.mobileBreakpoint
+    if (isFullscreen) {
       this.el.classList.add('consenti-modal--fullscreen')
     } else {
       this.el.classList.remove('consenti-modal--fullscreen')
     }
     document.body.appendChild(this.el)
+    // Lock page scroll when the modal has an overlay or is in mobile full-screen mode.
+    // Skip when passthrough and not full-screen — the user can still scroll the page.
+    if (!this.passthrough || isFullscreen) {
+      this.savedBodyOverflow = document.body.style.overflow
+      document.body.style.overflow = 'hidden'
+    }
     // Skip focus trap when overlay is transparent — the user can interact with the
     // page behind the modal panel so trapping keyboard focus would be counterproductive.
     if (!this.passthrough) {
@@ -324,6 +360,10 @@ export class Modal {
   close(): void {
     this.trapCleanup?.()
     this.trapCleanup = null
+    if (this.savedBodyOverflow !== undefined) {
+      document.body.style.overflow = this.savedBodyOverflow
+      this.savedBodyOverflow = undefined
+    }
     this.el?.remove()
     this.triggerEl?.focus()
     this.triggerEl = null
@@ -370,6 +410,10 @@ export class Modal {
   /** Removes the modal element from the DOM and clears all internal state. */
   destroy(): void {
     this.trapCleanup?.()
+    if (this.savedBodyOverflow !== undefined) {
+      document.body.style.overflow = this.savedBodyOverflow
+      this.savedBodyOverflow = undefined
+    }
     this.el?.remove()
     this.el = null
     this.toggleMap.clear()

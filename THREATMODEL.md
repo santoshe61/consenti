@@ -1,9 +1,9 @@
 # Threat Model
 
-**System:** Consenti — self-hosted Consent Management Platform
-**Version:** pre-v1.0 (current `main`)
-**Date:** 2026-06-26
-**Author:** Santosh Ojha
+**System:** Consenti — self-hosted Consent Management Platform<br>
+**Version:** pre-v1.0 (current `main`)<br>
+**Date:** 2026-06-26<br>
+**Author:** Santosh Ojha<br>
 
 This document uses the STRIDE framework. It is a living document — update it when the attack surface changes (new endpoints, auth modes, storage adapters, plugins).
 

@@ -8,6 +8,10 @@ export default function POPIAPage() {
   return (
     <div className="prose max-w-none">
       <h1>POPIA Compliance Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — same opt-in model as GDPR.
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         South Africa's <strong>Protection of Personal Information Act (POPIA)</strong> — Act 4 of 2013 —
         came into full force on 1 July 2021. It is enforced by the{' '}

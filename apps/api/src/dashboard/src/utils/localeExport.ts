@@ -108,11 +108,7 @@ function storeHtml(html: string): string {
   return serializeContent(htmlToJson(html))
 }
 
-export function importFromJson(
-  jsonStr: string,
-  current: LocaleContent,
-): LocaleContent {
-  const doc = JSON.parse(jsonStr) as LocaleExportDoc
+function importFromDoc(doc: LocaleExportDoc, current: LocaleContent): LocaleContent {
   return {
     mainBanner: {
       heading: String(doc.mainBanner?.heading ?? current.mainBanner.heading),
@@ -137,6 +133,13 @@ export function importFromJson(
       }),
     },
   }
+}
+
+export function importFromJson(
+  jsonStr: string,
+  current: LocaleContent,
+): LocaleContent {
+  return importFromDoc(JSON.parse(jsonStr) as LocaleExportDoc, current)
 }
 
 export function importFromCsv(
@@ -194,6 +197,58 @@ export function importFromCsv(
   })
 
   return updated
+}
+
+// ── Multi-locale export ────────────────────────────────────────────────────────
+
+export function exportAllLocalesJson(
+  localeContents: Record<string, LocaleContent>,
+  mainBanner: TemplateBannerUI,
+  gpcBanner: TemplateBannerUI,
+  preferenceModal: TemplateModalUI,
+): string {
+  const result: Record<string, LocaleExportDoc> = {}
+  for (const [locale, content] of Object.entries(localeContents)) {
+    result[locale] = toExportDoc(locale, content, mainBanner, gpcBanner, preferenceModal)
+  }
+  return JSON.stringify(result, null, 2)
+}
+
+// ── Multi-locale import ────────────────────────────────────────────────────────
+
+const LOCALE_RE = /^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$/i
+
+export function importAllLocalesFromJson(
+  jsonStr: string,
+  base: LocaleContent,
+): { locales: Record<string, LocaleContent>; skipped: string[] } {
+  const parsed: unknown = JSON.parse(jsonStr)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('Invalid JSON')
+
+  // Single-locale format: has a top-level 'locale' string field
+  const p = parsed as Record<string, unknown>
+  if (typeof p['locale'] === 'string') {
+    const doc = p as unknown as LocaleExportDoc
+    const locale = doc.locale
+    if (!LOCALE_RE.test(locale)) return { locales: {}, skipped: [locale] }
+    return { locales: { [locale]: importFromDoc(doc, base) }, skipped: [] }
+  }
+
+  // Multi-locale format: { [locale]: LocaleExportDoc }
+  const locales: Record<string, LocaleContent> = {}
+  const skipped: string[] = []
+  for (const [locale, doc] of Object.entries(p)) {
+    if (!LOCALE_RE.test(locale) || !doc || typeof doc !== 'object' || Array.isArray(doc)) {
+      skipped.push(locale)
+      continue
+    }
+    try {
+      locales[locale] = importFromDoc(doc as LocaleExportDoc, base)
+    } catch {
+      skipped.push(locale)
+    }
+  }
+  return { locales, skipped }
 }
 
 // ── Browser download helper ────────────────────────────────────────────────────

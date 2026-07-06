@@ -2,6 +2,7 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite'
 
 const MAX_PAGE_SIZE = 500
 import { randomUUID, randomProfileId } from '../../utils/crypto'
+import { resolveStoragePaths } from '../../utils/storage-path'
 import {
   SEED_SQL,
   SCHEMA_SQL_SQLITE,
@@ -14,6 +15,10 @@ import type {
   StorageConfig,
   Profile,
   ProfileConfig,
+  ProfileSummary,
+  OptInStats,
+  OptInFilters,
+  ComplianceGroupId,
   CreateProfileInput,
   UpdateProfileInput,
   ConsentDbRecord,
@@ -79,6 +84,15 @@ interface RawUser {
   id: string; tenant_id: string; name: string; email: string
   password_hash: string; is_active: number; created_at: string; updated_at: string
   totp_secret?: string | null; totp_enabled?: number
+  allowed_tenants?: string | null
+}
+
+interface RawProfileSummary {
+  id: string; name: string; default_locale: string; version: number
+  compliance_group: string | null; is_active: number
+  cookie_template_name: string | null; ui_template_name: string | null
+  created_at: string; updated_at: string
+  cookie_template_id: string | null; ui_template_id: string | null
 }
 interface RawRole {
   id: string; tenant_id: string; name: string; description: string | null
@@ -125,7 +139,8 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
     const { DatabaseSync: Db } = await import('node:sqlite').catch(() => {
       throw new Error(`driver 'node:sqlite' requires Node.js >= 22.5.0 (current: ${process.version})`)
     }) as { DatabaseSync: new(path: string) => DatabaseSync }
-    this.db = new Db(this.config.path ?? './consenti.db')
+    const { dbPath } = resolveStoragePaths(this.config.path ?? './consenti-data', 'node:sqlite')
+    this.db = new Db(dbPath)
     this.db.exec('PRAGMA journal_mode=WAL')
     this.db.exec('PRAGMA foreign_keys=ON')
     this.db.exec('PRAGMA synchronous=NORMAL')
@@ -160,6 +175,26 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
       this.db.exec(SCHEMA_SQL_SQLITE_TEMPLATES)
       this.db.exec('PRAGMA user_version = 5')
     }
+    if (row.user_version < 6) {
+      this.db.exec('ALTER TABLE users ADD COLUMN allowed_tenants TEXT')
+      this.db.exec('PRAGMA user_version = 6')
+    }
+
+    // Indexes — always idempotent (CREATE INDEX IF NOT EXISTS)
+    this.db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_profiles_tenant_compliance_active
+        ON profiles (tenant_id, json_extract(profile_json,'$.complianceGroup'), json_extract(profile_json,'$.isActive'));
+      CREATE INDEX IF NOT EXISTS idx_profiles_tenant
+        ON profiles (tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_consents_tenant_profile_date
+        ON consent_records (tenant_id, profile_id, created_at);
+      CREATE INDEX IF NOT EXISTS idx_consents_visitor
+        ON consent_records (visitor_id);
+      CREATE INDEX IF NOT EXISTS idx_visitors_tenant
+        ON visitors (tenant_id);
+      CREATE INDEX IF NOT EXISTS idx_audit_tenant_date
+        ON audit_logs (tenant_id, created_at);
+    `)
   }
 
   // ── Profiles ──────────────────────────────────────────────────────────────
@@ -216,6 +251,13 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
   async getProfiles(tenantId: string): Promise<Profile[]> {
     const rows = this.stmt('SELECT * FROM profiles WHERE tenant_id = ? ORDER BY created_at ASC').all(tenantId) as unknown as RawProfile[]
     return rows.map(r => this.mapProfile(r))
+  }
+
+  async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
+    const row = this.stmt(
+      `SELECT * FROM profiles WHERE tenant_id = ? AND json_extract(profile_json, '$.complianceGroup') = ? AND json_extract(profile_json, '$.isActive') = 1 LIMIT 1`
+    ).get(tenantId, complianceGroup) as RawProfile | undefined
+    return row ? this.mapProfile(row) : null
   }
 
   // ── Consents ──────────────────────────────────────────────────────────────
@@ -395,6 +437,9 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
   // ── Users ─────────────────────────────────────────────────────────────────
 
   private mapUser(row: RawUser): AdminUser {
+    const allowedTenants: string[] = row.allowed_tenants
+      ? JSON.parse(row.allowed_tenants) as string[]
+      : []
     return {
       id: row.id,
       tenantId: row.tenant_id,
@@ -404,6 +449,7 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
       isActive: row.is_active === 1,
       totpEnabled: row.totp_enabled === 1,
       ...(row.totp_secret != null ? { totpSecret: row.totp_secret } : {}),
+      allowedTenants,
       createdAt: row.created_at,
       updatedAt: row.updated_at,
     }
@@ -412,9 +458,10 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
   async createUser(data: CreateUserInput): Promise<AdminUser> {
     const id = randomUUID()
     const now = new Date().toISOString()
+    const allowedTenantsJson = data.allowedTenants?.length ? JSON.stringify(data.allowedTenants) : null
     this.stmt(
-      'INSERT INTO users (id,tenant_id,name,email,password_hash,created_at,updated_at) VALUES (?,?,?,?,?,?,?)'
-    ).run(id, data.tenantId, data.name, data.email, data.passwordHash, now, now)
+      'INSERT INTO users (id,tenant_id,name,email,password_hash,allowed_tenants,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)'
+    ).run(id, data.tenantId, data.name, data.email, data.passwordHash, allowedTenantsJson, now, now)
     const user = await this.getUserByEmail(data.email)
     if (!user) throw new Error('Failed to create user')
     return user
@@ -430,6 +477,10 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
     if (data.isActive != null) { fields.push('is_active = ?'); vals.push(data.isActive ? 1 : 0) }
     if ('totpSecret' in data) { fields.push('totp_secret = ?'); vals.push(data.totpSecret ?? null) }
     if (data.totpEnabled != null) { fields.push('totp_enabled = ?'); vals.push(data.totpEnabled ? 1 : 0) }
+    if ('allowedTenants' in data) {
+      fields.push('allowed_tenants = ?')
+      vals.push(data.allowedTenants?.length ? JSON.stringify(data.allowedTenants) : null)
+    }
     vals.push(id)
     this.stmt(`UPDATE users SET ${fields.join(', ')} WHERE id = ?`).run(...vals)
     const row = this.stmt('SELECT * FROM users WHERE id = ?').get(id) as RawUser | undefined
@@ -847,5 +898,124 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
     if (!src) throw new Error('UI template not found')
     const { tenantId, mainBanner, gpcBanner, preferenceModal } = src
     return this.createUITemplate({ tenantId, name: newName, mainBanner, gpcBanner, preferenceModal })
+  }
+
+  // ── Profile summaries ──────────────────────────────────────────────────────
+
+  private mapProfileSummary(r: RawProfileSummary): ProfileSummary {
+    return {
+      id: r.id,
+      name: r.name,
+      defaultLocale: r.default_locale,
+      complianceGroup: (r.compliance_group ?? null) as ComplianceGroupId | null,
+      version: r.version,
+      isActive: r.is_active === 1,
+      cookieTemplateName: r.cookie_template_name,
+      uiTemplateName: r.ui_template_name,
+      createdAt: r.created_at,
+      updatedAt: r.updated_at,
+    }
+  }
+
+  private readonly PROFILE_SUMMARY_SQL = `
+    SELECT
+      p.id, p.name, p.default_locale, p.version, p.created_at, p.updated_at,
+      json_extract(p.profile_json, '$.complianceGroup') AS compliance_group,
+      json_extract(p.profile_json, '$.isActive')        AS is_active,
+      json_extract(p.profile_json, '$.cookieTemplateId') AS cookie_template_id,
+      json_extract(p.profile_json, '$.uiTemplateId')     AS ui_template_id,
+      ct.name AS cookie_template_name,
+      ut.name AS ui_template_name
+    FROM profiles p
+    LEFT JOIN cookie_templates ct ON ct.id = json_extract(p.profile_json, '$.cookieTemplateId')
+    LEFT JOIN ui_templates ut ON ut.id = json_extract(p.profile_json, '$.uiTemplateId')
+  `
+
+  async listProfilesSummary(tenantId: string): Promise<ProfileSummary[]> {
+    const rows = this.stmt(
+      `${this.PROFILE_SUMMARY_SQL} WHERE p.tenant_id = ? ORDER BY p.created_at ASC`
+    ).all(tenantId) as unknown as RawProfileSummary[]
+    return rows.map(r => this.mapProfileSummary(r))
+  }
+
+  async findProfilesUsingCookieTemplate(templateId: string): Promise<ProfileSummary[]> {
+    const rows = this.stmt(
+      `${this.PROFILE_SUMMARY_SQL} WHERE json_extract(p.profile_json, '$.cookieTemplateId') = ? ORDER BY p.name ASC`
+    ).all(templateId) as unknown as RawProfileSummary[]
+    return rows.map(r => this.mapProfileSummary(r))
+  }
+
+  async findProfilesUsingUITemplate(templateId: string): Promise<ProfileSummary[]> {
+    const rows = this.stmt(
+      `${this.PROFILE_SUMMARY_SQL} WHERE json_extract(p.profile_json, '$.uiTemplateId') = ? ORDER BY p.name ASC`
+    ).all(templateId) as unknown as RawProfileSummary[]
+    return rows.map(r => this.mapProfileSummary(r))
+  }
+
+  // ── Analytics ──────────────────────────────────────────────────────────────
+
+  async getOptInStats(tenantId: string, filters: OptInFilters): Promise<OptInStats> {
+    const conditions: string[] = ['cr.tenant_id = ?']
+    const vals: (string | number | null)[] = [tenantId]
+    if (filters.profileId) { conditions.push('cr.profile_id = ?'); vals.push(filters.profileId) }
+    if (filters.from) { conditions.push('cr.created_at >= ?'); vals.push(filters.from) }
+    if (filters.to) { conditions.push('cr.created_at <= ?'); vals.push(filters.to) }
+    if (filters.locale) { conditions.push('cr.locale = ?'); vals.push(filters.locale) }
+
+    const where = conditions.join(' AND ')
+
+    const rows = this.stmt(
+      `SELECT cr.locale, cr.consent_json FROM consent_records cr WHERE ${where}`
+    ).all(...vals) as unknown as { locale: string; consent_json: string }[]
+
+    let total = 0, granted = 0, denied = 0, managed = 0
+    const byLocale: Record<string, { total: number; granted: number; denied: number; managed: number }> = {}
+
+    for (const r of rows) {
+      const consent = JSON.parse(r.consent_json) as Record<string, string>
+      const statuses = Object.values(consent)
+      const grantedCount = statuses.filter(s => s === 'granted').length
+      const deniedCount = statuses.filter(s => s === 'denied').length
+      const grantedPct = statuses.length > 0 ? grantedCount / statuses.length : 0
+
+      total++
+      const loc = r.locale
+      if (!byLocale[loc]) byLocale[loc] = { total: 0, granted: 0, denied: 0, managed: 0 }
+      byLocale[loc]!.total++
+
+      if (grantedPct >= 0.9) { granted++; byLocale[loc]!.granted++ }
+      else if (deniedCount / (statuses.length || 1) >= 0.9) { denied++; byLocale[loc]!.denied++ }
+      else { managed++; byLocale[loc]!.managed++ }
+    }
+
+    // byDate — aggregate by date(created_at)
+    const dateRows = this.stmt(
+      `SELECT date(cr.created_at) as d, cr.consent_json FROM consent_records cr WHERE ${where} ORDER BY d ASC`
+    ).all(...vals) as unknown as { d: string; consent_json: string }[]
+
+    const dateMap = new Map<string, { total: number; granted: number; denied: number; managed: number }>()
+    for (const r of dateRows) {
+      const entry = dateMap.get(r.d) ?? { total: 0, granted: 0, denied: 0, managed: 0 }
+      const consent = JSON.parse(r.consent_json) as Record<string, string>
+      const statuses = Object.values(consent)
+      const grantedPct = statuses.length > 0 ? statuses.filter(s => s === 'granted').length / statuses.length : 0
+      const deniedPct = statuses.length > 0 ? statuses.filter(s => s === 'denied').length / statuses.length : 0
+      entry.total++
+      if (grantedPct >= 0.9) entry.granted++
+      else if (deniedPct >= 0.9) entry.denied++
+      else entry.managed++
+      dateMap.set(r.d, entry)
+    }
+
+    const byDate = Array.from(dateMap.entries()).map(([date, v]) => ({ date, ...v }))
+
+    return {
+      total, granted, denied, managed,
+      grantedPct: total > 0 ? Math.round((granted / total) * 1000) / 10 : 0,
+      deniedPct: total > 0 ? Math.round((denied / total) * 1000) / 10 : 0,
+      managedPct: total > 0 ? Math.round((managed / total) * 1000) / 10 : 0,
+      byLocale,
+      byDate,
+    }
   }
 }

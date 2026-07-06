@@ -14,6 +14,7 @@
 import type { CookieOptions } from '../types'
 import { isClient } from './ssr'
 import { getCookie, setCookie, deleteCookie } from './cookie'
+import { logger } from './console'
 
 /** The two supported storage backends. */
 export type StorageMode = 'cookie' | 'localStorage'
@@ -30,7 +31,7 @@ export class ConsentStorage {
    */
   constructor(private mode: StorageMode) {
     if (mode === 'localStorage' && isClient() && typeof localStorage === 'undefined') {
-      console.warn('[Consenti] localStorage is not available, falling back to cookie storage')
+      logger.warn('localStorage is not available, falling back to cookie storage')
       this.mode = 'cookie'
     }
   }

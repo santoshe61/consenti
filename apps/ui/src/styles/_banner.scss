@@ -84,8 +84,6 @@
 
   &__link {
     font-size: 0.85em;
-    text-decoration: underline;
-    text-underline-offset: 2px;
   }
 
   &__controls {
@@ -102,11 +100,20 @@
     flex-wrap: wrap;
     gap: var(--consenti-spacing-sm);
     align-items: center;
+    margin-block: var(--consenti-spacing-md);
   }
 
   &__close {
     // When inside __controls the close is no longer absolute-positioned itself
     // (the __controls wrapper handles placement). Remove the absolute fallback.
+  }
+
+  &__powered-by {
+    position: absolute;
+    right: 10px;
+    bottom: 2px;
+    opacity: 0.2;
+    color: var(--consenti-color-primary);
   }
 }
 
@@ -137,6 +144,7 @@
       width: 100%;
       flex-direction: row;
       align-items: stretch;
+      margin-bottom: var(--consenti-spacing-md);
     }
 
     // Text block should not have a minimum width that forces wrapping

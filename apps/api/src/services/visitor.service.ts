@@ -1,11 +1,13 @@
 import type { Visitor, CreateVisitorInput } from '@consenti/types'
 import { hashIp, hashUserAgent } from '../utils/crypto'
 import type { VisitorRepo } from '../repositories/visitor.repo'
+import type { EventEmitter } from 'node:events'
 
 export class VisitorService {
   constructor(
     private visitors: VisitorRepo,
     private tenantId: string = 'default',
+    private eventBus?: EventEmitter,
   ) {}
 
   async upsert(data: {
@@ -33,6 +35,8 @@ export class VisitorService {
       ...(data.ip ? { ipHash: hashIp(data.ip) } : {}),
       ...(data.userAgent ? { userAgentHash: hashUserAgent(data.userAgent) } : {}),
     }
-    return this.visitors.create(input)
+    const visitor = await this.visitors.create(input)
+    this.eventBus?.emit('visitor.created', visitor)
+    return visitor
   }
 }

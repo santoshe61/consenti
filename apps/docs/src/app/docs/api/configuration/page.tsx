@@ -14,30 +14,54 @@ export default function APIConfigurationPage() {
         immediately.
       </p>
 
-      <CodeBlock lang="ts" filename="Zero-config quickstart" code={`import { createConsenti } from '@consenti/api'
+      <h2>Minimal config to get started</h2>
+      <p>
+        This is all you need. Copy it, set your password via an env var, and you have a working
+        server with admin dashboard.
+      </p>
+      <CodeBlock lang="ts" filename="server.ts" code={`import { createConsenti } from '@consenti/api'
+import http from 'node:http'
 
-// No config required — works out of the box
-const consenti = createConsenti({})
+const consenti = createConsenti({
+  storage: { driver: 'json', path: './consenti-data' },
+  auth: {
+    mode: 'local',
+    adminEmail: 'admin@example.com',
+    adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
+  },
+  dashboard: true,
+})
 
-// Set credentials via environment variables (recommended even for dev)
-// CONSENTI_ADMIN_EMAIL=user@consenti.dev
-// CONSENTI_ADMIN_PASSWORD=Consenti@123
-// CONSENTI_ADMIN_JWT_SECRET=your-jwt-secret`} />
+http.createServer(consenti.handler).listen(3001)
+// Admin → http://localhost:3001/consenti/
+// API   → http://localhost:3001/consenti/api/v1/`} />
 
       <Callout type="warning">
-        The zero-config defaults use an in-process JSON file store (<code>./consenti-data.json</code>)
-        and demo credentials. This is fine for local development and prototyping, but{' '}
-        <strong>not suitable for production or medium-to-large applications</strong>. Switch to a
-        SQLite or server database driver and set real credentials before deploying.
+        The <code>json</code> driver stores data in memory and flushes to disk. It is fine for
+        development, but <strong>switch to SQLite or a server database before production</strong>.
+        See <a href="#storage">storage</a> below.
       </Callout>
+
+      <Callout type="info">
+        The rest of this page is the complete configuration reference. You don&apos;t need to read
+        it all now — come back when you need to change a specific option like the database driver,
+        auth mode, or compliance settings.
+      </Callout>
+
+      <hr />
+
+      <h2>Full configuration reference</h2>
+      <p>
+        Every available option shown with its default value.
+      </p>
 
       <CodeBlock lang="ts" filename="Full config example" code={`import { createConsenti } from '@consenti/api'
 
 const consenti = createConsenti({
   // Optional but recommended
   storage: {
-    driver: 'json',   // not recommended for production
-    path: './consenti-data.json',
+    driver: 'json',            // not recommended for production
+    path: './consenti-data',   // directory path — Consenti creates db/, profiles/, logs/ inside
   },
   auth: {
     mode: 'local',
@@ -56,9 +80,25 @@ const consenti = createConsenti({
   },
 
   compliance: {
-    gdpr: true,
-    ccpa: false,
-    gpc: true,
+    type: 'auto',                 // 'auto' = geo-resolve per visitor | ComplianceGroupId = fixed group
+    geoDataProvider: 'default',   // 'default' | 'hosted-geoip-lite' | 'geoip' | 'maxmind' | CountryResolverFn
+    autoComplianceMap: 'default', // 'default' (embedded 240-country map) | object | 'auto' (remote URL)
+  },
+
+  // S3 sync for profile locale JSON files (optional)
+  s3Api: {
+    enabled: false,
+    region: 'us-east-1',
+    bucketName: 'consenti-profiles',
+    accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    // sessionToken: process.env.AWS_SESSION_TOKEN,  // for temporary credentials
+  },
+
+  // CDN / cache invalidation hook (optional)
+  handleCache: (paths, version, isPurge) => {
+    // paths: locale file paths written or removed
+    // isPurge: true = files removed (deactivate/delete); false = files written (create/activate)
   },
 
   tcf: {
@@ -84,15 +124,48 @@ const consenti = createConsenti({
   maxBodySize: 1_048_576,      // 1 MB request body limit
   trustedProxies: [],          // IPs / CIDRs of reverse proxies (nginx, Cloudflare…)
 
+  branding: {
+    appName: 'My CMP',         // dashboard header, login page, browser tab
+    appLogoPath: './logo.svg', // local file or https:// URL
+    hidePoweredBy: false,      // true = hide "Powered by Consenti" badge
+  },
+
   plugins: [],
 })`} />
 
       {/* ── storage ───────────────────────────────────────────────────────── */}
-      <h2>storage</h2>
+      <h2 id="storage">storage</h2>
       <p>
         Controls which database backend Consenti uses. The <code>driver</code> field selects
         the engine; the remaining fields depend on which driver you choose.
       </p>
+
+      <h3>storage.path is a directory</h3>
+      <p>
+        <code>storage.path</code> is a <strong>directory path</strong>, not a file path.
+        Consenti creates the following layout inside it automatically:
+      </p>
+      <CodeBlock lang="text" code={`\${storage.path}/
+  db/
+    consenti-data.json     ← JSON adapter
+    consenti.db            ← SQLite adapters
+  profiles/
+    \${tenantId}/
+      \${profileId}/
+        1/                 ← version 1 (immutable once written)
+          en.json
+          fr-FR.json
+          default.json     ← copy of defaultLocale content
+        2/                 ← version 2 on next edit
+      \${complianceGroup}/ ← hot-serve path (active profile only)
+        en.json
+        fr-FR.json
+        default.json
+  logs/                    ← reserved for future use`} />
+      <Callout type="info">
+        Backward compat: if <code>storage.path</code> has a file extension (<code>.json</code>,{' '}
+        <code>.db</code>), the parent directory is used and a deprecation warning is logged.
+      </Callout>
 
       <h3>Default driver — json</h3>
       <p>
@@ -101,7 +174,7 @@ const consenti = createConsenti({
         <code>node:crypto</code>, both Node.js built-ins. Data is kept in memory and written to
         disk atomically after every mutation (temp-file + rename, same guarantee as <em>steno</em>).
       </p>
-      <CodeBlock lang="ts" filename="JSON driver" code={`storage: { driver: 'json', path: './consenti-data.json' } // default when storage is omitted`} />
+      <CodeBlock lang="ts" filename="JSON driver" code={`storage: { driver: 'json', path: './consenti-data' } // path is a directory`} />
       <Callout type="warning">
         The <code>json</code> driver loads the entire dataset into memory and is single-process
         only. It is designed for development, prototyping, and low-traffic single-instance
@@ -149,7 +222,7 @@ storage: { driver: 'node-sqlite3-wasm', path: './consenti.db' }`} />
         <tbody>
           <tr><td><code>postgresql</code></td><td><code>uri</code></td><td>PostgreSQL 13+. Connection pool via <code>pool</code>.</td></tr>
           <tr><td><code>mysql</code></td><td><code>uri</code></td><td>MySQL 8+ / MariaDB 10.6+. Connection pool via <code>pool</code>.</td></tr>
-          <tr><td><code>mongodb</code></td><td><code>uri</code></td><td>MongoDB 6+. Optional <code>dbName</code> override.</td></tr>
+          <tr><td><code>mongodb</code></td><td><code>uri</code></td><td>MongoDB 6+. Optional <code>database</code> override.</td></tr>
         </tbody>
       </table>
       <p>Each server driver is an optional peer dependency — install the one you need:</p>
@@ -163,7 +236,7 @@ storage: { driver: 'postgresql', uri: process.env.CONSENTI_DATABASE_URL }
 storage: { driver: 'mysql', uri: process.env.CONSENTI_DATABASE_URL }
 
 // MongoDB
-storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, dbName: 'consenti' }`} />
+storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 'consenti' }`} />
 
       <h3>storage field reference</h3>
       <table>
@@ -172,9 +245,9 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, dbName: 'c
         </thead>
         <tbody>
           <tr><td><code>driver</code></td><td><code>string</code></td><td><code>'json'</code> (when <code>storage</code> omitted)</td><td>Required within the <code>storage</code> object. Selects the storage engine (see tables above).</td></tr>
-          <tr><td><code>path</code></td><td><code>string</code></td><td><code>'./consenti-data.json'</code> (json); none for SQLite</td><td>File path for the <code>json</code> or SQLite driver. Relative paths resolve from <code>process.cwd()</code>.</td></tr>
+          <tr><td><code>path</code></td><td><code>string</code></td><td><code>'./consenti-data'</code></td><td><strong>Directory path</strong> for local drivers (<code>json</code>, SQLite). Consenti creates <code>db/</code>, <code>profiles/</code>, and <code>logs/</code> subdirectories inside. Relative paths resolve from <code>process.cwd()</code>. Must not be inside the package installation directory.</td></tr>
           <tr><td><code>uri</code></td><td><code>string</code></td><td>—</td><td>Server drivers only. Full connection string including credentials.</td></tr>
-          <tr><td><code>dbName</code></td><td><code>string</code></td><td>name in <code>uri</code></td><td>MongoDB only. Database name override.</td></tr>
+          <tr><td><code>database</code></td><td><code>string</code></td><td>name in <code>uri</code></td><td>MongoDB only. Database name override.</td></tr>
           <tr><td><code>host</code> / <code>port</code></td><td><code>string / number</code></td><td>—</td><td>Alternative to <code>uri</code> for server drivers.</td></tr>
           <tr><td><code>user</code> / <code>password</code></td><td><code>string</code></td><td>—</td><td>Credentials when not embedded in <code>uri</code>.</td></tr>
           <tr><td><code>database</code></td><td><code>string</code></td><td>—</td><td>Database name for PostgreSQL / MySQL when not in <code>uri</code>.</td></tr>
@@ -499,27 +572,190 @@ rateLimit: { enabled: false }`} />
       {/* ── compliance ───────────────────────────────────────────────────── */}
       <h2>compliance</h2>
       <p>
-        Enables regulation-specific validation and data handling. All flags default to{' '}
-        <code>false</code> except <code>gdpr</code>, which defaults to <code>true</code>.
+        Controls which cookie consent model is applied to visitors. The recommended approach is
+        automatic geo-routing (<code>type: &apos;auto&apos;</code>) — Consenti resolves the
+        visitor&apos;s jurisdiction from geo signals and selects the correct compliance group.
+      </p>
+
+      <h3>Compliance groups</h3>
+      <p>
+        All behaviour (opt-in vs opt-out, GPC handling, LI validity) is determined by the
+        visitor&apos;s <strong>compliance group</strong>. Eight groups are built in:
       </p>
       <table>
         <thead>
-          <tr><th>Key</th><th>Default</th><th>Description</th></tr>
+          <tr><th>Group ID</th><th>Model</th><th>Key regulations</th></tr>
         </thead>
         <tbody>
-          <tr><td><code>gdpr</code></td><td><code>true</code></td><td>Reject pre-ticked consent, validate Legitimate Interest status values, and enforce opt-in semantics.</td></tr>
-          <tr><td><code>ccpa</code></td><td><code>false</code></td><td>Enable CCPA opt-out model. Adds <code>do_not_sell</code> flag to consent records.</td></tr>
-          <tr><td><code>gpc</code></td><td><code>false</code></td><td>Store <code>gpc_detected: true</code> on consent records when the browser sends the <code>Sec-GPC: 1</code> header, and expose it via the public API.</td></tr>
+          <tr><td><code>opt-in</code></td><td>Opt-in (GDPR)</td><td>GDPR, UK-GDPR, nFADP, KVKK, PDPA-TH, Middle East laws</td></tr>
+          <tr><td><code>opt-out</code></td><td>Opt-out (US state laws)</td><td>CCPA, VCDPA, CPA-CO, CTDPA, UCPA, 15 other US state laws</td></tr>
+          <tr><td><code>opt-out-strict</code></td><td>Opt-out strict (CPRA)</td><td>CPRA / California — GPC mandatory, sale/sharing categories</td></tr>
+          <tr><td><code>opt-in-dpdpa</code></td><td>Opt-in (India)</td><td>DPDPA — no Legitimate Interest, data fiduciary disclosure</td></tr>
+          <tr><td><code>opt-in-china</code></td><td>Opt-in (China)</td><td>PIPL, DSL, CSL — strict opt-in, no LI</td></tr>
+          <tr><td><code>opt-in-brazil</code></td><td>Opt-in (Brazil)</td><td>LGPD — opt-in with LI allowed under impact assessment</td></tr>
+          <tr><td><code>general-privacy-consent</code></td><td>General consent</td><td>PIPEDA, POPIA, APPI, PDPA-SG/MY, 40+ others</td></tr>
+          <tr><td><code>notice-only</code></td><td>Notice only</td><td>Jurisdictions with notice requirements but no consent mandate</td></tr>
         </tbody>
       </table>
-      <CodeBlock lang="ts" filename="compliance examples" code={`// EU-only product
-compliance: { gdpr: true }
 
-// US product with CCPA + GPC support
-compliance: { gdpr: false, ccpa: true, gpc: true }
+      <h3>compliance field reference</h3>
+      <table>
+        <thead>
+          <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>type</code></td>
+            <td><code>&apos;auto&apos; | ComplianceGroupId</code></td>
+            <td><code>&apos;auto&apos;</code></td>
+            <td><code>&apos;auto&apos;</code> geo-resolves per visitor; a fixed <code>ComplianceGroupId</code> applies one group to every visitor globally.</td>
+          </tr>
+          <tr>
+            <td><code>geoDataProvider</code></td>
+            <td><code>&apos;default&apos; | &apos;hosted-geoip-lite&apos; | &apos;geoip&apos; | &apos;maxmind&apos; | CountryResolverFn</code></td>
+            <td><code>&apos;default&apos;</code></td>
+            <td>
+              Source used to resolve the visitor&apos;s country.{' '}
+              <code>&apos;default&apos;</code> — timezone + Accept-Language heuristic, zero deps, least accurate.{' '}
+              <code>&apos;hosted-geoip-lite&apos;</code> — calls <code>ipinfo.io</code> via <code>node:https</code>, no install, requires outbound internet.{' '}
+              <code>&apos;geoip&apos;</code> — local lookup via optional <code>geoip-lite</code> peer dep.{' '}
+              <code>&apos;maxmind&apos;</code> — official MaxMind SDK, most accurate, requires <code>.mmdb</code> file.{' '}
+              Pass a <code>CountryResolverFn</code> to use any custom source — must return{' '}
+              <code>{'{ country: string | null, region: string | null, locale: string | null }'}</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>autoComplianceMap</code></td>
+            <td><code>&apos;default&apos; | ComplianceMapData | &apos;auto&apos;</code></td>
+            <td><code>&apos;default&apos;</code></td>
+            <td>
+              <code>&apos;default&apos;</code> uses the embedded 240-country map bundled with the package.
+              Pass a <code>ComplianceMapData</code> object to supply your own.
+              <code>&apos;auto&apos;</code> fetches from <code>complianceMapUrl</code> at startup and refreshes every 24 h.
+            </td>
+          </tr>
+          <tr>
+            <td><code>complianceMapUrl</code></td>
+            <td><code>string</code></td>
+            <td>—</td>
+            <td>Remote URL for the compliance map JSON. Only used when <code>autoComplianceMap: &apos;auto&apos;</code>.</td>
+          </tr>
+        </tbody>
+      </table>
 
-// Global product supporting all regulations
-compliance: { gdpr: true, ccpa: true, gpc: true }`} />
+      <Callout type="info">
+        GPC handling (<code>ignore</code> / <code>honor</code> / <code>strict</code>) is a per-profile setting configured in the
+        dashboard profile wizard (<code>gpcMode</code>) — not a global compliance config option. The compliance group
+        provides a default GPC behaviour; the profile can override it.
+      </Callout>
+
+      <CodeBlock lang="ts" filename="compliance examples" code={`// Zero-dep geo routing (timezone + Accept-Language heuristic)
+compliance: {
+  type: 'auto',
+  geoDataProvider: 'default',
+  autoComplianceMap: 'default',
+}
+
+// IP-based — no install, calls ipinfo.io (requires outbound internet)
+compliance: {
+  type: 'auto',
+  geoDataProvider: 'hosted-geoip-lite',
+}
+
+// IP-based — local lookup via geoip-lite (npm install geoip-lite)
+compliance: {
+  type: 'auto',
+  geoDataProvider: 'geoip',
+}
+
+// Fixed group — GDPR-only product serving only EU visitors
+compliance: {
+  type: 'opt-in',
+}
+
+// Custom geo resolver — integrate your own GeoIP SaaS
+compliance: {
+  type: 'auto',
+  geoDataProvider: async ({ ip, timezone, language }) => {
+    const res = await fetch(\`https://api.mygeoip.com/\${ip}\`)
+    const data = await res.json()
+    return { country: data.country_code, region: data.region, locale: data.locale ?? null }
+  },
+}`} />
+
+      <Callout type="info">
+        The embedded compliance map covers 240+ countries with 8 compliance groups. To update
+        jurisdiction mappings without upgrading the package, supply a custom{' '}
+        <code>ComplianceMapData</code> object or point <code>complianceMapUrl</code> at a hosted
+        JSON file you control.
+      </Callout>
+
+      {/* ── s3Api ────────────────────────────────────────────────────────── */}
+      <h2>s3Api</h2>
+      <p>
+        When enabled, Consenti uploads every locale JSON file to S3 after writing it to disk.
+        The <code>/resolve-profile</code> endpoint then returns an S3 URL so the widget can
+        fetch the profile directly from your CDN — zero server round-trips on the hot path.
+      </p>
+      <p>
+        S3 signing is implemented with <code>node:crypto</code> and <code>fetch</code> — no
+        AWS SDK dependency.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Key</th><th>Required</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>enabled</code></td><td>yes</td><td>Set to <code>true</code> to activate S3 sync.</td></tr>
+          <tr><td><code>region</code></td><td>yes</td><td>AWS region, e.g. <code>&apos;us-east-1&apos;</code>.</td></tr>
+          <tr><td><code>bucketName</code></td><td>yes</td><td>S3 bucket name. Must allow <code>PutObject</code> on <code>profiles/*</code>.</td></tr>
+          <tr><td><code>accessKeyId</code></td><td>yes</td><td>AWS access key ID.</td></tr>
+          <tr><td><code>secretAccessKey</code></td><td>yes</td><td>AWS secret access key.</td></tr>
+          <tr><td><code>sessionToken</code></td><td>no</td><td>AWS session token. Required only for temporary credentials (STS assume-role).</td></tr>
+        </tbody>
+      </table>
+      <CodeBlock lang="ts" filename="s3Api example" code={`s3Api: {
+  enabled: true,
+  region: 'us-east-1',
+  bucketName: 'my-cmp-profiles',
+  accessKeyId: process.env.AWS_ACCESS_KEY_ID!,
+  secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+}`} />
+
+      {/* ── handleCache ──────────────────────────────────────────────────── */}
+      <h2>handleCache</h2>
+      <p>
+        A callback invoked whenever Consenti writes or removes locale JSON files on disk.
+        Use it to integrate with a CDN, nginx proxy cache, or any reverse proxy that caches
+        the hot-serve profile files.
+      </p>
+      <p>
+        This is the config-based alternative to listening on the <code>cache:warm</code> and{' '}
+        <code>cache:purge</code> EventBus events — use whichever fits your integration style.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Argument</th><th>Type</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>paths</code></td><td><code>string[]</code></td><td>Absolute file paths written or removed in this operation.</td></tr>
+          <tr><td><code>version</code></td><td><code>number</code></td><td>Current profile version at the time of the operation.</td></tr>
+          <tr><td><code>isPurge</code></td><td><code>boolean</code></td><td><code>true</code> — files were removed (deactivate / delete / update); <code>false</code> — files were written (create / activate).</td></tr>
+        </tbody>
+      </table>
+      <CodeBlock lang="ts" filename="handleCache example" code={`handleCache: (paths, version, isPurge) => {
+  if (isPurge) {
+    // Purge these paths from your CDN / nginx proxy cache
+    for (const p of paths) {
+      cdnClient.purge(p)
+    }
+  } else {
+    // Warm the cache at these paths
+    for (const p of paths) {
+      cdnClient.warm(p)
+    }
+  }
+}`} />
 
       {/* ── tcf ──────────────────────────────────────────────────────────── */}
       <h2>tcf</h2>
@@ -724,6 +960,45 @@ plugins: [new AuditWebhookPlugin()]`} />
         Hooks that return a value (<em>before*</em> hooks) must return the complete modified
         object — not a partial. Hooks that do not return a value (<em>after*</em> hooks) receive a
         read-only snapshot; mutating it has no effect on the stored data.
+      </Callout>
+
+      {/* ── branding ─────────────────────────────────────────────────────── */}
+      <h2>branding</h2>
+      <p>
+        Customises the appearance of the admin dashboard — login page, sidebar, and browser tab
+        title. All fields are optional; defaults give you a standard Consenti-branded experience.
+      </p>
+      <table>
+        <thead>
+          <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><code>appName</code></td><td><code>string</code></td><td><code>'Consenti'</code></td><td>Product name shown in the dashboard header, login page, and browser tab.</td></tr>
+          <tr><td><code>appLogoPath</code></td><td><code>string</code></td><td>Consenti default logo</td><td>Path to your logo file or a public URL (<code>https://…</code>). When a local file path is given, the file is automatically copied into the dashboard bundle and served as a static asset — no extra route needed.</td></tr>
+          <tr><td><code>hidePoweredBy</code></td><td><code>boolean</code></td><td><code>false</code></td><td>When <code>true</code>, removes the "Powered by Consenti" badge from the dashboard footer.</td></tr>
+        </tbody>
+      </table>
+      <CodeBlock lang="ts" filename="branding examples" code={`// Minimal — just change the app name
+branding: {
+  appName: 'Acme CMP',
+}
+
+// Full white-label — custom name, logo, and hide badge
+branding: {
+  appName: 'Acme CMP',
+  appLogoPath: './assets/acme-logo.svg',  // local file — copied and served automatically
+  hidePoweredBy: true,
+}
+
+// Logo from a public CDN
+branding: {
+  appName: 'Acme CMP',
+  appLogoPath: 'https://cdn.acme.com/logo.svg',
+}`} />
+      <Callout type="info">
+        Branding is applied once at startup — changing it requires a server restart.
+        The logo and config are written to the built dashboard directory so they are available
+        immediately when the first request hits the SPA.
       </Callout>
 
       {/* ── Security rules ───────────────────────────────────────────────── */}

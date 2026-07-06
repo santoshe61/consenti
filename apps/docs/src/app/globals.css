@@ -1,12 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
+
+@theme {
+  --color-brand-50: #e8f0fb;
+  --color-brand-100: #c5d8f5;
+  --color-brand-400: #4a89dc;
+  --color-brand-500: #1ac084;
+  --color-brand-600: #1a3460;
+  --color-brand-700: #122547;
+  --color-brand-800: #0c1a33;
+  --color-brand-900: #060f1a;
+  --color-success: #43a047;
+  --font-family-mono: var(--font-mono-jetbrains, 'Fira Code', ui-monospace, 'Courier New', monospace);
+}
 
 @layer base {
   :root {
-    --font-system: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    --font-system: var(--font-inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif);
   }
-
 
   html {
     scroll-behavior: smooth;
@@ -23,7 +34,7 @@
 
   /* Docs prose styles */
   .prose h1 {
-    @apply text-3xl font-extrabold text-slate-900 mb-4 mt-0;
+    @apply text-3xl font-bold text-slate-900 mb-4 mt-0 tracking-tight;
   }
 
   .dark .prose h1 {
@@ -31,7 +42,7 @@
   }
 
   .prose h2 {
-    @apply text-xl font-bold text-slate-800 mb-3 mt-8 pt-4 border-t border-slate-100;
+    @apply text-xl font-semibold text-slate-800 mb-3 mt-8 pt-4 border-t border-slate-100 tracking-tight;
   }
 
   .dark .prose h2 {
@@ -39,7 +50,7 @@
   }
 
   .prose h3 {
-    @apply text-base font-bold text-slate-700 mb-2 mt-6;
+    @apply text-base font-semibold text-slate-700 mb-2 mt-6;
   }
 
   .dark .prose h3 {
@@ -184,28 +195,31 @@
 .dark .nav-link-active {
   color: #22d3ee;
   background-color: #1f2937;
+  border-left-color: #22d3ee;
 }
 
-/* Section with light gradient — replaced inline style */
-.section-gradient-light {
-  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
-}
-
-.dark .section-gradient-light {
-  background: linear-gradient(180deg, #0f172a 0%, #1e293b 100%);
+/* Hero/integrations dark section with dot-grid texture */
+.hero-section {
+  background-color: #04111f;
+  background-image: radial-gradient(circle at 1px 1px, rgba(99, 155, 255, 0.08) 1px, transparent 0);
+  background-size: 28px 28px;
 }
 
 @layer components {
   .nav-link {
-    @apply block text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 px-3 py-1.5 rounded-md transition-colors no-underline;
+    @apply block text-sm text-slate-500 hover:text-slate-900 hover:bg-slate-100 py-1.5 rounded-md transition-colors no-underline;
+    padding-left: 10px;
+    padding-right: 12px;
+    border-left: 2px solid transparent;
   }
 
   .nav-link-active {
-    @apply text-brand-500 bg-brand-50 font-semibold;
+    @apply text-brand-600 bg-brand-50 font-semibold;
+    border-left-color: var(--color-brand-500);
   }
 
   .nav-section {
-    @apply text-xs font-bold uppercase tracking-widest text-slate-400 px-3 pt-5 pb-1.5 first:pt-2;
+    @apply text-[10px] font-bold uppercase tracking-widest text-slate-400 px-3 pt-5 pb-1.5 first:pt-2;
   }
 
   .btn-primary {
@@ -213,11 +227,11 @@
   }
 
   .btn-outline {
-    @apply inline-flex items-center gap-2 border-2 border-brand-500 text-brand-500 font-semibold px-5 py-2.5 rounded-lg hover:bg-brand-50 transition-colors no-underline text-sm;
+    @apply inline-flex items-center gap-2 border border-brand-500 text-brand-500 font-semibold px-5 py-2.5 rounded-lg hover:bg-brand-50 transition-colors no-underline text-sm;
   }
 
   .badge-pill {
-    @apply inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full;
+    @apply inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-full;
   }
 }
 
@@ -229,11 +243,11 @@
 /* Playground control components */
 @layer components {
   .ctrl-group {
-    @apply bg-slate-50 border border-slate-200 rounded-xl p-4;
+    @apply bg-slate-50 border border-slate-200 rounded-lg p-4;
   }
 
   .ctrl-group-title {
-    @apply text-xs font-bold uppercase tracking-widest text-brand-500 mb-3;
+    @apply text-[10px] font-bold uppercase tracking-widest text-brand-500 mb-3;
   }
 
   .ctrl-row {
@@ -253,29 +267,64 @@
   }
 
   .action-btn {
-    @apply px-4 py-2 rounded-lg text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0;
+    @apply px-4 py-2 rounded-md text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0;
   }
 
   .action-btn-primary {
-    @apply action-btn bg-brand-500 text-white;
+    @apply px-4 py-2 rounded-md text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0 bg-brand-500 text-white;
   }
 
   .action-btn-secondary {
-    @apply action-btn bg-brand-50 text-brand-600;
+    @apply px-4 py-2 rounded-md text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0 bg-brand-50 text-brand-600;
   }
 
   .action-btn-danger {
-    @apply action-btn bg-red-600 text-white;
+    @apply px-4 py-2 rounded-md text-sm font-semibold transition-opacity hover:opacity-80 active:opacity-70 cursor-pointer border-0 bg-red-600 text-white;
   }
 
   .badge {
-    @apply inline-block text-xs px-1.5 py-0.5 rounded-full font-semibold leading-snug;
+    @apply inline-block text-xs px-1.5 py-0.5 rounded font-medium leading-snug;
   }
 }
 
 code::after,
 code::before {
   content: none !important;
+}
+
+/* ── Algolia DocSearch brand overrides ──────────────────────────────────────── */
+:root {
+  --docsearch-primary-color: #1a3460;
+  --docsearch-highlight-color: #1a3460;
+  --docsearch-logo-color: #1a3460;
+  --docsearch-searchbox-background: rgba(255, 255, 255, 0.12);
+  --docsearch-searchbox-focus-background: rgba(255, 255, 255, 0.2);
+  --docsearch-searchbox-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.25);
+  --docsearch-text-color: #fff;
+  --docsearch-muted-color: rgba(255, 255, 255, 0.55);
+  --docsearch-key-gradient: linear-gradient(to bottom, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.05));
+  --docsearch-key-shadow: none;
+  --docsearch-search-button-text-color: #5a5e9a;
+}
+
+/* Button in navbar */
+.DocSearch-Button {
+  border-radius: 0.375rem !important;
+  width: 100% !important;
+}
+
+.DocSearch-Button-Placeholder,
+.DocSearch-Button-Keys kbd {
+  font-size: 0.75rem !important;
+}
+
+/* Modal overrides for light mode */
+.DocSearch-Modal {
+  --docsearch-searchbox-background: #f1f5f9;
+  --docsearch-searchbox-focus-background: #fff;
+  --docsearch-text-color: #1e293b;
+  --docsearch-muted-color: #64748b;
+  --docsearch-primary-color: #1a3460;
 }
 
 /* Mobile overflow — tables and code blocks scroll inside their container */
@@ -291,4 +340,11 @@ code::before {
     overflow-x: auto;
     max-width: 100%;
   }
+}
+
+select,
+button,
+input[type=button],
+input[type=submit] {
+  cursor: pointer;
 }

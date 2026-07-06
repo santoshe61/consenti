@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Check, Coffee, CreditCard, ExternalLink, Github, Heart } from 'lucide-react'
+import { Check, Coffee, CreditCard, ExternalLink, Heart, Code2 } from 'lucide-react'
+import { FaGithub } from 'react-icons/fa'
 
 export const metadata: Metadata = { title: 'Support Consenti' }
 
@@ -10,21 +11,21 @@ const tiers = [
     desc: 'Pay via UPI, cards, or net banking (India)',
     url: 'https://pages.razorpay.com/bestwebs',
     Icon: CreditCard,
-    color: 'bg-green-700 hover:bg-green-800',
+    // color: 'bg-green-700 hover:bg-green-800',
   },
   {
     label: 'Ko-fi',
     desc: 'Buy me a coffee — one-time or monthly',
     url: 'https://ko-fi.com/santoshe61',
     Icon: Coffee,
-    color: 'bg-red-700 hover:bg-red-800',
+    // color: 'bg-red-700 hover:bg-red-800',
   },
   {
     label: 'PayPal',
     desc: 'One-time donation via PayPal',
     url: 'https://paypal.me/santoshe61',
     Icon: CreditCard,
-    color: 'bg-blue-700 hover:bg-blue-800',
+    // color: 'bg-blue-700 hover:bg-blue-800',
   },
 ]
 
@@ -70,7 +71,7 @@ export default function SupportPage() {
             href={t.url}
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center gap-4 ${t.color} text-white px-6 py-4 rounded-2xl no-underline transition-colors shadow-sm`}
+            className={`flex items-center gap-4 bg-gray-500 hover:bg-gray-700 text-white px-6 py-4 rounded-2xl no-underline transition-colors shadow-sm`}
           >
             <t.Icon size={24} className="shrink-0" />
             <div>
@@ -92,14 +93,28 @@ export default function SupportPage() {
           href="https://github.com/santoshe61/consenti"
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-slate-900 text-white px-5 py-2.5 rounded-xl text-sm font-semibold no-underline hover:bg-slate-800 transition-colors"
+          className="inline-flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-xl text-lg font-semibold no-underline hover:bg-slate-800 transition-colors"
         >
-          <Github size={16} />
+          <FaGithub size={22} />
           Star on GitHub
         </a>
       </div>
 
-      <div className="text-center mt-10">
+      {/* Built by */}
+      <div className="mt-10 pt-8 border-t border-slate-100 dark:border-gray-800 flex items-center justify-center gap-2 text-sm text-slate-400 dark:text-gray-500">
+        <Code2 size={14} className="shrink-0" />
+        Built and maintained by{' '}
+        <a
+          href="https://santosh.top"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-slate-500 dark:text-gray-400 hover:text-brand-500 no-underline transition-colors"
+        >
+          Santosh Ojha
+        </a>
+      </div>
+
+      <div className="text-center mt-6">
         <Link href="/docs/getting-started/" className="text-brand-500 hover:text-brand-600 text-sm font-medium no-underline">
           ← Back to documentation
         </Link>

@@ -1,193 +1,223 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock, Terminal } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
 export const metadata: Metadata = { title: 'Quick Start' }
 
-export default function QuickStartPage() {
+interface QuickStartPageProps {
+  searchParams: Promise<{ path?: string }>
+}
+
+export default async function QuickStartPage({ searchParams }: QuickStartPageProps) {
+  const { path } = await searchParams
+  const activePath = path === 'frontend' ? 'frontend' : path === 'both' ? 'both' : null
+
+  if (!activePath) {
+    return <PathChooser />
+  }
+
+  return (
+    <div className="prose max-w-none">
+      {/* Path switcher pill */}
+      <div className="not-prose flex items-center gap-3 mb-6 p-3 bg-slate-50 dark:bg-gray-800 border border-slate-200 dark:border-gray-700 rounded-xl">
+        <span className="text-sm text-slate-500 dark:text-gray-400">Showing:</span>
+        <span className="text-sm font-semibold text-slate-800 dark:text-gray-200">
+          {activePath === 'frontend' ? 'Frontend Only' : 'Frontend + Backend'}
+        </span>
+        <Link
+          href="/docs/getting-started/quick-start/"
+          className="ml-auto text-xs text-brand-600 hover:text-brand-700 font-medium no-underline"
+        >
+          Change →
+        </Link>
+      </div>
+
+      {activePath === 'frontend' ? <FrontendPath /> : <BothPath />}
+    </div>
+  )
+}
+
+function PathChooser() {
   return (
     <div className="prose max-w-none">
       <h1>Quick Start</h1>
-      <p>
-        Pick the path that matches your setup. Both are complete — no prior reading needed.
+      <p className="lead">
+        How do you want to use Consenti? Pick the setup that fits your project.
       </p>
 
-      <hr />
+      <div className="not-prose grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8">
+        {/* Frontend Only card */}
+        <Link
+          href="?path=frontend"
+          className="group block no-underline rounded-2xl border-2 border-slate-200 dark:border-gray-700 p-6 hover:border-brand-400 hover:shadow-md transition-all bg-white dark:bg-gray-800"
+        >
+          <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-700/20 flex items-center justify-center mb-4 text-xl">
+            🌐
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-gray-100 mb-2">Frontend Only</h3>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mb-4 leading-relaxed">
+            Drop in the widget. Consent stays in the browser — no server needed.
+          </p>
+          <ul className="text-sm text-slate-600 dark:text-gray-300 space-y-1.5 mb-5">
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Banner + preference modal</li>
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> GDPR, CCPA &amp; 8 compliance groups</li>
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Consent stored in browser cookie</li>
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> No server, no database</li>
+          </ul>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 group-hover:gap-2 transition-all">
+            Start with Frontend Only →
+          </span>
+        </Link>
 
-      <h2>Path A — Frontend only (no backend)</h2>
+        {/* Both card */}
+        <Link
+          href="?path=both"
+          className="group block no-underline rounded-2xl border-2 border-slate-200 dark:border-gray-700 p-6 hover:border-brand-400 hover:shadow-md transition-all bg-white dark:bg-gray-800"
+        >
+          <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-700/20 flex items-center justify-center mb-4 text-xl">
+            🖥️
+          </div>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-gray-100 mb-2">Frontend + Backend</h3>
+          <p className="text-sm text-slate-500 dark:text-gray-400 mb-4 leading-relaxed">
+            Widget + Node.js backend + admin dashboard. Manage profiles without redeploying.
+          </p>
+          <ul className="text-sm text-slate-600 dark:text-gray-300 space-y-1.5 mb-5">
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Everything in Frontend Only, plus…</li>
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Admin dashboard to manage profiles</li>
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Server-side consent records + audit log</li>
+            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Geo-routing — right profile per country</li>
+          </ul>
+          <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 group-hover:gap-2 transition-all">
+            Start with Frontend + Backend →
+          </span>
+        </Link>
+      </div>
+
+      <p className="mt-6 text-sm text-slate-400 dark:text-gray-500 text-center">
+        Not sure? Start with Frontend Only — you can add the backend later without changing your frontend code.
+      </p>
+    </div>
+  )
+}
+
+async function FrontendPath() {
+  return (
+    <>
+      <h1>Quick Start — Frontend Only</h1>
       <p>
-        Consent stays in the browser. Profiles are defined in code.
-        No server required.
+        The widget works standalone with zero backend. Profiles are pre-built and load
+        automatically. Consent is stored in a browser cookie.
       </p>
 
-      <h3>1. Install</h3>
+      <h2>1. Install</h2>
       <Terminal code="npm install @consenti/ui" />
 
-      <h3>2. Zero-config (built-in GDPR profile)</h3>
+      <h2>2. Add to your app</h2>
       <p>
-        The shortest path. The widget shows a fully working GDPR banner using the built-in
-        default profile covering the four Google Consent Mode v2 purposes.
+        Pass an empty config and Consenti auto-detects the right compliance group from the
+        browser&apos;s locale — GDPR for EU visitors, CCPA for California, etc.
       </p>
       <CodeBlock
         lang="ts"
         filename="main.ts"
         code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
-new ConsentiSetup({ core: { regulation: 'gdpr' } })`}
-      />
-
-      <h3>2 (alt). Custom profile</h3>
-      <p>
-        Use <code>ConsentiProfile</code> when you want your own cookie purposes, copy, or
-        categories. Define it once before the widget initialises.
-      </p>
-      <CodeBlock
-        lang="ts"
-        filename="main.ts"
-        code={`import { ConsentiProfile, ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
-
-const profile = new ConsentiProfile({
-  defaultLocale: 'en',
-  cookies: [
-    { id: 'necessary',  mandatory: true },
-    { id: 'analytics',  listenGpc: true, expiry: 365 },
-    { id: 'marketing',  listenGpc: true, expiry: 365 },
-  ],
-  translations: {
-    en: {
-      mainBanner: {
-        position: 'bottom',
-        heading: 'We value your privacy',
-        htmlText: 'We use cookies to improve your experience.',
-        buttons: [
-          { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
-          { text: 'Reject Optional',         style: 'secondary', action: 'custom', cookies: '!' },
-          { text: 'Customize', style: 'secondary', action: 'manage' },
-        ],
-      },
-      preferenceModal: {
-        heading: 'Cookie Preferences',
-        subheading: 'Choose which cookies you allow.',
-        showClose: true,
-        overlayOpacity: 50,
-        buttons: [
-          { text: 'Accept All',       style: 'primary', action: 'custom', cookies: '*' },
-          { text: 'Save Preferences', style: 'primary', action: 'submit' },
-          { text: 'Reject Optional',       style: 'text',    action: 'custom', cookies: '!' },
-        ],
-        categories: [
-          {
-            id: 'cat-necessary',
-            heading: 'Strictly Necessary',
-            htmlText: 'Required for the site to function.',
-            mandatory: true,
-            cookies: ['necessary'],
-          },
-          {
-            id: 'cat-analytics',
-            heading: 'Analytics',
-            htmlText: 'Helps us understand how visitors use the site.',
-            cookies: ['analytics'],
-          },
-          {
-            id: 'cat-marketing',
-            heading: 'Marketing',
-            htmlText: 'Used to deliver relevant ads.',
-            cookies: ['marketing'],
-          },
-        ],
-      },
-    },
-  },
-})
-
-new ConsentiSetup({
-  core: { profileId: profile.getId(), regulation: 'gdpr' },
-})`}
-      />
-
-      <h3>3. Listen for consent</h3>
-      <p>
-        Gate third-party scripts behind user consent by listening to{' '}
-        <code>consenti:consentSubmitted</code>. Also check on page load via{' '}
-        <code>onReady</code> for returning visitors who already have consent.
-      </p>
-      <CodeBlock
-        lang="ts"
-        code={`const widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
-
-// Returning visitors — consent already stored
-widget.onReady(() => {
-  const consent = widget.getConsent()
-  if (consent?.analytics === 'granted') loadAnalytics()
-  if (consent?.marketing === 'granted') loadAds()
-})
-
-// New consent submitted this session
-window.addEventListener('consenti:consentSubmitted', (e) => {
-  const { consentJson } = (e as CustomEvent).detail
-  if (consentJson.analytics === 'granted') loadAnalytics()
-  if (consentJson.marketing === 'granted') loadAds()
-})`}
+const widget = new ConsentiSetup({})
+// A banner appears on first visit. That's it.`}
       />
 
       <Callout type="tip">
-        Add a &quot;Cookie Settings&quot; link anywhere on your site and wire it to{' '}
-        <code>widget.showModal()</code> — it opens the preference modal without re-showing the
-        banner.
+        Want a specific compliance mode instead of auto-detect? Pass{' '}
+        <code>compliance: {'{ type: \'opt-in\' }'}</code> for GDPR or{' '}
+        <code>compliance: {'{ type: \'opt-out\' }'}</code> for CCPA.
       </Callout>
 
-      <h3>4. GTM / Google Consent Mode v2 (optional)</h3>
+      <h2>3. React to consent</h2>
       <p>
-        Add your container ID and Consenti handles all dataLayer pushes automatically.
+        Gate analytics or advertising code behind consent. Check on page load for returning
+        visitors, and listen for new submissions.
       </p>
       <CodeBlock
         lang="ts"
+        code={`const widget = new ConsentiSetup({})
+
+// Returning visitors — check existing consent on load
+widget.onReady(() => {
+  if (widget.isCookieGranted('analytics')) initAnalytics()
+  if (widget.isCookieGranted('marketing')) initAds()
+})
+
+// New submission this session
+widget.on('consentSubmitted', ({ consent }) => {
+  if (consent.analytics === 'granted') initAnalytics()
+})`}
+      />
+
+      <Callout type="info">
+        That&apos;s enough to be GDPR-compliant. The sections below are optional improvements.
+      </Callout>
+
+      <h2>Optional: React / Next.js</h2>
+      <CodeBlock
+        lang="tsx"
+        filename="ConsentSetup.tsx"
+        code={`'use client'
+import { useEffect } from 'react'
+import { ConsentiSetup } from '@consenti/ui'
+
+export function ConsentSetup() {
+  useEffect(() => {
+    const widget = new ConsentiSetup({})
+    return () => widget.destroy()
+  }, [])
+  return null
+}`}
+      />
+
+      <h2>Optional: GTM / Google Consent Mode v2</h2>
+      <CodeBlock
+        lang="ts"
         code={`new ConsentiSetup({
-  core: { regulation: 'gdpr' },
   utils: {
-    gtm: {
-      containerId: 'GTM-XXXXXX',
-      urlPassthrough: true,   // cookieless conversion modelling
-      adsDataRedaction: true, // redact ad pings when denied
-    },
+    gtm: { containerId: 'GTM-XXXXXX', adsDataRedaction: true },
   },
 })`}
       />
 
       <hr />
 
-      <h2>Path B — With backend</h2>
+      <h2>What to read next</h2>
+      <ul>
+        <li><a href="/docs/ui/configuration/">UI Configuration</a> — every <code>ConsentiSetup</code> option</li>
+        <li><a href="/docs/ui/profiles/">Profiles</a> — customize the banner copy, buttons, and cookie categories</li>
+        <li><a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt integration</li>
+        <li><a href="/docs/ui/events/">Events</a> — all <code>consenti:</code> events and payloads</li>
+        <li><a href="/docs/ui/methods/">API Methods</a> — every widget method with examples</li>
+        <li><a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires</li>
+        <li><a href="/docs/getting-started/quick-start/?path=both">Switch to Frontend + Backend →</a></li>
+      </ul>
+    </>
+  )
+}
+
+async function BothPath() {
+  return (
+    <>
+      <h1>Quick Start — Frontend + Backend</h1>
       <p>
-        Consent records are stored server-side. Profiles are managed in the admin dashboard —
-        no code changes needed to update copy or buttons.
+        The backend module records consent server-side and serves an admin dashboard.
+        Profiles are managed through the UI — no code changes needed to update copy or buttons.
       </p>
 
-      <h3>1. Install both packages</h3>
-      <Terminal code={`
-# 1. If your frontend and backend is separate nodejs app
-# For example Express backend and vue/react/plain html etc. frontend
-
-# On backend app
-npm install @consenti/api  # server-side only
-
-# On frontend app
-npm install @consenti/ui
-
-# OR
-
-# 2. If your frontend and backend is same nodejs app
-# For example Next / Nuxt etc. app
-
-npm install @consenti/ui
+      <h2>1. Install</h2>
+      <Terminal code={`# On your backend (Node.js app)
 npm install @consenti/api
 
+# On your frontend (or same app for Next.js / Nuxt)
+npm install @consenti/ui`} />
 
-`} />
-
-      <h3>2. Start the backend</h3>
+      <h2>2. Start the backend</h2>
       <CodeBlock
         lang="ts"
         filename="server.ts"
@@ -195,10 +225,10 @@ npm install @consenti/api
 import http from 'node:http'
 
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
+  storage: { driver: 'json', path: './consenti-data' },
   auth: {
     mode: 'local',
-    adminEmail: 'admin@yoursite.com',
+    adminEmail: 'admin@example.com',
     adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
   },
   dashboard: true,
@@ -209,6 +239,13 @@ http.createServer(consenti.handler).listen(3001)
 // REST API        → http://localhost:3001/consenti/api/v1/`}
       />
 
+      <Callout type="info">
+        The default <code>json</code> driver works with zero installation. Switch to{' '}
+        <code>node:sqlite</code> (Node 22.5+) or <code>postgresql</code> / <code>mysql</code> /
+        {' '}<code>mongodb</code> before going to production.
+        See <a href="/docs/api/configuration/">API Configuration</a> for all storage options.
+      </Callout>
+
       <p>Using Express?</p>
       <CodeBlock
         lang="ts"
@@ -218,58 +255,56 @@ import { createConsenti } from '@consenti/api'
 
 const app = express()
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
-  auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: 'secret' },
+  storage: { driver: 'json', path: './consenti-data' },
+  auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: process.env.CONSENTI_ADMIN_PASSWORD! },
   dashboard: true,
 })
-
-app.use(consenti.router)  // mounts at /consenti/
+app.use(consenti.router)
 app.listen(3000)`}
       />
 
-      <h3>3. Create a profile in the dashboard</h3>
+      <h2>3. Create a profile in the dashboard</h2>
       <p>
-        Open <code>/consenti/</code>, log in, and create a profile. Copy its numeric ID from
-        the Profiles list — you will pass it to <code>core.profileId</code>.
+        Open <code>http://localhost:3001/consenti/</code>, log in, and create a profile for each
+        compliance group your site needs. The backend automatically resolves the best profile
+        per visitor via geo-routing.
       </p>
 
-      <h3>4. Connect the frontend</h3>
+      <h2>4. Connect the frontend</h2>
       <CodeBlock
         lang="ts"
         filename="main.ts"
         code={`import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({
-  core: { profileId: 3, regulation: 'gdpr' }, // ID from the dashboard
   api: {
     enabled: true,
-    baseUrl: 'https://your-site.com', // where the backend is mounted
+    baseUrl: 'https://your-site.com', // where your backend is mounted
   },
+  // compliance group resolved automatically per visitor via /resolve-profile
 })
 
 widget.onReady(() => {
-  const consent = widget.getConsent()
-  if (consent?.analytics === 'granted') loadAnalytics()
+  if (widget.isCookieGranted('analytics')) initAnalytics()
 })`}
       />
 
       <Callout type="info">
         If the API request fails (network error, server down), the widget automatically falls back
-        to the local profile registry and then to the built-in default — it never breaks the page.
+        to the matching pre-built profile — it never breaks the page.
       </Callout>
 
       <hr />
 
       <h2>What to read next</h2>
       <ul>
-        <li><a href="/docs/ui/profiles/">Profiles</a> — full <code>ConsentiProfile</code> reference, multi-locale, <code>profileOverride</code></li>
-        <li><a href="/docs/ui/configuration/">Configuration</a> — every <code>ConsentiSetup</code> option explained</li>
-        <li><a href="/docs/ui/events/">Events</a> — all <code>consenti:</code> events and their detail payloads</li>
-        <li><a href="/docs/ui/methods/">API Methods</a> — every widget method with examples</li>
+        <li><a href="/docs/api/configuration/">API Configuration</a> — storage drivers, auth modes, all options</li>
+        <li><a href="/docs/ui/configuration/">UI Configuration</a> — every <code>ConsentiSetup</code> option</li>
+        <li><a href="/docs/ui/profiles/">Profiles</a> — customize banner, modal, and cookie categories</li>
         <li><a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt</li>
-        <li><a href="/docs/api/configuration/">Backend configuration</a> — storage drivers, auth, RBAC</li>
+        <li><a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires</li>
+        <li><a href="/docs/getting-started/quick-start/?path=frontend">Switch to Frontend Only →</a></li>
       </ul>
-    </div>
+    </>
   )
 }

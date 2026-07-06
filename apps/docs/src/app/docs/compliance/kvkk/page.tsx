@@ -8,6 +8,10 @@ export default function KVKKPage() {
   return (
     <div className="prose max-w-none">
       <h1>KVKK Compliance Guide (Turkey)</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — explicit consent required for sensitive personal data.
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         Turkey's <strong>Kişisel Verilerin Korunması Kanunu (KVKK)</strong> — Law No. 6698 — came into
         force in April 2016 and is enforced by the{' '}

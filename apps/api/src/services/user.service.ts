@@ -16,7 +16,7 @@ export class UserService {
   }
 
   async create(
-    input: { name: string; email: string; password: string; roleId?: string },
+    input: { name: string; email: string; password: string; roleId?: string; allowedTenants?: string[] },
     actorId?: string,
   ): Promise<SafeAdminUser> {
     const user = await this.users.create({
@@ -24,6 +24,7 @@ export class UserService {
       name: input.name,
       email: input.email,
       passwordHash: hashPassword(input.password),
+      ...(input.allowedTenants ? { allowedTenants: input.allowedTenants } : {}),
     })
     if (input.roleId) await this.users.assignRole(user.id, input.roleId)
     await this.audit.log({
@@ -39,7 +40,7 @@ export class UserService {
 
   async update(
     id: string,
-    input: { name?: string; email?: string; isActive?: boolean; password?: string },
+    input: { name?: string; email?: string; isActive?: boolean; password?: string; allowedTenants?: string[] },
     actorId?: string,
   ): Promise<SafeAdminUser> {
     const existing = await this.users.getById(id)
@@ -49,6 +50,7 @@ export class UserService {
     if (input.email != null) data.email = input.email
     if (input.isActive != null) data.isActive = input.isActive
     if (input.password) data.passwordHash = hashPassword(input.password)
+    if (input.allowedTenants != null) data.allowedTenants = input.allowedTenants
     const updated = await this.users.update(id, data)
     await this.audit.log({
       tenantId: this.tenantId,

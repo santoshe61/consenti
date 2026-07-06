@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
 import { AlertTriangle } from 'lucide-react'
+import { useT } from '../context/locale'
 
 interface ConfirmDialogProps {
   open: boolean
@@ -19,14 +20,18 @@ export function ConfirmDialog({
   open,
   title,
   message,
-  confirmLabel = 'Confirm',
-  cancelLabel = 'Cancel',
+  confirmLabel,
+  cancelLabel,
   danger = true,
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
+  const t = useT()
   const cancelRef = useRef<HTMLButtonElement>(null)
   const dialogRef = useRef<HTMLDivElement>(null)
+
+  const resolvedConfirm = confirmLabel ?? t('common.confirm')
+  const resolvedCancel = cancelLabel ?? t('common.cancel')
 
   useEffect(() => {
     if (!open) return
@@ -82,14 +87,14 @@ export function ConfirmDialog({
             onClick={onCancel}
             class="px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 rounded-lg transition-colors"
           >
-            {cancelLabel}
+            {resolvedCancel}
           </button>
           <button
             type="button"
             onClick={onConfirm}
             class={`px-4 py-2 text-sm font-medium rounded-lg transition-colors text-white ${danger ? 'bg-red-600 hover:bg-red-700' : 'bg-blue-600 hover:bg-blue-700'}`}
           >
-            {confirmLabel}
+            {resolvedConfirm}
           </button>
         </div>
       </div>

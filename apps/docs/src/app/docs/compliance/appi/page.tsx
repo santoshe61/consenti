@@ -2,12 +2,22 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'APPI Compliance Guide (Japan)' }
+export const metadata: Metadata = {
+  title: 'APPI Compliance Guide (Japan)',
+  description: 'How to implement APPI (Act on the Protection of Personal Information) cookie consent in Japan with Consenti. Opt-in mode, audit logs, and geo-detection.',
+  keywords: ['APPI', 'APPI compliance', 'Japan personal data protection', 'cookie consent Japan', 'Act on the Protection of Personal Information'],
+  alternates: { canonical: 'https://consenti.dev/docs/compliance/appi' },
+}
 
 export default function APPIPage() {
   return (
     <div className="prose max-w-none">
       <h1>APPI Compliance Guide (Japan)</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-in</code> — opt-in for sensitive data and cross-border
+        transfers; opt-out for general third-party sharing.
+        Use <code>compliance: {'{ type: \'opt-in\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         Japan's <strong>Act on the Protection of Personal Information (APPI)</strong> was significantly
         revised in 2022 (enforced from April 2022) and is administered by the{' '}

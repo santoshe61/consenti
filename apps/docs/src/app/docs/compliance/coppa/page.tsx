@@ -8,6 +8,11 @@ export default function COPPAPage() {
   return (
     <div className="prose max-w-none">
       <h1>COPPA Compliance Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>general-privacy-consent</code> — full-flexibility
+        mode; configure your profile to show age-gated consent for children under 13.
+        Use <code>compliance: {'{ type: \'general-privacy-consent\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         COPPA (Children's Online Privacy Protection Act) applies to websites and online services
         directed at children under 13 in the United States.

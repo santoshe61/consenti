@@ -24,4 +24,8 @@ export class ProfileRepo {
   list(tenantId: string): Promise<Profile[]> {
     return this.adapter.getProfiles(tenantId)
   }
+
+  findActiveByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
+    return this.adapter.findActiveProfileByComplianceGroup(tenantId, complianceGroup)
+  }
 }

@@ -24,29 +24,22 @@ const FRONTEND_STEPS: Step[] = [
   },
   {
     num: 2,
-    title: 'Configure',
+    title: 'Add to your app',
     filename: 'main.ts',
     code: `import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
-new ConsentiSetup({
-  core: {
-    regulation: 'gdpr',
-    locale: 'en',
-    autoHonorGPC: true,
-  },
-})`,
+// Auto-detects compliance from browser locale — GDPR, CCPA, etc.
+new ConsentiSetup({})`,
     color: 'text-blue-300',
   },
   {
     num: 3,
-    title: 'Listen for consent',
+    title: 'Gate code on consent',
     filename: 'main.ts',
-    code: `document.addEventListener('consenti:consentSubmitted', (e) => {
-  const { consentJson } = (e as CustomEvent).detail
-  if (consentJson.analytics === 'granted') {
-    // load your analytics
-  }
+    code: `const widget = new ConsentiSetup({})
+
+widget.onReady(() => {
+  if (widget.isCookieGranted('analytics')) initAnalytics()
 })`,
     color: 'text-blue-300',
   },
@@ -56,8 +49,8 @@ const BOTH_STEPS: Step[] = [
   {
     num: 1,
     title: 'Install both packages',
-    code: `npm install @consenti/ui        # browser widget
-npm install @consenti/api   # backend module`,
+    code: `npm install @consenti/ui   # browser widget
+npm install @consenti/api  # backend module`,
     color: 'text-green-400',
   },
   {
@@ -68,10 +61,10 @@ npm install @consenti/api   # backend module`,
 import http from 'node:http'
 
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
+  storage: { driver: 'json', path: './consenti-data' },
   auth: {
     mode: 'local',
-    adminEmail: 'admin@yourdomain.com',
+    adminEmail: 'admin@example.com',
     adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
   },
   dashboard: true,   // admin SPA at /consenti/
@@ -84,14 +77,10 @@ http.createServer(consenti.handler).listen(3001)`,
     title: 'Connect the frontend',
     filename: 'main.ts',
     code: `import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 new ConsentiSetup({
-  core: { regulation: 'gdpr', locale: 'en' },
-  api: {
-    enabled: true,
-    baseUrl: 'http://localhost:3001',
-  },
+  api: { enabled: true, baseUrl: 'http://localhost:3001' },
+  // compliance group auto-resolved per visitor via /resolve-profile
 })`,
     color: 'text-blue-300',
   },
@@ -114,21 +103,21 @@ export async function QuickStartTabs({ searchParams }: QuickStartTabsProps) {
   const more = MORE_LINKS[active]
 
   return (
-    <section className="bg-slate-950 py-16">
+    <section className="bg-[#030d1a] border-y border-white/5 py-16">
       <div className="max-w-7xl mx-auto px-6">
-        <h2 className="text-2xl font-bold text-white mb-6 text-center">Quick Start</h2>
+        <h2 className="text-xl font-bold text-white mb-6 text-center tracking-tight">Quick Start</h2>
 
         {/* Horizontal Link Tabs */}
         <div className="flex justify-center mb-8">
-          <div className="inline-flex bg-slate-800 rounded-xl p-1 gap-1">
+          <div className="inline-flex bg-white/[0.05] border border-white/10 rounded-lg p-1 gap-1">
             {TABS.map((t) => (
               <Link
                 key={t.id}
                 href={`?tab=${t.id}`}
                 scroll={false}
-                className={`px-5 py-2 rounded-lg text-sm font-semibold transition-colors ${active === t.id
-                  ? 'bg-brand-500 text-white shadow'
-                  : 'text-slate-400 hover:text-white'
+                className={`px-5 py-2 rounded-md text-sm font-medium transition-colors ${active === t.id
+                  ? 'bg-brand-500 text-white'
+                  : 'text-white/40 hover:text-white/70'
                   }`}
               >
                 {t.label}
@@ -138,17 +127,17 @@ export async function QuickStartTabs({ searchParams }: QuickStartTabsProps) {
         </div>
 
         {/* Steps */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           {steps.map((step) => (
-            <div key={step.num} className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+            <div key={step.num} className="bg-[#060f1e] rounded-lg border border-white/[0.07] overflow-hidden">
               {/* Step header */}
-              <div className="flex items-center gap-2.5 px-4 py-2.5 bg-slate-800 border-b border-slate-700">
-                <span className="w-5 h-5 rounded-full bg-brand-500 text-white text-[11px] font-bold flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.06]">
+                <span className="w-5 h-5 rounded bg-brand-500/20 text-brand-300 text-[10px] font-bold font-mono flex items-center justify-center shrink-0 border border-brand-500/30">
                   {step.num}
                 </span>
-                <span className="text-xs font-semibold text-slate-300">{step.title}</span>
+                <span className="text-xs font-medium text-white/60">{step.title}</span>
                 {step.filename && (
-                  <span className="ml-auto text-[10px] text-slate-500 font-mono">{step.filename}</span>
+                  <span className="ml-auto text-[10px] text-white/30 font-mono">{step.filename}</span>
                 )}
               </div>
               {/* Code */}
@@ -163,7 +152,7 @@ export async function QuickStartTabs({ searchParams }: QuickStartTabsProps) {
         <div className="text-center mt-8">
           <Link
             href={more.href}
-            className="inline-flex items-center gap-2 bg-brand-500 text-white font-bold px-6 py-3 rounded-xl no-underline hover:bg-brand-600 transition-colors"
+            className="inline-flex items-center gap-2 bg-white/[0.06] border border-white/10 text-white/70 font-medium text-sm px-6 py-3 rounded-lg no-underline hover:bg-white/[0.1] hover:text-white hover:border-white/20 transition-colors"
           >
             {more.label}
           </Link>

@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'preact/hooks'
 import { Layout } from '../components/Layout'
+import { useT } from '../context/locale'
 import { apiFetch } from '../api/client'
+import { debounce } from '../../../utils/debounce'
 
 interface Vendor {
   id: number
@@ -32,6 +34,7 @@ function setPageInHash(page: number): void {
 }
 
 export function VendorList({ current }: { current: string }) {
+  const t = useT()
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [total, setTotal] = useState(0)
   const [version, setVersion] = useState(0)
@@ -64,12 +67,13 @@ export function VendorList({ current }: { current: string }) {
 
   useEffect(() => { load(search, page) }, [])
 
-  const handleSearch = (q: string) => {
+
+  const handleSearch = debounce((q: string) => {
     setSearch(q)
     setPage(1)
     setPageInHash(1)
     load(q, 1)
-  }
+  }, 500)
 
   const goToPage = (p: number) => {
     setPage(p)
@@ -78,9 +82,9 @@ export function VendorList({ current }: { current: string }) {
   }
 
   return (
-    <Layout title="TCF Vendor List" current={current}>
+    <Layout title={t('vendors.title')} current={current}>
       <div class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900 space-y-2">
-        <p class="font-semibold">What is the TCF Vendor List?</p>
+        <p class="font-semibold">{t('vendors.info.title')}</p>
         <p>
           The <strong>IAB Transparency &amp; Consent Framework (TCF)</strong> is an industry standard used by ad-tech
           platforms across Europe. The <strong>Global Vendor List (GVL)</strong> is a public registry — maintained by
@@ -106,26 +110,27 @@ export function VendorList({ current }: { current: string }) {
       <div class="mb-4 flex items-center gap-3">
         <input
           type="text"
-          placeholder="Search vendors…"
+          placeholder={t('vendors.searchPlaceholder')}
+          aria-label={t('vendors.searchPlaceholder')}
           value={search}
-          onInput={e => handleSearch((e.target as HTMLInputElement).value)}
+          onChange={e => handleSearch((e.target as HTMLInputElement).value)}
           class="border border-gray-300 rounded px-3 py-1.5 text-sm w-64"
         />
         {version > 0 && (
-          <span class="text-xs text-gray-500">GVL v{version} · {total} vendors</span>
+          <span class="text-xs text-gray-500">{t('vendors.gvlMeta', { version, total })}</span>
         )}
       </div>
 
       {error && (
-        <div class="p-4 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
+        <div role="alert" class="p-4 bg-amber-50 border border-amber-200 rounded text-sm text-amber-800">
           {error}
         </div>
       )}
 
-      {loading && <p class="text-sm text-gray-500">Loading vendor list…</p>}
+      {loading && <p role="status" aria-live="polite" class="text-sm text-gray-500">{t('vendors.loading')}</p>}
 
       {!loading && !error && vendors.length === 0 && (
-        <p class="text-sm text-gray-500">No vendors found.</p>
+        <p class="text-sm text-gray-500">{t('vendors.noResults')}</p>
       )}
 
       {!loading && vendors.length > 0 && (
@@ -134,11 +139,11 @@ export function VendorList({ current }: { current: string }) {
             <table class="w-full text-xs">
               <thead class="bg-gray-50">
                 <tr>
-                  <th class="text-left px-3 py-2 text-gray-600">ID</th>
-                  <th class="text-left px-3 py-2 text-gray-600">Name</th>
-                  <th class="text-left px-3 py-2 text-gray-600">Purposes</th>
-                  <th class="text-left px-3 py-2 text-gray-600">LI Purposes</th>
-                  <th class="text-left px-3 py-2 text-gray-600">Special Purposes</th>
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600">{t('vendors.col.id')}</th>
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600">{t('vendors.col.name')}</th>
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600">{t('vendors.col.purposes')}</th>
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600">{t('vendors.col.liPurposes')}</th>
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600">{t('vendors.col.specialPurposes')}</th>
                 </tr>
               </thead>
               <tbody>
@@ -155,17 +160,16 @@ export function VendorList({ current }: { current: string }) {
             </table>
           </div>
 
-          <div class="mt-3 flex items-center justify-between text-xs text-gray-500">
-            <span>
-              Page {page} of {totalPages} · {total} vendors total
-            </span>
+          <nav aria-label="Vendor list pagination" class="mt-3 flex items-center justify-between text-xs text-gray-500">
+            <span>{t('vendors.pagination', { page, totalPages, total })}</span>
             <div class="flex items-center gap-1">
               <button
                 onClick={() => goToPage(page - 1)}
                 disabled={page <= 1}
+                aria-label={t('common.prev')}
                 class="px-2 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                ← Prev
+                {t('vendors.prev')}
               </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 const start = Math.max(1, Math.min(page - 2, totalPages - 4))
@@ -174,6 +178,7 @@ export function VendorList({ current }: { current: string }) {
                   <button
                     key={p}
                     onClick={() => goToPage(p)}
+                    aria-current={p === page ? 'page' : undefined}
                     class={`px-2 py-1 border rounded ${p === page ? 'border-blue-500 bg-blue-50 text-blue-700 font-medium' : 'border-gray-300 hover:bg-gray-50'}`}
                   >
                     {p}
@@ -183,12 +188,13 @@ export function VendorList({ current }: { current: string }) {
               <button
                 onClick={() => goToPage(page + 1)}
                 disabled={page >= totalPages}
+                aria-label={t('common.next')}
                 class="px-2 py-1 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                Next →
+                {t('vendors.next')}
               </button>
             </div>
-          </div>
+          </nav>
         </>
       )}
     </Layout>

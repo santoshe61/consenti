@@ -47,6 +47,7 @@ export class Banner {
     locales?: string[],
     activeLocale?: string,
     onLocaleSwitch?: (locale: string) => void,
+    hidePoweredBy = false,
   ): HTMLElement {
     const banner = document.createElement('div')
     banner.id = 'consenti-banner'
@@ -143,6 +144,17 @@ export class Banner {
     if (config.overlayOpacity && config.overlayOpacity > 0) {
       this.overlayEl = createOverlay(config.overlayOpacity)
     }
+
+    const pb = document.createElement('a')
+    pb.href = 'https://consenti.dev'
+    pb.className = 'consenti-banner__powered-by'
+    pb.textContent = 'Powered by Consenti'
+    pb.setAttribute('target', '_blank')
+    pb.setAttribute('rel', 'noopener noreferrer')
+    if (hidePoweredBy) {
+      pb.classList.add('consenti-d-none')
+    }
+    banner.appendChild(pb)
 
     this.el = banner
     return banner

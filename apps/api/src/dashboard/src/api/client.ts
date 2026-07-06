@@ -1,4 +1,4 @@
-const BASE = '/consenti/admin'
+const BASE = `${window.__CONSENTI_CONFIG__?.basePath ?? '/consenti'}/admin`
 
 function getToken(): string | null {
   return localStorage.getItem('consenti_token')

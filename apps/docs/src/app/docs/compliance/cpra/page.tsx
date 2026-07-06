@@ -8,6 +8,11 @@ export default function CPRAPage() {
   return (
     <div className="prose max-w-none">
       <h1>CPRA Compliance Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-out-strict</code> — opt-out for sale/sharing;
+        opt-in required for sensitive data. GPC triggers both Do Not Sell and Do Not Share.
+        Use <code>compliance: {'{ type: \'opt-out-strict\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         The California Privacy Rights Act (CPRA) superseded CCPA on 1 January 2023.
         It is enforced by the California Privacy Protection Agency (CPPA) — a dedicated regulatory body,

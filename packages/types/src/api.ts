@@ -1,4 +1,5 @@
 import type { Cookie, ProfileConfig, ConsentValue } from './ui'
+import type { ComplianceGroupId } from './compliance'
 
 // ─── Server config ────────────────────────────────────────────────────────────
 
@@ -6,7 +7,6 @@ export interface StorageConfig {
   driver: 'sqlite' | 'better-sqlite3' | 'node-sqlite3-wasm' | 'node:sqlite' | 'mongodb' | 'mysql' | 'postgresql' | 'json'
   path?: string
   uri?: string
-  dbName?: string
   database?: string
   host?: string
   port?: number
@@ -48,10 +48,132 @@ export interface RateLimitConfig {
   maxRequests?: number
 }
 
+export type GeoResult = {
+  country: string | null
+  region: string | null
+  locale: string | null
+}
+
+export type CountryResolverFn = (ctx: {
+  ip: string
+  language: string
+  timezone: string
+}) => Promise<GeoResult>
+
+export interface S3ApiConfig {
+  enabled: boolean
+  region: string
+  bucketName: string
+  accessKeyId: string
+  secretAccessKey: string
+  sessionToken?: string
+}
+
+export interface ProfileSummary {
+  id: string
+  name: string
+  defaultLocale: string
+  complianceGroup: ComplianceGroupId | null
+  version: number
+  isActive: boolean
+  cookieTemplateName: string | null
+  uiTemplateName: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface ProfileVersionEntry {
+  version: number
+  createdAt: string
+  locales: string[]
+}
+
+export interface OptInFilters {
+  profileId?: string
+  complianceGroup?: string
+  from?: string
+  to?: string
+  locale?: string
+}
+
+export interface OptInByLocale {
+  total: number
+  granted: number
+  denied: number
+  managed: number
+}
+
+export interface OptInByDate {
+  date: string
+  total: number
+  granted: number
+  denied: number
+  managed: number
+}
+
+export interface OptInStats {
+  total: number
+  granted: number
+  denied: number
+  managed: number
+  grantedPct: number
+  deniedPct: number
+  managedPct: number
+  byLocale: Record<string, OptInByLocale>
+  byDate: OptInByDate[]
+}
+
+export type ComplianceMapOverride =
+  | 'default'          // use embedded map
+  | ComplianceMapData  // operator-supplied full map
+  | 'auto'             // fetch from complianceMapUrl at startup, refresh every 24h
+
+export interface ComplianceMapData {
+  version: string
+  countries: Record<string, CountryComplianceEntry>
+}
+
+export interface CountryComplianceEntry {
+  complianceGroup: ComplianceGroupId
+  default: ComplianceGroupId
+  description: string
+  overriddenRegions?: Record<string, {
+    complianceGroup: ComplianceGroupId
+    description: string
+  }>
+}
+
+export interface ComplianceViolation {
+  cookieId: string
+  field: string
+  message: string
+  rule: string
+}
+
+export interface ComplianceWarningItem {
+  cookieId: string
+  field: string
+  message: string
+  suggestion: string
+}
+
+export interface ComplianceValidationResult {
+  valid: boolean
+  errors: ComplianceViolation[]
+  warnings: ComplianceWarningItem[]
+}
+
 export interface ComplianceConfig {
+  /** @deprecated use type */
   gdpr?: boolean
+  /** @deprecated use type */
   ccpa?: boolean
-  gpc?: boolean
+  gpc?: boolean | 'strict'
+  type?: ComplianceGroupId | 'auto'
+  /** @deprecated use 'default' instead of 'language' or 'timezone'; 'geoip' and 'hosted-geoip-lite' removed */
+  geoDataProvider?: 'default' | 'maxmind' | 'language' | 'timezone' | 'geoip' | 'hosted-geoip-lite' | CountryResolverFn
+  autoComplianceMap?: ComplianceMapOverride
+  complianceMapUrl?: string
 }
 
 export interface DashboardConfig {
@@ -79,6 +201,19 @@ export interface DataRetentionConfig {
   purgeAfterDays: number
 }
 
+export interface BrandingConfig {
+  /** Display name shown in the dashboard (login page, header, browser tab). Default: 'Consenti'. */
+  appName?: string
+  /**
+   * Logo to display in the dashboard. Accepts a public URL (https://…) or a local
+   * filesystem path — when a path is given, the file is copied into the dashboard
+   * dist and served as a static asset automatically.
+   */
+  appLogoPath?: string
+  /** When true, hides the "Powered by Consenti" badge in the dashboard. Default: false. */
+  hidePoweredBy?: boolean
+}
+
 export interface ConsentiServerConfig {
   basePath?: string
   dashboard?: boolean | DashboardConfig
@@ -93,6 +228,10 @@ export interface ConsentiServerConfig {
   dataRetention?: DataRetentionConfig
   maxBodySize?: number
   trustedProxies?: string[]
+  branding?: BrandingConfig
+  s3Api?: S3ApiConfig
+  /** Called after every profile activate/deactivate/delete. isPurge=true means invalidate; false means warm. */
+  handleCache?: (paths: string[], currentVersion: number, isPurge: boolean) => void
 }
 
 // ─── DB domain types ──────────────────────────────────────────────────────────
@@ -175,6 +314,8 @@ export interface AdminUser {
   isActive: boolean
   totpEnabled?: boolean
   totpSecret?: string
+  /** Empty array = access to all tenants. Non-empty = restricted to listed tenant IDs. */
+  allowedTenants?: string[]
   createdAt: string
   updatedAt: string
 }
@@ -261,6 +402,7 @@ export interface CreateUserInput {
   name: string
   email: string
   passwordHash: string
+  allowedTenants?: string[]
 }
 
 export interface UpdateUserInput {
@@ -270,6 +412,7 @@ export interface UpdateUserInput {
   isActive?: boolean
   totpSecret?: string | null
   totpEnabled?: boolean
+  allowedTenants?: string[]
 }
 
 export interface CreateAuditLogInput {
@@ -400,6 +543,12 @@ export interface StorageAdapter {
   deleteProfile(id: string): Promise<void>
   getProfile(id: string): Promise<Profile | null>
   getProfiles(tenantId: string): Promise<Profile[]>
+  findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null>
+  /** Lightweight list — no profile_json blob; single JOIN for template names. */
+  listProfilesSummary(tenantId: string): Promise<ProfileSummary[]>
+  findProfilesUsingCookieTemplate(templateId: string): Promise<ProfileSummary[]>
+  findProfilesUsingUITemplate(templateId: string): Promise<ProfileSummary[]>
+  getOptInStats(tenantId: string, filters: OptInFilters): Promise<OptInStats>
 
   createConsent(data: CreateConsentInput): Promise<ConsentDbRecord>
   updateConsent(visitorId: string, data: UpdateConsentInput): Promise<ConsentDbRecord>
@@ -494,6 +643,29 @@ export abstract class ConsentiServerPlugin {
   afterUserCreate?(user: AdminUser): Promise<void>
 }
 
+// ─── Dashboard runtime config ────────────────────────────────────────────────
+
+/**
+ * Configuration injected into the dashboard SPA at serve time via
+ * window.__CONSENTI_CONFIG__. The object is deep-frozen and non-writable —
+ * treat it as read-only.
+ */
+export interface ConsentiRuntimeConfig {
+  /** Display name shown in the dashboard header, login page, and browser tab. */
+  appName: string
+  /** Resolved logo URL (relative path or absolute URL). Null when no logo is configured. */
+  appLogoPath: string | null
+  /** Whether to show the "Powered by Consenti" badge. */
+  hidePoweredBy: boolean
+  /** URL prefix Consenti is mounted at — used by the dashboard to build API base URLs. */
+  basePath: string
+  /** Active compliance config from server. */
+  compliance: {
+    type?: string
+    gpc?: boolean | 'strict'
+  }
+}
+
 // ─── Dashboard view types ─────────────────────────────────────────────────────
 
 /** Loose runtime JSON shape of a profile as stored and returned by the admin API. */
@@ -510,6 +682,13 @@ export interface ProfileJson {
   allowedOrigins?: string[]
   dpdpa?: Record<string, string>
   _meta?: { cookieTemplateId?: string; uiTemplateId?: string }
+  complianceGroup?: string
+  isActive?: boolean
+  hidePoweredBy?: boolean
+  allowReceipt?: boolean
+  gpcMode?: 'ignore' | 'honor' | 'strict'
+  /** Per-compliance extra config (e.g. DPDPA data fiduciary name). */
+  complianceConfig?: Record<string, string>
 }
 
 /** Profile as returned by admin dashboard API endpoints (uses loose profileJson). */

@@ -2,21 +2,21 @@ import { useEffect, useState } from 'preact/hooks'
 import { Copy, Check, Trash2, Eye, EyeOff } from 'lucide-react'
 import { Layout } from '../components/Layout'
 import { useConfirmDialog } from '../components/ConfirmDialog'
+import { useT } from '../context/locale'
 import { apiFetch } from '../api/client'
 
 interface ApiKey { id: string; name: string; isActive: boolean; createdAt: string }
 interface NewKey { id: string; name: string; key: string; createdAt: string }
-
 interface Settings { allowedOrigins?: string[] }
 
 export function ApiConfig({ current }: { current: string }) {
-  // ── Allowed origins ──────────────────────────────────────────────────────────
+  const t = useT()
+
   const [origins, setOrigins] = useState<string[]>([])
   const [newOrigin, setNewOrigin] = useState('')
   const [originSaving, setOriginSaving] = useState(false)
   const [originError, setOriginError] = useState('')
 
-  // ── API tokens ───────────────────────────────────────────────────────────────
   const [keys, setKeys] = useState<ApiKey[]>([])
   const [keyName, setKeyName] = useState('')
   const [newKey, setNewKey] = useState<NewKey | null>(null)
@@ -27,7 +27,6 @@ export function ApiConfig({ current }: { current: string }) {
 
   const { requestConfirm, dialog } = useConfirmDialog()
 
-  // ── Load ─────────────────────────────────────────────────────────────────────
   useEffect(() => {
     apiFetch<Settings>('/settings')
       .then(s => setOrigins(s.allowedOrigins ?? []))
@@ -39,7 +38,6 @@ export function ApiConfig({ current }: { current: string }) {
       .finally(() => setLoadingKeys(false))
   }, [])
 
-  // ── Origins handlers ─────────────────────────────────────────────────────────
   const saveOrigins = async (updated: string[]) => {
     setOriginSaving(true)
     setOriginError('')
@@ -50,7 +48,7 @@ export function ApiConfig({ current }: { current: string }) {
       })
       setOrigins(updated)
     } catch {
-      setOriginError('Failed to save. Please try again.')
+      setOriginError(t('apiConfig.origins.errorSave'))
     } finally {
       setOriginSaving(false)
     }
@@ -59,7 +57,7 @@ export function ApiConfig({ current }: { current: string }) {
   const addOrigin = async () => {
     const value = newOrigin.trim().replace(/\/$/, '')
     if (!value) return
-    if (origins.includes(value)) { setOriginError('Already in the list.'); return }
+    if (origins.includes(value)) { setOriginError(t('apiConfig.origins.errorDuplicate')); return }
     setNewOrigin('')
     await saveOrigins([...origins, value])
   }
@@ -68,13 +66,12 @@ export function ApiConfig({ current }: { current: string }) {
     await saveOrigins(origins.filter(o => o !== origin))
   }
 
-  // ── Token handlers ───────────────────────────────────────────────────────────
   const loadKeys = () => {
     apiFetch<ApiKey[]>('/apikeys').then(setKeys).catch(() => {})
   }
 
   const createKey = async () => {
-    if (!keyName.trim()) { setKeyError('Name is required'); return }
+    if (!keyName.trim()) { setKeyError(t('apiConfig.tokens.errorName')); return }
     setKeyError('')
     try {
       const created = await apiFetch<NewKey>('/apikeys', {
@@ -87,14 +84,14 @@ export function ApiConfig({ current }: { current: string }) {
       setKeyName('')
       setKeys(prev => [...prev, { id: created.id, name: created.name, isActive: true, createdAt: created.createdAt }])
     } catch (e) {
-      setKeyError(e instanceof Error ? e.message : 'Failed to create token')
+      setKeyError(e instanceof Error ? e.message : t('apiConfig.tokens.errorCreate'))
     }
   }
 
   const revokeKey = async (id: string) => {
     const ok = await requestConfirm({
-      title: 'Revoke this API token?',
-      message: 'Any application using this token will immediately lose access.',
+      title: t('apiConfig.tokens.dialog.title'),
+      message: t('apiConfig.tokens.dialog.message'),
       danger: true,
     })
     if (!ok) return
@@ -116,22 +113,22 @@ export function ApiConfig({ current }: { current: string }) {
   }
 
   return (
-    <Layout title="API Configuration" current={current}>
+    <Layout title={t('apiConfig.title')} current={current}>
       {dialog}
 
       <div class="max-w-2xl space-y-6">
 
-        {/* ── Allowed Origins ──────────────────────────────────────────────── */}
         <div class="bg-white rounded-lg border border-gray-200 p-5">
-          <h2 class="text-sm font-semibold text-gray-700 mb-1">Allowed Origins</h2>
+          <h2 class="text-sm font-semibold text-gray-700 mb-1">{t('apiConfig.origins.heading')}</h2>
           <p class="text-xs text-gray-500 mb-4">
-            Only requests from these origins will receive consent data. Use <code class="bg-gray-100 px-1 rounded">*</code> to allow all (not recommended for production).
+            {t('apiConfig.origins.hint')}
           </p>
 
           <div class="flex gap-2 mb-3">
             <input
               type="text"
-              placeholder="https://example.com"
+              placeholder={t('apiConfig.origins.placeholder')}
+              aria-label={t('apiConfig.origins.placeholder')}
               value={newOrigin}
               onInput={e => { setNewOrigin((e.target as HTMLInputElement).value); setOriginError('') }}
               onKeyDown={e => e.key === 'Enter' && addOrigin()}
@@ -142,14 +139,14 @@ export function ApiConfig({ current }: { current: string }) {
               disabled={originSaving || !newOrigin.trim()}
               class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 disabled:opacity-50"
             >
-              Add
+              {t('common.add')}
             </button>
           </div>
 
-          {originError && <p class="text-xs text-red-600 mb-2">{originError}</p>}
+          {originError && <p role="alert" class="text-xs text-red-600 mb-2">{originError}</p>}
 
           {origins.length === 0 ? (
-            <p class="text-xs text-gray-400 py-3 text-center">No origins configured — all origins are currently allowed.</p>
+            <p class="text-xs text-gray-400 py-3 text-center">{t('apiConfig.origins.empty')}</p>
           ) : (
             <ul class="border border-gray-200 rounded divide-y divide-gray-100 text-sm">
               {origins.map(origin => (
@@ -158,10 +155,11 @@ export function ApiConfig({ current }: { current: string }) {
                   <button
                     onClick={() => removeOrigin(origin)}
                     disabled={originSaving}
+                    aria-label={`${t('apiConfig.origins.remove')} ${origin}`}
+                    title={t('apiConfig.origins.remove')}
                     class="text-gray-400 hover:text-red-600 opacity-0 group-hover:opacity-100 transition-opacity disabled:opacity-30"
-                    title="Remove"
                   >
-                    <Trash2 size={13} />
+                    <Trash2 size={13} aria-hidden="true" />
                   </button>
                 </li>
               ))}
@@ -169,18 +167,13 @@ export function ApiConfig({ current }: { current: string }) {
           )}
         </div>
 
-        {/* ── API Tokens ───────────────────────────────────────────────────── */}
         <div class="bg-white rounded-lg border border-gray-200 p-5">
-          <h2 class="text-sm font-semibold text-gray-700 mb-1">Admin API Tokens</h2>
-          <p class="text-xs text-gray-500 mb-4">
-            Bearer tokens for server-side and CI/CD access to the Consenti <strong>admin</strong> API.
-            Pass as <code class="font-mono bg-gray-100 px-1 rounded">Authorization: Bearer &lt;token&gt;</code>.
-            Never expose in client-side code — these grant full admin access.
-          </p>
+          <h2 class="text-sm font-semibold text-gray-700 mb-1">{t('apiConfig.tokens.heading')}</h2>
+          <p class="text-xs text-gray-500 mb-4">{t('apiConfig.tokens.hint')}</p>
 
           {newKey && (
             <div class="mb-4 p-3 bg-green-50 border border-green-200 rounded">
-              <p class="text-xs font-medium text-green-800 mb-2">Token created — copy it now, it won't be shown again.</p>
+              <p class="text-xs font-medium text-green-800 mb-2">{t('apiConfig.tokens.created')}</p>
               <div class="flex items-center gap-2">
                 <code class={`flex-1 text-xs font-mono text-green-700 break-all ${showNewKey ? '' : 'blur-sm select-none'}`}>
                   {newKey.key}
@@ -188,18 +181,20 @@ export function ApiConfig({ current }: { current: string }) {
                 <button
                   type="button"
                   onClick={() => setShowNewKey(s => !s)}
+                  aria-label={showNewKey ? t('common.hide') : t('common.show')}
+                  title={showNewKey ? t('common.hide') : t('common.show')}
                   class="shrink-0 text-gray-500 hover:text-gray-700"
-                  title={showNewKey ? 'Hide' : 'Show'}
                 >
-                  {showNewKey ? <EyeOff size={14} /> : <Eye size={14} />}
+                  {showNewKey ? <EyeOff size={14} aria-hidden="true" /> : <Eye size={14} aria-hidden="true" />}
                 </button>
                 <button
                   type="button"
                   onClick={copyKey}
+                  aria-label={t('common.copyToClipboard')}
+                  title={t('common.copyToClipboard')}
                   class="shrink-0 text-gray-500 hover:text-green-700"
-                  title="Copy to clipboard"
                 >
-                  {keyCopied ? <Check size={14} className="text-green-600" /> : <Copy size={14} />}
+                  {keyCopied ? <Check size={14} className="text-green-600" aria-hidden="true" /> : <Copy size={14} aria-hidden="true" />}
                 </button>
               </div>
             </div>
@@ -208,7 +203,8 @@ export function ApiConfig({ current }: { current: string }) {
           <div class="flex gap-2 mb-4">
             <input
               type="text"
-              placeholder="Token name (e.g. CI deploy)"
+              placeholder={t('apiConfig.tokens.placeholder')}
+              aria-label={t('apiConfig.tokens.placeholder')}
               value={keyName}
               onInput={e => setKeyName((e.target as HTMLInputElement).value)}
               onKeyDown={e => e.key === 'Enter' && createKey()}
@@ -218,23 +214,23 @@ export function ApiConfig({ current }: { current: string }) {
               onClick={createKey}
               class="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700"
             >
-              Create
+              {t('common.create')}
             </button>
           </div>
-          {keyError && <p class="text-xs text-red-600 mb-2">{keyError}</p>}
+          {keyError && <p role="alert" class="text-xs text-red-600 mb-2">{keyError}</p>}
 
           {!loadingKeys && keys.length === 0 && (
-            <p class="text-xs text-gray-400 py-3 text-center">No tokens yet.</p>
+            <p class="text-xs text-gray-400 py-3 text-center">{t('apiConfig.tokens.empty')}</p>
           )}
 
           {keys.length > 0 && (
             <table class="w-full text-xs border border-gray-200 rounded overflow-hidden">
               <thead class="bg-gray-50">
                 <tr>
-                  <th class="text-left px-3 py-2 text-gray-600 font-medium">Name</th>
-                  <th class="text-left px-3 py-2 text-gray-600 font-medium">Status</th>
-                  <th class="text-left px-3 py-2 text-gray-600 font-medium">Created</th>
-                  <th class="px-3 py-2" />
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600 font-medium">{t('apiConfig.tokens.col.name')}</th>
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600 font-medium">{t('apiConfig.tokens.col.status')}</th>
+                  <th scope="col" class="text-left px-3 py-2 text-gray-600 font-medium">{t('apiConfig.tokens.col.created')}</th>
+                  <th scope="col" class="px-3 py-2" />
                 </tr>
               </thead>
               <tbody class="divide-y divide-gray-100">
@@ -243,7 +239,7 @@ export function ApiConfig({ current }: { current: string }) {
                     <td class="px-3 py-2 font-mono">{k.name}</td>
                     <td class="px-3 py-2">
                       <span class={`font-medium ${k.isActive ? 'text-green-600' : 'text-gray-400'}`}>
-                        {k.isActive ? 'Active' : 'Revoked'}
+                        {k.isActive ? t('apiConfig.tokens.status.active') : t('apiConfig.tokens.status.revoked')}
                       </span>
                     </td>
                     <td class="px-3 py-2 text-gray-500">{new Date(k.createdAt).toLocaleDateString()}</td>
@@ -253,7 +249,7 @@ export function ApiConfig({ current }: { current: string }) {
                           onClick={() => revokeKey(k.id)}
                           class="text-red-500 hover:underline"
                         >
-                          Revoke
+                          {t('common.revoke')}
                         </button>
                       )}
                     </td>

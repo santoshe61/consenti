@@ -8,6 +8,11 @@ export default function TCFPage() {
   return (
     <div className="prose max-w-none">
       <h1>TCF v2.2 Implementation Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>general-privacy-consent</code> — full-flexibility mode for
+        programmatic advertising consent via IAB Europe's TCF framework.
+        Use <code>compliance: {'{ type: \'general-privacy-consent\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         IAB Europe's Transparency and Consent Framework (TCF) v2.2 is the standard for programmatic advertising consent.
         It is required for CMPs operating in the IAB ecosystem (RTB, DSPs, SSPs).

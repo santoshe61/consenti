@@ -1,4 +1,6 @@
 import { useState } from 'preact/hooks'
+import { CountrySelecter } from './CountrySelecter'
+import { useT } from '../context/locale'
 
 interface Props {
   locales: string[]
@@ -9,16 +11,14 @@ interface Props {
 }
 
 export function LocaleTabBar({ locales, defaultLocale, activeLocale, onSelect, onAdd }: Props) {
-  const [showInput, setShowInput] = useState(false)
-  const [newLocale, setNewLocale] = useState('')
+  const t = useT()
+  const [showPicker, setShowPicker] = useState(false)
 
-  const handleAdd = () => {
-    const l = newLocale.trim().toLowerCase()
-    if (l && !locales.includes(l)) {
-      onAdd(l)
-      setNewLocale('')
-      setShowInput(false)
+  const handleSelect = (locale: string) => {
+    if (locale && !locales.includes(locale)) {
+      onAdd(locale)
     }
+    setShowPicker(false)
   }
 
   return (
@@ -35,29 +35,31 @@ export function LocaleTabBar({ locales, defaultLocale, activeLocale, onSelect, o
         >
           {locale.toUpperCase()}
           {locale === defaultLocale && (
-            <span class="ml-1 text-xs text-gray-400">(default)</span>
+            <span class="ml-1 text-xs text-gray-400">{t('profileEditor.content.defaultLocaleLabel')}</span>
           )}
         </button>
       ))}
-      {showInput ? (
-        <div class="flex items-center gap-1 ml-2">
-          <input
-            class="border border-gray-300 rounded px-2 py-1 text-xs w-20"
-            placeholder="e.g. fr"
-            value={newLocale}
-            onInput={e => setNewLocale((e.target as HTMLInputElement).value)}
-            onKeyDown={e => e.key === 'Enter' && handleAdd()}
-            autoFocus
+      {showPicker ? (
+        <div class="flex items-center gap-1.5 ml-2 relative z-10">
+          <CountrySelecter
+            value=""
+            onChange={handleSelect}
+            placeholder={t('profileEditor.content.selectLocale')}
+            class="w-52"
           />
-          <button onClick={handleAdd} class="text-xs text-blue-600 hover:underline">Add</button>
-          <button onClick={() => setShowInput(false)} class="text-xs text-gray-400 hover:underline">Cancel</button>
+          <button
+            onClick={() => setShowPicker(false)}
+            class="text-xs text-gray-400 hover:underline px-1"
+          >
+            {t('common.cancel')}
+          </button>
         </div>
       ) : (
         <button
-          onClick={() => setShowInput(true)}
+          onClick={() => setShowPicker(true)}
           class="px-2 py-2 text-xs text-gray-400 hover:text-blue-600 transition-colors -mb-px border-b-2 border-transparent"
         >
-          + Add locale
+          {t('profileEditor.content.addLocale')}
         </button>
       )}
     </div>

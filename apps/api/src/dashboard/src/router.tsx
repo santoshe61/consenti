@@ -4,6 +4,7 @@ import { Login } from './pages/Login'
 import { Dashboard } from './pages/Dashboard'
 import { ProfileList } from './pages/ProfileList'
 import { ProfileEditor } from './pages/ProfileEditor'
+import { ProfileVersionHistory } from './pages/ProfileVersionHistory'
 import { CookieTemplateList } from './pages/CookieTemplateList'
 import { CookieTemplateEditor } from './pages/CookieTemplateEditor'
 import { UITemplateList } from './pages/UITemplateList'
@@ -19,6 +20,7 @@ import { Settings } from './pages/Settings'
 import { ChangePassword } from './pages/ChangePassword'
 import { ApiConfig } from './pages/ApiConfig'
 import { ApiDocs } from './pages/ApiDocs'
+import { HowItWorks } from './pages/HowItWorks'
 
 function getHash(): string {
   return window.location.hash || '#/'
@@ -47,6 +49,10 @@ export function Router() {
   if (hash === '#/' || hash === '#') return <Dashboard current={hash} />
   if (hash === '#/banners/profiles') return <ProfileList current={hash} />
   if (hash === '#/banners/profiles/new') return <ProfileEditor current={hash} />
+  {
+    const historyMatch = hash.match(/^#\/banners\/profiles\/([^/]+)\/history$/)
+    if (historyMatch) return <ProfileVersionHistory id={historyMatch[1]!} current={hash} />
+  }
   if (hash.startsWith('#/banners/profiles/')) return <ProfileEditor id={hash.slice('#/banners/profiles/'.length)} current={hash} />
   if (hash === '#/banners/cookie-templates') return <CookieTemplateList current={hash} />
   if (hash === '#/banners/cookie-templates/new') return <CookieTemplateEditor current={hash} />
@@ -65,6 +71,7 @@ export function Router() {
   if (hash === '#/api/docs') return <ApiDocs current={hash} />
   if (hash === '#/settings') return <Settings current={hash} />
   if (hash === '#/settings/change-password') return <ChangePassword current={hash} />
+  if (hash === '#/how-it-works') return <HowItWorks current={hash} />
 
   return <Dashboard current="#/" />
 }

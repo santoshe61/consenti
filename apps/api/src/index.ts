@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises'
 import { join, extname, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PluginEngine } from './core/plugin-engine'
+import { buildConsentiRuntimeConfig, buildConsentiConfigScript, injectConfigScript } from './utils/handle-config'
 import { startGvlRefresh, stopGvlRefresh } from './tcf/gvl-cache'
 import { OPENAPI_PUBLIC_SPEC, OPENAPI_ADMIN_SPEC } from './openapi/spec'
 import { BetterSqlite3Adapter } from './storage/sqlite/better-sqlite3.adapter'
@@ -18,6 +19,8 @@ import { VisitorRepo } from './repositories/visitor.repo'
 import { AuditRepo } from './repositories/audit.repo'
 import { UserRepo } from './repositories/user.repo'
 import { ProfileService } from './services/profile.service'
+import { GeoResolverService } from './services/geo-resolver.service'
+import { LocaleJsonCacheService } from './services/locale-json-cache.service'
 import { ConsentService } from './services/consent.service'
 import { VisitorService } from './services/visitor.service'
 import { UserService } from './services/user.service'
@@ -38,12 +41,15 @@ import { buildAdminTenantRoutes } from './routes/admin/tenants.routes'
 import { buildAdminTcfRoutes } from './routes/admin/tcf.routes'
 import { buildAdminCookieTemplateRoutes } from './routes/admin/cookie-templates.routes'
 import { buildAdminUITemplateRoutes } from './routes/admin/ui-templates.routes'
+import { buildAdminAnalyticsRoutes } from './routes/admin/analytics.routes'
+import { resolveStoragePaths } from './utils/storage-path'
 import { resolveTenant } from './middleware/tenant.middleware'
 import { RateLimiter } from './middleware/rate-limit.middleware'
 import { handleCors, withCors, addSecurityHeaders } from './middleware/cors.middleware'
 import { errorResponse } from './middleware/error.middleware'
 import { nodeRequestToFetch, fetchResponseToNode, PayloadTooLargeError } from './utils/http'
 import type { ConsentiServerConfig, StorageAdapter, StorageConfig } from '@consenti/types'
+import { EMBEDDED_COMPLIANCE_MAP } from '@consenti/utils'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 
 // ── Path resolution ────────────────────────────────────────────────────────────
@@ -72,6 +78,7 @@ async function tryServeDashboard(
   basePath: string,
   dashboardDir: string,
   res: ServerResponse,
+  configScript: string,
 ): Promise<boolean> {
   const rel = pathname.slice(basePath.length) || '/'
   if (rel.startsWith('/api/') || rel.startsWith('/admin/')) return false
@@ -81,10 +88,12 @@ async function tryServeDashboard(
   // directory traversal guard
   if (!target.startsWith(dashboardDir)) return false
   try {
-    const data = await readFile(target)
-    const ct = MIME[extname(target).toLowerCase()] ?? 'application/octet-stream'
+    const raw = await readFile(target)
+    const ext = extname(target).toLowerCase()
+    const isHtml = ext === '.html' || ext === ''
+    const ct = MIME[ext] ?? 'application/octet-stream'
     res.writeHead(200, { 'Content-Type': ct })
-    res.end(data)
+    res.end(isHtml ? injectConfigScript(raw, configScript) : raw)
     return true
   } catch {
     return false
@@ -263,7 +272,6 @@ const DEFAULT_CONFIG: ConsentiServerConfig = {
     driver: (process.env['CONSENTI_DB_DRIVER'] as StorageConfig['driver'] | undefined) ?? 'json',
     path: process.env['CONSENTI_DB_PATH'] ?? './consenti-data.json',
     ...(process.env['CONSENTI_DB_URI'] ? { uri: process.env['CONSENTI_DB_URI'] } : {}),
-    ...(process.env['CONSENTI_DB_NAME'] ? { dbName: process.env['CONSENTI_DB_NAME'] } : {}),
     ...(process.env['CONSENTI_DB_DATABASE'] ? { database: process.env['CONSENTI_DB_DATABASE'] } : {}),
     ...(process.env['CONSENTI_DB_HOST'] ? { host: process.env['CONSENTI_DB_HOST'] } : {}),
     ...(process.env['CONSENTI_DB_PORT'] ? { port: Number(process.env['CONSENTI_DB_PORT']) } : {}),
@@ -280,6 +288,11 @@ const DEFAULT_CONFIG: ConsentiServerConfig = {
     windowMs: process.env['CONSENTI_RATE_LIMIT_WINDOW_MS'] ? Number(process.env['CONSENTI_RATE_LIMIT_WINDOW_MS']) : 60_000,
     maxRequests: process.env['CONSENTI_RATE_LIMIT_MAX_REQUESTS'] ? Number(process.env['CONSENTI_RATE_LIMIT_MAX_REQUESTS']) : 60,
   },
+  branding: {
+    appLogoPath: "./logo-dark.svg",
+    appName: "Consenti",
+    hidePoweredBy: false,
+  }
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────────
@@ -314,6 +327,12 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   const storageConfig = config.storage!
   const authConfig = config.auth!
 
+  const storagePaths = resolveStoragePaths(
+    storageConfig.path ?? './consenti-data',
+    storageConfig.driver ?? 'json',
+  )
+  const profilesDir = storagePaths.profilesDir
+
   const storage = createStorageAdapter(storageConfig)
   const eventBus = new EventEmitter()
 
@@ -326,8 +345,27 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   const pluginEngine = new PluginEngine()
   if (config.plugins?.length) pluginEngine.register(config.plugins)
 
-  const profileService = new ProfileService(profileRepo, auditRepo, 'default', storage)
-  const visitorService = new VisitorService(visitorRepo)
+  const compliance = config.compliance ?? {}
+  const complianceType = compliance.type ?? 'auto'
+  const needsGeo = complianceType === 'auto'
+
+  const localeCache = (config as { localeJsonCache?: { enabled?: boolean; dir?: string } }).localeJsonCache?.enabled
+    ? new LocaleJsonCacheService((config as { localeJsonCache?: { dir?: string } }).localeJsonCache!.dir!)
+    : undefined
+
+  const geoResolver = needsGeo
+    ? new GeoResolverService(compliance.geoDataProvider ?? 'default', EMBEDDED_COMPLIANCE_MAP)
+    : undefined
+
+  if (complianceType === 'auto' && !compliance.geoDataProvider) {
+    console.info("[Consenti] compliance.geoDataProvider not set — defaulting to timezone+language heuristic")
+  }
+  if (complianceType !== 'auto' && compliance.geoDataProvider) {
+    console.warn('[Consenti] compliance.geoDataProvider is ignored when compliance.type is a fixed group')
+  }
+
+  const profileService = new ProfileService(profileRepo, auditRepo, 'default', storage, eventBus, localeCache, profilesDir, config.handleCache, config.s3Api)
+  const visitorService = new VisitorService(visitorRepo, 'default', eventBus)
   const consentService = new ConsentService(
     consentRepo, visitorRepo, profileRepo, auditRepo, 'default', config.compliance,
     pluginEngine, eventBus, config.tcf,
@@ -355,6 +393,12 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
 
   const dashboardEnabled = !!config.dashboard
   const dashboardDir = join(DIST_DIR, 'dashboard')
+
+  const configScript = dashboardEnabled
+    ? buildConsentiConfigScript(
+      buildConsentiRuntimeConfig(dashboardDir, basePath, config.branding, config.compliance),
+    )
+    : ''
 
   const swaggerHtml = `<!DOCTYPE html><html><head><title>Consenti API Docs</title>
 <link rel="stylesheet" href="https://unpkg.com/swagger-ui-dist@5.17.14/swagger-ui.css" crossorigin="anonymous"></head>
@@ -389,7 +433,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
         prefix: apiBase,
         rateLimit: true,
         routes: {
-          ...buildProfileRoutes(profileService),
+          ...buildProfileRoutes(profileService, geoResolver, profilesDir, apiBase),
           ...buildConsentRoutes(consentService, visitorService, profileService, resolveTenantId),
         },
       },
@@ -413,6 +457,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
           ...buildAdminTcfRoutes(storage, authConfig, adminSecret),
           ...buildAdminCookieTemplateRoutes(storage, authConfig, adminSecret),
           ...buildAdminUITemplateRoutes(storage, authConfig, adminSecret),
+          ...buildAdminAnalyticsRoutes(storage, authConfig, adminSecret),
         },
       },
     ],
@@ -420,6 +465,12 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   )
 
   let retentionTimer: ReturnType<typeof setInterval> | null = null
+
+  // Resolves after storage.connect() + bootstrap() complete — consumers can await
+  // this before accepting requests to guarantee the admin user already exists.
+  let resolveReady!: () => void
+  let rejectReady!: (err: unknown) => void
+  const ready = new Promise<void>((res, rej) => { resolveReady = res; rejectReady = rej })
 
   storage
     .connect()
@@ -429,6 +480,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
       }
       await pluginEngine.initialize({ storage, config })
       eventBus.emit('ready')
+      resolveReady()
 
       if (config.tcf?.enabled) {
         startGvlRefresh()
@@ -443,7 +495,10 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
         retentionTimer = setInterval(() => { void purge() }, 24 * 60 * 60_000)
       }
     })
-    .catch((err: unknown) => console.warn('[consenti] Storage connection failed:', err))
+    .catch((err: unknown) => {
+      console.warn('[consenti] Storage connection failed:', err)
+      rejectReady(err)
+    })
 
   async function nodeHandler(req: IncomingMessage, res: ServerResponse): Promise<void> {
     try {
@@ -453,7 +508,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
       const url = new URL(req.url ?? '/', `${proto}://${host}`)
 
       if (dashboardEnabled && url.pathname.startsWith(basePath)) {
-        const served = await tryServeDashboard(url.pathname, basePath, dashboardDir, res)
+        const served = await tryServeDashboard(url.pathname, basePath, dashboardDir, res, configScript)
         if (served) return
       }
 
@@ -488,7 +543,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
         try {
           const html = await readFile(join(dashboardDir, 'index.html'))
           res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' })
-          res.end(html)
+          res.end(injectConfigScript(html, configScript))
           return
         } catch {
           // dashboard not built — fall through
@@ -523,7 +578,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
     return nodeHandler(req, res)
   }
 
-  const fastifyPlugin = async (
+  const fastifyHandler = async (
     fastify: {
       all: (
         path: string,
@@ -537,7 +592,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
       reply.hijack()
     })
   }
-  Object.defineProperty(fastifyPlugin, Symbol.for('skip-override'), { value: true })
+  Object.defineProperty(fastifyHandler, Symbol.for('skip-override'), { value: true })
 
   const fetchHandler = async (request: Request): Promise<Response> => {
     if (dashboardEnabled) {
@@ -551,13 +606,18 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
             return new Response('Forbidden', { status: 403 })
           }
           try {
-            const data = await readFile(target)
-            const ct = MIME[extname(target).toLowerCase()] ?? 'application/octet-stream'
-            return new Response(data, { headers: { 'Content-Type': ct } })
+            const raw = await readFile(target)
+            const ext = extname(target).toLowerCase()
+            const isHtml = ext === '.html' || ext === ''
+            const ct = MIME[ext] ?? 'application/octet-stream'
+            const body = isHtml ? injectConfigScript(raw, configScript) : raw
+            return new Response(body, { headers: { 'Content-Type': ct } })
           } catch {
             try {
               const html = await readFile(join(dashboardDir, 'index.html'))
-              return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8' } })
+              return new Response(injectConfigScript(html, configScript), {
+                headers: { 'Content-Type': 'text/html; charset=utf-8' },
+              })
             } catch {
               return new Response(
                 'Dashboard not built. Run: npm run build --workspace=apps/api',
@@ -583,11 +643,12 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   return {
     router,
     handler,
-    fastifyPlugin,
+    fastifyHandler,
     honoApp,
     services,
     storage: storage as StorageAdapter,
     eventBus,
+    ready,
     destroy: async () => {
       if (retentionTimer) clearInterval(retentionTimer)
       if (config.tcf?.enabled) stopGvlRefresh()
@@ -603,6 +664,7 @@ export { PostgreSQLAdapter } from './storage/postgresql/postgresql.adapter'
 
 export type {
   ConsentiServerConfig,
+  BrandingConfig,
   StorageAdapter,
   Profile,
   ConsentDbRecord,

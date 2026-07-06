@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'preact/hooks'
 import { apiFetch } from '../api/client'
+import { debounce } from '../../../utils/debounce'
 
 export interface PickedVendor {
   id: number
@@ -23,7 +24,6 @@ export function VendorPicker({ vendorId, vendorName, onSelect, disabled }: Props
   const [results, setResults] = useState<PickedVendor[]>([])
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -45,12 +45,11 @@ export function VendorPicker({ vendorId, vendorName, onSelect, disabled }: Props
       .finally(() => setLoading(false))
   }
 
-  const handleInput = (q: string) => {
+  const handleChange = debounce((q: string) => {
     setQuery(q)
     setOpen(true)
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => search(q), 250)
-  }
+    search(q)
+  }, 500)
 
   const select = (v: PickedVendor) => {
     onSelect(v)
@@ -86,7 +85,7 @@ export function VendorPicker({ vendorId, vendorName, onSelect, disabled }: Props
         value={query}
         placeholder="Search vendor…"
         disabled={disabled}
-        onInput={e => handleInput((e.target as HTMLInputElement).value)}
+        onChange={e => handleChange((e.target as HTMLInputElement).value)}
         onFocus={() => { if (query) setOpen(true) }}
         class="border border-gray-300 rounded px-2 py-1 text-xs w-36 disabled:bg-gray-50"
       />

@@ -6,7 +6,7 @@
  *
  * Intended for **Next.js** (App Router and Pages Router) and any other React 18+
  * project where you manage the `ConsentiSetup` instance yourself and want the
- * `useConsent()` hook to re-render when consent changes.
+ * `useConsent()` hook to re-render when consent or UI state changes.
  *
  * @example
  * ```tsx
@@ -18,7 +18,9 @@
  *
  * export function ConsentiProvider({ children }: { children: React.ReactNode }) {
  *   useEffect(() => {
- *     const widget = new ConsentiSetup({ core: { profileId: 0 } })
+ *     const widget = new ConsentiSetup({
+ *       api: { enabled: true, baseUrl: process.env.NEXT_PUBLIC_API_URL },
+ *     })
  *     setConsentiWidget(widget)
  *   }, [])
  *   return <>{children}</>
@@ -27,10 +29,10 @@
  * // Any component
  * import { useConsent } from '@consenti/ui/react'
  *
- * function CookieBanner() {
- *   const { hasConsent, submitConsent } = useConsent()
- *   if (hasConsent()) return null
- *   return <button onClick={() => submitConsent({ analytics: 'granted' })}>Accept</button>
+ * function CookieStatus() {
+ *   const { hasConsent, consent, showModal } = useConsent()
+ *   if (!hasConsent) return <button onClick={showModal}>Manage Cookies</button>
+ *   return <span>{consent?.analytics === 'granted' ? 'Analytics on' : 'Analytics off'}</span>
  * }
  * ```
  */
@@ -57,43 +59,111 @@ export function setConsentiWidget(widget: ConsentiSetup): void {
 }
 
 /**
- * React hook that exposes consent state and lets components react to consent changes.
+ * React hook that exposes consent state, banner/modal visibility, and widget actions.
  *
- * Subscribes to `consenti:consentSubmitted` on `window` and triggers a re-render
- * each time consent is updated. Returns SSR-safe fallback values during server render.
+ * Subscribes to `consenti:consentSubmitted`, `consenti:bannerVisibility`, and
+ * `consenti:modalVisibility` on `window` and triggers re-renders on each event.
+ * Returns SSR-safe initial values during server render.
  *
- * @returns An object with `hasConsent`, `getConsent`, `submitConsent`, and `getConsentDate`.
+ * Destructure only what you need — unused values do not cause extra renders.
+ *
+ * @returns Consent state values and widget action functions.
  */
 export function useConsent() {
   const isServer = typeof window === 'undefined'
 
-  const [, forceUpdate] = useState(0)
+  const [hasConsent, setHasConsent] = useState<boolean>(() =>
+    !isServer ? (_widget?.hasConsent() ?? false) : false,
+  )
+  const [consent, setConsent] = useState<ConsentValue | null>(() =>
+    !isServer ? (_widget?.getConsent() ?? null) : null,
+  )
+  const [consentDate, setConsentDate] = useState<Date | false>(() =>
+    !isServer ? (_widget?.getConsentDate() ?? false) : false,
+  )
+  const [bannerVisible, setBannerVisible] = useState<'main' | 'gpc' | false>(false)
+  const [modalVisible, setModalVisible] = useState<'preference' | false>(false)
 
   useEffect(() => {
     if (!_widget) return
-    const handler = () => forceUpdate((n) => n + 1)
-    window.addEventListener('consenti:consentSubmitted', handler)
-    return () => window.removeEventListener('consenti:consentSubmitted', handler)
+
+    const onConsent = () => {
+      setHasConsent(_widget?.hasConsent() ?? false)
+      setConsent(_widget?.getConsent() ?? null)
+      setConsentDate(_widget?.getConsentDate() ?? false)
+    }
+    const onBanner = () => setBannerVisible(_widget?.bannerVisibility() ?? false)
+    const onModal  = () => setModalVisible(_widget?.modalVisibility() ?? false)
+
+    window.addEventListener('consenti:consentSubmitted', onConsent)
+    window.addEventListener('consenti:bannerVisibility',  onBanner)
+    window.addEventListener('consenti:modalVisibility',   onModal)
+
+    return () => {
+      window.removeEventListener('consenti:consentSubmitted', onConsent)
+      window.removeEventListener('consenti:bannerVisibility',  onBanner)
+      window.removeEventListener('consenti:modalVisibility',   onModal)
+    }
   }, [])
 
+  // ── SSR-safe fallback ──────────────────────────────────────────────────────
   if (isServer) {
     return {
-      hasConsent: () => false as boolean,
-      getConsent: () => null as ConsentValue | null,
-      submitConsent: async (_consent: Partial<ConsentValue>) => {},
-      getConsentDate: () => false as Date | false,
+      hasConsent:   false as boolean,
+      consent:      null  as ConsentValue | null,
+      consentDate:  false as Date | false,
+      bannerVisible: false as 'main' | 'gpc' | false,
+      modalVisible:  false as 'preference' | false,
+      showBanner:   (_gpc?: boolean) => {},
+      hideBanner:   () => {},
+      showModal:    () => {},
+      hideModal:    () => {},
+      grantAll:     (_onlyMandatory?: boolean) => Promise.resolve(),
+      denyAll:      (_includingMandatory?: boolean) => Promise.resolve(),
+      submitConsent: (_c: Partial<ConsentValue>) => Promise.resolve(),
+      reConsent:    () => Promise.resolve(),
+      isCookieGranted:   (_id: string) => false as boolean,
+      isCategoryGranted: (_id: string) => false as boolean,
+      switchLocale: (_locale: string) => {},
     }
   }
 
+  // ── Client ────────────────────────────────────────────────────────────────
   return {
-    /** Returns `true` if the visitor has saved consent. */
-    hasConsent: () => _widget?.hasConsent() ?? false,
-    /** Returns the stored consent map, or `null`. */
-    getConsent: () => _widget?.getConsent() ?? null,
-    /** Saves the given partial consent map. Missing keys default to `'denied'`. */
-    submitConsent: (consent: Partial<ConsentValue>) =>
-      _widget?.submitConsent(consent) ?? Promise.resolve(),
-    /** Returns the `Date` of last consent submission, or `false`. */
-    getConsentDate: () => _widget?.getConsentDate() ?? false,
+    /** `true` if the visitor has saved a valid consent record. */
+    hasConsent,
+    /** The stored consent map (`Record<cookieId, status>`), or `null` before first submission. */
+    consent,
+    /** `Date` of the last consent submission, or `false` if no consent exists. */
+    consentDate,
+    /** Current banner state: `'main'`, `'gpc'`, or `false` (hidden). */
+    bannerVisible,
+    /** Current modal state: `'preference'` or `false` (hidden). */
+    modalVisible,
+
+    /** Shows the consent banner. Pass `true` to force the GPC variant. */
+    showBanner: (gpc?: boolean) => _widget?.showBanner(gpc),
+    /** Hides the consent banner. */
+    hideBanner: () => _widget?.hideBanner(),
+    /** Opens the preference modal. */
+    showModal: () => _widget?.showModal(),
+    /** Closes the preference modal. */
+    hideModal: () => _widget?.hideModal(),
+
+    /** Grants all non-mandatory cookies. Pass `true` to grant only mandatory ones and deny the rest. */
+    grantAll: (onlyMandatory?: boolean) => _widget?.grantAll(onlyMandatory) ?? Promise.resolve(),
+    /** Denies all non-mandatory cookies. Pass `true` to deny mandatory ones too (use with care). */
+    denyAll: (includingMandatory?: boolean) => _widget?.denyAll(includingMandatory) ?? Promise.resolve(),
+    /** Saves the given partial consent map. */
+    submitConsent: (c: Partial<ConsentValue>) => _widget?.submitConsent(c) ?? Promise.resolve(),
+    /** Deletes the current consent record and re-shows the banner. */
+    reConsent: () => _widget?.reConsent() ?? Promise.resolve(),
+
+    /** Returns `true` if the given cookie ID is `'granted'`. */
+    isCookieGranted: (id: string) => (_widget?.isCookieGranted(id) ?? false) as boolean,
+    /** Returns `true` if every cookie in the given category is `'granted'`. */
+    isCategoryGranted: (id: string) => (_widget?.isCategoryGranted(id) ?? false) as boolean,
+    /** Switches the active locale and re-renders the banner and modal. */
+    switchLocale: (locale: string) => _widget?.switchLocale(locale),
   }
 }

@@ -2,16 +2,26 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'CCPA / US State Privacy Laws' }
+export const metadata: Metadata = {
+  title: 'CCPA / US State Privacy Laws',
+  description: 'Implement CCPA, CPRA, and US state privacy law consent with Consenti. Opt-out mode, GPC signal detection, do-not-sell flows, and state-level geo-detection.',
+  keywords: ['CCPA', 'CPRA', 'CCPA compliance', 'opt-out consent', 'GPC', 'do not sell', 'California privacy', 'US state privacy laws'],
+  alternates: { canonical: 'https://consenti.dev/docs/compliance/ccpa' },
+}
 
 export default function CCPAPage() {
   return (
     <div className="prose max-w-none">
       <h1>CCPA / US State Privacy Laws Guide</h1>
+      <Callout type="info">
+        <strong>Compliance group:</strong> <code>opt-out</code> — consent written silently; no banner
+        unless the user visits a "Do Not Sell" page.
+        Use <code>compliance: {'{ type: \'opt-out\' }'}</code> in your <code>ConsentiSetup</code> config.
+      </Callout>
       <p>
         Consenti supports opt-out consent models required by CCPA, VCDPA, CPA, CTDPA, TDPSA, and similar US state laws.
       </p>
-      <Callout type="info">
+      <Callout type="warning">
         <strong>CCPA was superseded by CPRA on 1 January 2023.</strong> If you operate in California,
         see the <a href="/docs/compliance/cpra/">CPRA guide</a> for the current requirements,
         including the new &quot;Do Not Share&quot; obligation and sensitive data categories.

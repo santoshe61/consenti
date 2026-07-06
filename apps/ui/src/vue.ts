@@ -15,14 +15,17 @@
  * import { setConsentiWidget } from '@consenti/ui/vue'
  *
  * export default defineNuxtPlugin(() => {
- *   const widget = new ConsentiSetup({ core: { profileId: 0 } })
+ *   const widget = new ConsentiSetup({
+ *     api: { enabled: true, baseUrl: useRuntimeConfig().public.apiUrl },
+ *   })
  *   setConsentiWidget(widget)
  * })
  *
  * // Any component
  * import { useConsent } from '@consenti/ui/vue'
  *
- * const { hasConsent, submitConsent } = useConsent()
+ * const { hasConsent, consent, showModal } = useConsent()
+ * // hasConsent, consent, bannerVisible, modalVisible are Refs — reactive in templates
  * ```
  */
 
@@ -48,57 +51,82 @@ export function setConsentiWidget(widget: ConsentiSetup): void {
 }
 
 /**
- * Vue 3 composable that exposes consent state and triggers reactivity on consent changes.
+ * Vue 3 composable that exposes consent state, banner/modal visibility, and widget actions.
  *
- * Listens to `consenti:consentSubmitted` on `window` via `onMounted` / `onUnmounted`
- * and increments a `ref(tick)` counter. Reactive getters read `tick.value` to register
- * a Vue dependency so components re-render when consent changes.
+ * State values (`hasConsent`, `consent`, `consentDate`, `bannerVisible`, `modalVisible`) are
+ * Vue `Ref`s — they are reactive in templates and `watch`/`computed` without calling `.value`
+ * in the template (Vue auto-unwraps top-level refs).
  *
- * Returns SSR-safe fallback values during Nuxt server render.
+ * Event listeners are registered in `onMounted` and removed in `onUnmounted`, so this
+ * composable is safe to call in components that render on the server (Nuxt SSR): the refs
+ * simply hold their initial values (`false` / `null`) during SSR and hydrate correctly.
  *
- * @returns An object with `hasConsent`, `getConsent`, `submitConsent`, and `getConsentDate`.
+ * @returns Reactive refs for consent state and plain functions for widget actions.
  */
 export function useConsent() {
-  const isServer = typeof window === 'undefined'
+  const hasConsent   = ref<boolean>(_widget?.hasConsent() ?? false)
+  const consent      = ref<ConsentValue | null>(_widget?.getConsent() ?? null)
+  const consentDate  = ref<Date | false>(_widget?.getConsentDate() ?? false)
+  const bannerVisible = ref<'main' | 'gpc' | false>(false)
+  const modalVisible  = ref<'preference' | false>(false)
 
-  const tick = ref(0)
-  const handler = () => { tick.value++ }
+  const onConsent = () => {
+    hasConsent.value  = _widget?.hasConsent() ?? false
+    consent.value     = _widget?.getConsent() ?? null
+    consentDate.value = _widget?.getConsentDate() ?? false
+  }
+  const onBanner = () => { bannerVisible.value = _widget?.bannerVisibility() ?? false }
+  const onModal  = () => { modalVisible.value  = _widget?.modalVisibility() ?? false }
 
   onMounted(() => {
-    window.addEventListener('consenti:consentSubmitted', handler)
+    if (typeof window === 'undefined') return
+    window.addEventListener('consenti:consentSubmitted', onConsent)
+    window.addEventListener('consenti:bannerVisibility',  onBanner)
+    window.addEventListener('consenti:modalVisibility',   onModal)
   })
 
   onUnmounted(() => {
-    window.removeEventListener('consenti:consentSubmitted', handler)
+    if (typeof window === 'undefined') return
+    window.removeEventListener('consenti:consentSubmitted', onConsent)
+    window.removeEventListener('consenti:bannerVisibility',  onBanner)
+    window.removeEventListener('consenti:modalVisibility',   onModal)
   })
 
-  if (isServer) {
-    return {
-      hasConsent: () => false as boolean,
-      getConsent: () => null as ConsentValue | null,
-      submitConsent: async (_consent: Partial<ConsentValue>) => {},
-      getConsentDate: () => false as Date | false,
-    }
-  }
-
   return {
-    /** Returns `true` if the visitor has saved consent. Reactive — re-evaluated on consent change. */
-    hasConsent: () => {
-      void tick.value // registers Vue dependency
-      return _widget?.hasConsent() ?? false
-    },
-    /** Returns the stored consent map, or `null`. Reactive. */
-    getConsent: () => {
-      void tick.value
-      return _widget?.getConsent() ?? null
-    },
-    /** Saves the given partial consent map. Missing keys default to `'denied'`. */
-    submitConsent: (consent: Partial<ConsentValue>) =>
-      _widget?.submitConsent(consent) ?? Promise.resolve(),
-    /** Returns the `Date` of last consent submission, or `false`. Reactive. */
-    getConsentDate: () => {
-      void tick.value
-      return _widget?.getConsentDate() ?? false
-    },
+    /** Reactive — `true` once the visitor has saved a valid consent record. */
+    hasConsent,
+    /** Reactive — the stored consent map (`Record<cookieId, status>`), or `null`. */
+    consent,
+    /** Reactive — `Date` of the last consent submission, or `false`. */
+    consentDate,
+    /** Reactive — `'main'`, `'gpc'`, or `false` (banner hidden). */
+    bannerVisible,
+    /** Reactive — `'preference'` or `false` (modal hidden). */
+    modalVisible,
+
+    /** Shows the consent banner. Pass `true` to force the GPC variant. */
+    showBanner: (gpc?: boolean) => _widget?.showBanner(gpc),
+    /** Hides the consent banner. */
+    hideBanner: () => _widget?.hideBanner(),
+    /** Opens the preference modal. */
+    showModal: () => _widget?.showModal(),
+    /** Closes the preference modal. */
+    hideModal: () => _widget?.hideModal(),
+
+    /** Grants all non-mandatory cookies. Pass `true` to grant only mandatory ones and deny the rest. */
+    grantAll: (onlyMandatory?: boolean) => _widget?.grantAll(onlyMandatory) ?? Promise.resolve(),
+    /** Denies all non-mandatory cookies. Pass `true` to deny mandatory ones too (use with care). */
+    denyAll: (includingMandatory?: boolean) => _widget?.denyAll(includingMandatory) ?? Promise.resolve(),
+    /** Saves the given partial consent map. */
+    submitConsent: (c: Partial<ConsentValue>) => _widget?.submitConsent(c) ?? Promise.resolve(),
+    /** Deletes the current consent record and re-shows the banner. */
+    reConsent: () => _widget?.reConsent() ?? Promise.resolve(),
+
+    /** Returns `true` if the given cookie ID is `'granted'`. */
+    isCookieGranted: (id: string) => (_widget?.isCookieGranted(id) ?? false) as boolean,
+    /** Returns `true` if every cookie in the given category is `'granted'`. */
+    isCategoryGranted: (id: string) => (_widget?.isCategoryGranted(id) ?? false) as boolean,
+    /** Switches the active locale and re-renders the banner and modal. */
+    switchLocale: (locale: string) => _widget?.switchLocale(locale),
   }
 }

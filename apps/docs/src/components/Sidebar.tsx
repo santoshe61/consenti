@@ -3,7 +3,8 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Coffee, Github, Heart, Layout, List, Server } from 'lucide-react'
+import { Coffee, Layout, List, Server, ChevronDown, ChevronRight } from 'lucide-react'
+import { FaGithub } from 'react-icons/fa'
 
 interface NavItem {
   href: string
@@ -17,23 +18,96 @@ interface NavSection {
   items: NavItem[]
 }
 
-const COMPLIANCE_NAV: NavSection = {
-  title: 'Compliance',
-  items: [
-    { href: '/docs/compliance/gdpr/', label: 'GDPR (EU / EEA)' },
-    { href: '/docs/compliance/uk-gdpr/', label: 'UK GDPR' },
-    { href: '/docs/compliance/ccpa/', label: 'CCPA / US States' },
-    { href: '/docs/compliance/cpra/', label: 'CPRA (California 2023)' },
-    { href: '/docs/compliance/coppa/', label: 'COPPA' },
-    { href: '/docs/compliance/lgpd/', label: 'LGPD (Brazil)' },
-    { href: '/docs/compliance/pipeda/', label: 'PIPEDA / Law 25 (Canada)' },
-    { href: '/docs/compliance/dpdpa/', label: 'DPDPA (India 2023)' },
-    { href: '/docs/compliance/pdpa-th/', label: 'PDPA (Thailand)' },
-    { href: '/docs/compliance/appi/', label: 'APPI (Japan)' },
-    { href: '/docs/compliance/popia/', label: 'POPIA (South Africa)' },
-    { href: '/docs/compliance/kvkk/', label: 'KVKK (Turkey)' },
-    { href: '/docs/compliance/tcf/', label: 'TCF v2.2' },
-  ],
+interface ComplianceGroup {
+  id: string
+  label: string
+  typeLabel: string
+  items: NavItem[]
+}
+
+const COMPLIANCE_GROUPS: ComplianceGroup[] = [
+  {
+    id: 'opt-in',
+    label: 'Opt-in (GDPR model)',
+    typeLabel: 'opt-in',
+    items: [
+      { href: '/docs/compliance/gdpr/', label: 'GDPR (EU / EEA)' },
+      { href: '/docs/compliance/uk-gdpr/', label: 'UK GDPR' },
+      { href: '/docs/compliance/pipeda/', label: 'PIPEDA / Law 25 (Canada)' },
+      { href: '/docs/compliance/popia/', label: 'POPIA (South Africa)' },
+      { href: '/docs/compliance/pdpa-th/', label: 'PDPA (Thailand)' },
+      { href: '/docs/compliance/appi/', label: 'APPI (Japan)' },
+      { href: '/docs/compliance/kvkk/', label: 'KVKK (Turkey)' },
+    ],
+  },
+  {
+    id: 'opt-out',
+    label: 'Opt-out',
+    typeLabel: 'opt-out',
+    items: [
+      { href: '/docs/compliance/ccpa/', label: 'CCPA / US States' },
+    ],
+  },
+  {
+    id: 'opt-out-strict',
+    label: 'Opt-out Strict',
+    typeLabel: 'opt-out-strict',
+    items: [
+      { href: '/docs/compliance/cpra/', label: 'CPRA (California 2023)' },
+    ],
+  },
+  {
+    id: 'opt-in-dpdpa',
+    label: 'Opt-in DPDPA (India)',
+    typeLabel: 'opt-in-dpdpa',
+    items: [
+      { href: '/docs/compliance/dpdpa/', label: 'DPDPA (India 2023)' },
+    ],
+  },
+  {
+    id: 'opt-in-china',
+    label: 'Opt-in China (PIPL)',
+    typeLabel: 'opt-in-china',
+    items: [
+      { href: '/docs/compliance/pipl/', label: 'PIPL (China 2021)' },
+    ],
+  },
+  {
+    id: 'opt-in-brazil',
+    label: 'Opt-in Brazil (LGPD)',
+    typeLabel: 'opt-in-brazil',
+    items: [
+      { href: '/docs/compliance/lgpd/', label: 'LGPD (Brazil)' },
+    ],
+  },
+  {
+    id: 'general-privacy-consent',
+    label: 'General Privacy Consent',
+    typeLabel: 'general-privacy-consent',
+    items: [
+      { href: '/docs/compliance/coppa/', label: 'COPPA' },
+      { href: '/docs/compliance/tcf/', label: 'TCF v2.2' },
+    ],
+  },
+  {
+    id: 'notice-only',
+    label: 'Notice Only',
+    typeLabel: 'notice-only',
+    items: [
+      { href: '/docs/compliance/notice-only/', label: 'Notice Only' },
+    ],
+  },
+]
+
+function groupForPath(pathname: string): string | null {
+  for (const group of COMPLIANCE_GROUPS) {
+    for (const item of group.items) {
+      if (pathname === item.href || pathname === item.href.slice(0, -1)) {
+        return group.id
+      }
+    }
+  }
+  return null
 }
 
 const FRONTEND_NAV: NavSection[] = [
@@ -56,10 +130,14 @@ const FRONTEND_NAV: NavSection[] = [
       { href: '/docs/ui/methods/', label: 'API Methods' },
       { href: '/docs/ui/themes/', label: 'Themes & CSS' },
       { href: '/docs/ui/frameworks/', label: 'Frameworks' },
-      { href: '/docs/ui/plugins/', label: 'Plugins' },
     ],
   },
-  COMPLIANCE_NAV,
+  {
+    title: 'UI Plugins',
+    items: [
+      { href: '/docs/ui/plugins/', label: 'Overview' },
+    ],
+  },
 ]
 
 const BACKEND_NAV: NavSection[] = [
@@ -83,23 +161,20 @@ const BACKEND_NAV: NavSection[] = [
       { href: '/docs/api/dashboard/', label: 'Admin Dashboard' },
     ],
   },
-  COMPLIANCE_NAV,
   {
-    title: 'Plugins',
+    title: 'Backend Plugins',
     items: [
-      { href: '/docs/plugins/', label: 'Overview' },
-      { href: '/docs/plugins/bigquery/', label: 'BigQuery' },
-      { href: '/docs/plugins/segment/', label: 'Segment' },
-      { href: '/docs/plugins/snowflake/', label: 'Snowflake' },
+      { href: '/docs/api/plugins/', label: 'Overview' },
+      { href: '/docs/api/plugins/bigquery/', label: 'BigQuery' },
+      { href: '/docs/api/plugins/segment/', label: 'Segment' },
+      { href: '/docs/api/plugins/snowflake/', label: 'Snowflake' },
     ],
   },
 ]
 
 function isBackendPath(pathname: string) {
   return (
-    pathname.startsWith('/docs/api') ||
-    pathname.startsWith('/docs/compliance') ||
-    pathname.startsWith('/docs/plugins')
+    pathname.startsWith('/docs/api')
   )
 }
 
@@ -109,9 +184,33 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
     isBackendPath(pathname) ? 'backend' : 'frontend'
   )
 
+  const activeGroupId = groupForPath(pathname)
+  const [expandedGroups, setExpandedGroups] = useState<Set<string>>(
+    activeGroupId ? new Set([activeGroupId]) : new Set()
+  )
+
   useEffect(() => {
     setActiveTab(isBackendPath(pathname) ? 'backend' : 'frontend')
+    const gid = groupForPath(pathname)
+    if (gid) {
+      setExpandedGroups((prev) => {
+        if (prev.has(gid)) return prev
+        return new Set([...prev, gid])
+      })
+    }
   }, [pathname])
+
+  function toggleGroup(id: string) {
+    setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
 
   const nav = activeTab === 'frontend' ? FRONTEND_NAV : BACKEND_NAV
 
@@ -128,7 +227,7 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
               }`}
           >
             <Layout size={11} />
-            Frontend
+            UI
           </button>
           <button
             onClick={() => setActiveTab('backend')}
@@ -171,6 +270,53 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
           </div>
         ))}
 
+        {/* Compliances — expandable groups */}
+        <div>
+          <div className="nav-section">Compliances</div>
+          {COMPLIANCE_GROUPS.map((group) => {
+            const isExpanded = expandedGroups.has(group.id)
+            const hasActiveChild = group.items.some(
+              (item) => pathname === item.href || pathname === item.href.slice(0, -1)
+            )
+            return (
+              <div key={group.id}>
+                <button
+                  onClick={() => toggleGroup(group.id)}
+                  className={`w-full flex items-center justify-between px-3 py-1.5 text-[13px] font-medium rounded-md mx-0 transition-colors text-left ${hasActiveChild
+                      ? 'text-brand-700 dark:text-brand-400'
+                      : 'text-slate-600 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800'
+                    }`}
+                >
+                  <span className="flex-1">{group.label}</span>
+                  <span className="shrink-0 text-slate-400 dark:text-gray-500">
+                    {isExpanded
+                      ? <ChevronDown size={13} />
+                      : <ChevronRight size={13} />
+                    }
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="pl-3">
+                    {group.items.map((item) => {
+                      const active = pathname === item.href || pathname === item.href.slice(0, -1)
+                      return (
+                        <Link
+                          key={item.href}
+                          href={item.href}
+                          {...(onClose ? { onClick: onClose } : {})}
+                          className={`nav-link mx-2 ${active ? 'nav-link-active' : ''}`}
+                        >
+                          {item.label}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )
+          })}
+        </div>
+
         <div className="mt-6 mx-3 pt-4 border-t border-slate-100">
           <Link
             href="/docs/changelog/"
@@ -186,20 +332,13 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
           >
             <Coffee size={15} /> Support Consenti
           </Link>
-          <Link
-            href="/author/"
-            {...(onClose ? { onClick: onClose } : {})}
-            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
-          >
-            <Heart size={15} /> Support Author
-          </Link>
           <a
             href="https://github.com/santoshe61/consenti"
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
           >
-            <Github size={15} /> GitHub
+            <FaGithub size={15} /> GitHub
           </a>
         </div>
       </div>

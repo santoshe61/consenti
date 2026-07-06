@@ -37,6 +37,12 @@ export type {
   ConsentEvent,
   ConsentiMessage,
   ConsentiWidgetAPI,
+  ConsentiEventName,
+  DeepPartial,
+  NonEmptyArray,
+  WidgetCountryResolverFn,
+  ComplianceWidgetConfig,
+  AgeGateWidgetConfig,
 } from '@consenti/types'
 
 export { ConsentiPlugin } from '@consenti/types'

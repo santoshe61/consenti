@@ -16,11 +16,11 @@ export interface TemplateButton {
 
 export interface TemplateCookie {
   id: string
-  type: 'consent' | 'legitimate_interest'
-  mandatory: boolean
+  legalBasis: 'mandatory' | 'consent' | 'legitimate_interest'
   listenGpc: boolean
   expiry: number
   tcfVendorId?: number | undefined
+  tcfVendorName?: string | undefined
   tcfPurposes?: number[] | undefined
   cpraCategory?: 'sale' | 'sharing' | 'sensitive' | undefined
 }
@@ -150,11 +150,11 @@ export const uiTemplateStore = {
 
 export function defaultCookies(): TemplateCookie[] {
   return [
-    { id: 'necessary', type: 'consent', mandatory: true, listenGpc: false, expiry: 365 },
-    { id: 'analytics_storage', type: 'consent', mandatory: false, listenGpc: true, expiry: 365 },
-    { id: 'ad_storage', type: 'consent', mandatory: false, listenGpc: true, expiry: 365 },
-    { id: 'ad_user_data', type: 'consent', mandatory: false, listenGpc: true, expiry: 365 },
-    { id: 'ad_personalization', type: 'consent', mandatory: false, listenGpc: true, expiry: 365 },
+    { id: 'necessary', legalBasis: 'mandatory', listenGpc: false, expiry: 365 },
+    { id: 'analytics_storage', legalBasis: 'consent', listenGpc: true, expiry: 365 },
+    { id: 'ad_storage', legalBasis: 'consent', listenGpc: true, expiry: 365 },
+    { id: 'ad_user_data', legalBasis: 'consent', listenGpc: true, expiry: 365 },
+    { id: 'ad_personalization', legalBasis: 'consent', listenGpc: true, expiry: 365 },
   ]
 }
 
@@ -378,7 +378,14 @@ export function extractFromProfileJson(profileJson: unknown): {
     }
     const translations = (pj['translations'] ?? {}) as Record<string, RawLocale>
     const defaultLocale = (pj['defaultLocale'] as string) ?? 'en'
-    const rawCookies = (pj['cookies'] as TemplateCookie[]) ?? []
+    const rawCookiesSource = (pj['cookies'] as Record<string, unknown>[]) ?? []
+    const rawCookies: TemplateCookie[] = rawCookiesSource.map(c => {
+      if (c['legalBasis']) return c as unknown as TemplateCookie
+      const legalBasis: TemplateCookie['legalBasis'] = c['mandatory'] === true
+        ? 'mandatory'
+        : ((c['type'] as TemplateCookie['legalBasis'] | undefined) ?? 'consent')
+      return { ...c, legalBasis } as unknown as TemplateCookie
+    })
     const meta = (pj['_meta'] as { cookieTemplateId?: string; uiTemplateId?: string }) ?? {}
     const firstLocale = Object.values(translations)[0]
     if (!firstLocale) return null

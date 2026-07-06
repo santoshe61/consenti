@@ -8,12 +8,13 @@ Zero-dependency, GDPR-compliant cookie consent widget for any web framework.
 
 ---
 
-## Why this package?
+## Why Consenti?
 
 - **Zero runtime dependencies** — browser built-ins only (`fetch`, `crypto.subtle`, `BroadcastChannel`, `CustomEvent`, `document.cookie`, `localStorage`)
-- **Fully standalone or API-connected** — works offline with a local profile, or connects to `@consenti/api` for dashboard-managed profiles
-- **Multi-regulation** — GDPR, UK-GDPR, CCPA, CPRA, LGPD, DPDPA, PIPEDA, POPIA, PDPA-TH, APPI, KVKK
-- **GPC aware** — Global Privacy Control signal detection with `true` / `'strict'` modes
+- **Fully standalone or API-connected** — works offline with pre-built profiles, or connects to `@consenti/api` for dashboard-managed profiles
+- **Multi-regulation** — GDPR, CCPA, CPRA, LGPD, DPDPA, PIPL, and more via 8 built-in compliance groups
+- **Automatic geo-resolution** — detects visitor jurisdiction client-side (timezone + language) or server-side (`/resolve-profile`)
+- **GPC aware** — Global Privacy Control signal detection with `'honor'` / `'strict'` / `'ignore'` modes per profile
 - **GTM / Google Consent Mode v2** — built-in `dataLayer` integration
 - **SSR-safe** — all browser API access is guarded; `new ConsentiSetup()` during SSR is a silent no-op
 - **Fully typed** — ships TypeScript definitions; no `@types` needed
@@ -48,7 +49,7 @@ import '@consenti/ui/dist/index.css'
 <script src="https://cdn.jsdelivr.net/npm/@consenti/ui/dist/index.umd.js"></script>
 <script>
   const { ConsentiSetup } = ConsentiUI
-  new ConsentiSetup({ core: { regulation: 'gdpr' } })
+  new ConsentiSetup({ compliance: { type: 'opt-in' } })
 </script>
 ```
 
@@ -57,7 +58,7 @@ import '@consenti/ui/dist/index.css'
 ```html
 <script type="module">
   import { ConsentiSetup } from 'https://esm.sh/@consenti/ui'
-  new ConsentiSetup({ core: { regulation: 'gdpr' } })
+  new ConsentiSetup({ compliance: { type: 'opt-in' } })
 </script>
 ```
 
@@ -74,8 +75,16 @@ import '@consenti/ui/dist/index.css'
 ## Quick Start
 
 ```ts
-// Simplest possible — built-in GDPR profile, no backend required
-new ConsentiSetup({ core: { regulation: 'gdpr' } })
+// Simplest possible — auto-detects jurisdiction from browser timezone + language
+new ConsentiSetup({})
+
+// Fixed GDPR (EU opt-in) profile, no backend required
+new ConsentiSetup({ compliance: { type: 'opt-in' } })
+
+// API-backed — server geo-resolves the right profile per visitor
+new ConsentiSetup({
+  api: { enabled: true, baseUrl: 'https://your-backend.com' },
+})
 ```
 
 A consent banner appears on first visit. Everything below is optional.
@@ -101,20 +110,27 @@ import { ConsentiSetup } from '@consenti/ui'
 import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({
-  // ── Required ────────────────────────────────────────────────────────────────
+  // ── Core (optional) ──────────────────────────────────────────────────────────
   core: {
-    profileId: 1,                // 0 = built-in default; >0 = local or API profile
-    regulation: 'gdpr',          // controls opt-in / opt-out behaviour
-    locale: 'en',                // BCP 47; falls back to language prefix, then 'en'
-    autoHonorGPC: true,          // false | true | 'strict'
-    storage: 'cookie',           // 'cookie' | 'localStorage'
-    cookieDomains: '.example.com',
-    privacyPolicyUrl: '/privacy',
-    signCookies: true,
-    cookieSigningKey: 'min-32-char-secret', // client-only mode; use API mode in production
-    allowReceipt: true,
-    disableCssTemplate: false,
+    tenantId: 'acme',              // identifies your tenant's profiles; default: 'default'
+    locale: 'en',                  // BCP 47; 'auto' = navigator.language; default: 'auto'
+    autoHonorGPC: true,            // explicit operator override: false | true | 'strict'
+                                   // overrides profile.gpcMode when set
+    storage: 'cookie',             // 'cookie' | 'localStorage'; default: 'cookie'
+    cookieDomains: '.example.com', // comma-separated; first entry used as Domain attribute
+    cookieSigningKey: 'min-32-char-secret', // HMAC-SHA256 signing; implicit from presence
+    allowReceipt: true,            // allow consent receipt download; default: false
+    disableCssTemplate: false,     // skip all style injection; default: false
     userId: 'server-assigned-uuid', // authenticated users — enables cross-device sync
+
+    // Pre-built profile fallback
+    usePrebuiltProfiles: 'all',    // 'all' (default) | ['opt-in', 'opt-out', ...] (non-empty)
+                                   // controls which of the 8 built-in profiles are available
+                                   // as fallbacks when the API is unavailable
+    cacheResolvedProfiles: true,   // cache /resolve-profile response in sessionStorage; default: true
+    console: ['error'],            // log levels emitted: 'info' | 'log' | 'warning' | 'error'
+                                   // default: ['error'] only — no noise in production
+
     theme: {
       bgColor: '#ffffff',
       textColor: '#1a1a1a',
@@ -136,6 +152,28 @@ const widget = new ConsentiSetup({
     },
   },
 
+  // ── Compliance routing (optional) ─────────────────────────────────────────
+  compliance: {
+    // 'auto'              → geo-resolve per visitor (default)
+    //                       api.enabled=true  → server resolves via /resolve-profile
+    //                       api.enabled=false → resolves client-side from timezone + language
+    // ComplianceGroupId   → fixed group for all visitors (skip geo)
+    // localProfileType    → use a locally registered ConsentiProfile
+    type: 'auto',
+
+    // Client-side geo resolver (used only when api.enabled = false)
+    // 'default' → browser timezone + navigator.language heuristic (built-in, zero deps)
+    // WidgetCountryResolverFn → custom async function: () => Promise<{ country, region, confidence }>
+    geoDataProvider: 'default',
+
+    // Age gate (optional)
+    ageGate: {
+      enabled: false,
+      minimumAge: 13,
+      requireParentalConsent: false,
+    },
+  },
+
   // ── Mount point (optional) ────────────────────────────────────────────────
   rootEl: '#my-consent-wrapper',  // CSS selector or HTMLElement; default: appends to body
 
@@ -147,6 +185,9 @@ const widget = new ConsentiSetup({
     enabled: true,
     baseUrl: 'https://your-site.com',  // default: window.location.origin
     authToken: '',                      // sent as Authorization: Bearer <token>
+    tenantId: 'acme',                   // overrides core.tenantId for API calls
+    complianceGroup: 'opt-in',          // pin a specific group on the API side (Scenario 2B)
+    trustDomain: false,                 // true = bypass allowedOrigins check (use in dev only)
   },
 
   // ── GTM / Google Consent Mode v2 (optional) ───────────────────────────────
@@ -172,45 +213,109 @@ const widget = new ConsentiSetup({
 
 ---
 
-## Regulations
+## Compliance Groups
 
-| Value        | Region              | Model               | Notes                                                                  |
-|--------------|---------------------|---------------------|------------------------------------------------------------------------|
-| `'gdpr'`     | EU / EEA            | Opt-in              | Default. Banner on first visit; all non-mandatory cookies denied until granted. |
-| `'uk-gdpr'`  | UK                  | Opt-in              | Same model as GDPR; ICO-enforced; age gate at 13.                      |
-| `'ccpa'`     | California (US)     | Opt-out             | All cookies default to `'granted'`; consent written silently; no banner. |
-| `'cpra'`     | California (US)     | Opt-out / Opt-in    | Supersedes CCPA. Opt-out for sale/sharing; opt-in for sensitive data. GPC triggers Do Not Sell + Do Not Share. |
-| `'lgpd'`     | Brazil              | Opt-in              | 10 lawful bases; ANPD-enforced; parental consent gate under-12.        |
-| `'dpdpa'`    | India               | Opt-in              | Fiduciary name + grievance officer in modal; GPC ignored.              |
-| `'pipeda'`   | Canada              | Opt-in              | PIPEDA + Quebec Law 25 (GDPR-aligned).                                 |
-| `'popia'`    | South Africa        | Opt-in              | 8 processing conditions; Information Regulator-enforced.               |
-| `'pdpa-th'`  | Thailand            | Opt-in              | Cross-border transfer rules; PDPC-enforced.                            |
-| `'appi'`     | Japan               | Opt-in / Opt-out    | Opt-in for sensitive data and overseas transfers; opt-out for general third-party sharing. |
-| `'kvkk'`     | Turkey              | Opt-in              | Explicit consent for sensitive personal data; KVK Board-enforced.      |
+Consenti ships 8 pre-built English profiles, one per compliance group. The active group is resolved automatically per visitor (API or client-side) or fixed globally via `compliance.type`.
+
+| Group                      | Region / Law                  | Model      | GPC Default |
+|----------------------------|-------------------------------|------------|-------------|
+| `'opt-in'`                 | EU / EEA — GDPR               | Opt-in     | `'honor'`   |
+| `'opt-out'`                | California — CCPA             | Opt-out    | `'honor'`   |
+| `'opt-out-strict'`         | California — CPRA             | Strict opt-out | `'strict'` |
+| `'opt-in-dpdpa'`           | India — DPDPA                 | Opt-in     | `'honor'`   |
+| `'opt-in-china'`           | China — PIPL                  | Opt-in     | `'ignore'`  |
+| `'opt-in-brazil'`          | Brazil — LGPD                 | Opt-in     | `'honor'`   |
+| `'general-privacy-consent'`| Global / general              | Opt-in     | `'honor'`   |
+| `'notice-only'`            | Informational                 | Notice     | `'ignore'`  |
+
+### Fixed group (no geo-routing)
+
+```ts
+// All visitors see the GDPR opt-in banner
+new ConsentiSetup({ compliance: { type: 'opt-in' } })
+
+// All visitors see the CCPA opt-out notice
+new ConsentiSetup({ compliance: { type: 'opt-out' } })
+```
+
+### Auto geo-routing (default)
+
+```ts
+// Client-side: timezone + navigator.language → compliance group
+new ConsentiSetup({ compliance: { type: 'auto' } })
+
+// Server-side: /resolve-profile → right profile per visitor country
+new ConsentiSetup({
+  api: { enabled: true, baseUrl: 'https://consent.example.com' },
+  compliance: { type: 'auto' },
+})
+```
+
+---
+
+## Profile Resolution Scenarios
+
+| Scenario | When | How |
+|---|---|---|
+| **1A** | `api.enabled = false`, `compliance.type = 'auto'` | Timezone + language → group → pre-built profile |
+| **1B** | `api.enabled = false`, `compliance.type = ComplianceGroupId` | Direct pre-built profile load |
+| **2A** | `api.enabled = true`, `compliance.type = 'auto'` | `GET /resolve-profile?tz&lang&locale&tenantId` → `filePath` → static JSON |
+| **2B** | `api.enabled = true`, `compliance.type = ComplianceGroupId` | `GET /profiles/:tenantId/:group/:locale.json` |
+| **Local** | `compliance.type = localKey` + registered `ConsentiProfile` | Locally registered profile |
+| **Fallback** | Any fetch failure | Pre-built profile → `DEFAULT_PROFILE` |
+
+The `/resolve-profile` response URL is cached in `sessionStorage` for 1 hour per tab (`core.cacheResolvedProfiles`). The profile JSON itself is HTTP-cached via `Cache-Control: public, max-age=3600` on the server.
+
+### Domain allowlist
+
+If a profile's `allowedOrigins` list is configured on the server, the widget checks `window.location.origin` against it before using the profile. A mismatch falls back to the pre-built profile for that group.
+
+Set `api.trustDomain: true` to bypass this check (useful for localhost / dev environments where `allowedOrigins` contains only production domains).
 
 ---
 
 ## GPC — Global Privacy Control
 
+GPC mode is set per-profile on the server (`gpcMode: 'honor' | 'strict' | 'ignore'`). Widget config (`core.autoHonorGPC`) overrides the profile value when explicitly set.
+
 ```ts
-new ConsentiSetup({
-  core: {
-    regulation: 'gdpr',
-    autoHonorGPC: true,    // pre-deny 'listenGpc' cookies and show GPC banner variant
-    // autoHonorGPC: 'strict'  // pre-deny silently — no banner shown at all
-  },
-})
+// Respect profile's gpcMode setting (default)
+new ConsentiSetup({ compliance: { type: 'opt-in' } })
+
+// Force honor GPC regardless of profile setting
+new ConsentiSetup({ core: { autoHonorGPC: true } })
+
+// Force strict GPC — pre-deny silently, no banner
+new ConsentiSetup({ core: { autoHonorGPC: 'strict' } })
 ```
 
-Cookies with `listenGpc: true` in the profile are automatically denied when the signal is detected.
+| `core.autoHonorGPC` | Effect |
+|---|---|
+| `undefined` (default) | Profile's `gpcMode` takes effect |
+| `false` | GPC signal always ignored |
+| `true` | `'honor'` — pre-deny GPC cookies; show GPC banner variant |
+| `'strict'` | Pre-deny silently — no banner shown |
 
 ---
 
 ## Profiles
 
-### Built-in default profile
+### Pre-built profiles (no backend)
 
-When `core.profileId` is `0` or omitted, the widget uses a built-in English GDPR profile covering the five Google Consent Mode v2 purposes. No configuration needed.
+The widget includes 8 pre-built English profiles as dynamic-import chunks. Only the matched chunk downloads at runtime.
+
+```ts
+// GDPR banner — no server needed
+new ConsentiSetup({ compliance: { type: 'opt-in' } })
+
+// CCPA notice — no server needed
+new ConsentiSetup({ compliance: { type: 'opt-out' } })
+
+// Restrict which pre-built profiles are available as fallbacks
+new ConsentiSetup({
+  core: { usePrebuiltProfiles: ['opt-in', 'opt-out'] },
+})
+```
 
 ### Local profile (no backend)
 
@@ -221,11 +326,12 @@ import { ConsentiProfile, ConsentiSetup } from '@consenti/ui'
 
 const profile = new ConsentiProfile({
   defaultLocale: 'en',
+  complianceGroup: 'opt-in',
   cookies: [
     { id: 'necessary',  mandatory: true,  expiry: 365 },
     { id: 'analytics',  listenGpc: true,  expiry: 365 },
     { id: 'marketing',  listenGpc: true,  expiry: 365,  cpraCategory: 'sale' },
-    // cpraCategory: 'sale' | 'sharing' | 'sensitive' — used when regulation: 'cpra'
+    // cpraCategory: 'sale' | 'sharing' | 'sensitive' — used by CPRA group
   ],
   translations: {
     en: {
@@ -240,10 +346,9 @@ const profile = new ConsentiProfile({
         buttons: [
           { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
           // cookies: '*' = grant all | '!' = deny all | ['id1','id2'] = grant specific
-          { text: 'Reject Optional',         style: 'secondary', action: 'custom', cookies: '!' },
-          { text: 'Customize', style: 'secondary', action: 'manage' },
+          { text: 'Reject Optional',    style: 'secondary', action: 'custom', cookies: '!' },
+          { text: 'Customize',          style: 'secondary', action: 'manage' },
           { text: 'Privacy Policy',     style: 'text',      action: 'link',   url: '/privacy' },
-          // action: 'link' + url — renders as a text link below the banner
         ],
       },
       gpcBanner: {               // shown instead of mainBanner when GPC detected
@@ -253,13 +358,13 @@ const profile = new ConsentiProfile({
         showLocaleSwitcher: false,
         htmlText: "Your browser's GPC signal was detected. Ad cookies have been pre-denied.",
         buttons: [
-          { text: 'Understood',           style: 'primary',   action: 'custom', cookies: '!' },
-          { text: 'Customize',   style: 'secondary', action: 'manage' },
+          { text: 'Understood', style: 'primary',   action: 'custom', cookies: '!' },
+          { text: 'Customize',  style: 'secondary', action: 'manage' },
         ],
       },
       preferenceModal: {
         heading: 'Cookie Preferences',
-        headingTag: 'h2',        // HTML tag for the modal heading; default 'h2'
+        headingTag: 'h2',
         subheading: 'Choose which cookies you allow.',
         htmlText: 'We use different types of cookies. You can enable or disable each category below.',
         position: 'center',       // 'left' | 'right' | 'center'
@@ -267,17 +372,17 @@ const profile = new ConsentiProfile({
         showLocaleSwitcher: false,
         persistent: false,        // true = cannot dismiss by clicking outside
         overlayOpacity: 50,
-        mobileFullScreenBreakpoint: 576, // px — modal fills screen on viewports ≤ this width. Set to 0 to disable.
+        mobileFullScreenBreakpoint: 576,
         buttons: [
           { text: 'Accept All',       style: 'primary', action: 'custom', cookies: '*' },
           { text: 'Save Preferences', style: 'primary', action: 'submit' },
-          { text: 'Reject Optional',       style: 'text',    action: 'custom', cookies: '!' },
+          { text: 'Reject Optional',  style: 'text',    action: 'custom', cookies: '!' },
         ],
         categories: [
           {
             id: 'cat-necessary',
             heading: 'Strictly Necessary',
-            headingTag: 'h3',    // HTML tag for the category heading; default 'h3'
+            headingTag: 'h3',
             htmlText: 'Required for the site to function. <strong>Cannot be disabled.</strong>',
             mandatory: true,
             cookies: ['necessary'],
@@ -287,7 +392,6 @@ const profile = new ConsentiProfile({
             heading: 'Analytics',
             htmlText: 'Helps us understand how visitors use the site.',
             type: 'consent',     // 'consent' | 'legitimate_interest'
-            // type: 'legitimate_interest' — refusal stored as 'objected' instead of 'denied'
             cookies: ['analytics'],
           },
           {
@@ -308,35 +412,30 @@ const profile = new ConsentiProfile({
 })
 
 new ConsentiSetup({
-  core: {
-    profileId: profile.getId(), // always use .getId() — never hardcode the ID
-    regulation: 'gdpr',
-    locale: 'fr',
-  },
+  compliance: { type: profile.getComplianceGroup() },
 })
 ```
-
-> **Note:** Local profile IDs are auto-assigned starting from `1000` to avoid collisions with API profile IDs (which start from `1`). Always call `profile.getId()`.
 
 ### API profile (with backend)
 
 ```ts
 new ConsentiSetup({
-  core: { profileId: 3, regulation: 'gdpr', locale: 'de' },
   api: {
     enabled: true,
     baseUrl: 'https://consent.example.com',
+    tenantId: 'acme',
   },
+  // compliance.type: 'auto' resolves the right profile per visitor country
 })
 ```
 
-The widget fetches the profile from the API and falls back to a local profile (or the built-in default) if the request fails.
+The widget calls `GET /resolve-profile?tz&lang&locale&tenantId`, receives the profile file path, then fetches that static JSON directly. Falls back to pre-built profile if the API is unavailable.
 
 ---
 
 ## Cookie Format
 
-Consent is persisted as a single cookie named `consenti_{profileId}`.
+Consent is persisted as a single cookie named `consenti_{userId}_{profileId}`.
 
 ```
 t:{unixTimestamp}::{cookieId}:{status}|{cookieId}:{status}|…[::sig:{hmac}]
@@ -347,18 +446,38 @@ Example:
 t:1782133054::analytics:granted|marketing:denied|necessary:granted::sig:abc123
 ```
 
+The consent cookie lifetime equals the shortest `cookie.expiry` value across all profile cookies (in days, converted to `max-age` seconds). When that cookie expires the browser deletes it, the widget sees no consent, and re-shows the banner.
+
+---
+
+## Debugging
+
+```ts
+new ConsentiSetup({
+  core: {
+    console: ['error', 'warning', 'info'],  // add 'log' for verbose output
+  },
+})
+```
+
+The default is `['error']` only — no noise in production. Add levels when investigating profile resolution, GPC behavior, or domain allowlist failures. All Consenti log lines are prefixed `[Consenti]`.
+
 ---
 
 ## Widget API Methods
 
 ```ts
-const widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
+const widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
 
 // Consent state
-widget.hasConsent()              // boolean — true if valid consent record exists
-widget.getConsent()              // Record<string, 'granted'|'denied'|'objected'> | null
-widget.getGTMConsent()           // consent in GTM / Google Consent Mode v2 format
-widget.getConsentDate()          // Date | false — time of last submission
+widget.hasConsent()                      // boolean — true if valid consent record exists
+widget.getConsent()                      // Record<string, 'granted'|'denied'|'objected'> | null
+widget.getGTMConsent()                   // consent in GTM / Google Consent Mode v2 format
+widget.getConsentDate()                  // Date | false — time of last submission
+widget.isCookieGranted('analytics')      // boolean — true if that cookie is 'granted'
+widget.isCookieGranted('analytics', true)// 'granted' | 'denied' | 'objected' | false
+widget.isCategoryGranted('cat-analytics')          // boolean — true if ALL cookies in category are granted
+widget.isCategoryGranted('cat-analytics', true)    // [{ analytics: 'granted' }, { pixel: 'denied' }]
 
 // Visibility
 widget.showBanner(gpc?)          // show main banner (or GPC variant)
@@ -368,6 +487,12 @@ widget.hideModal()               // close preference modal
 widget.bannerVisibility()        // 'main' | 'gpc' | false
 widget.modalVisibility()         // 'preference' | false
 
+// Bulk consent actions
+widget.grantAll()                // grant all cookies and dismiss banner
+widget.grantAll(true)            // grant only mandatory; deny everything else
+widget.denyAll()                 // deny non-mandatory; mandatory stay 'granted'
+widget.denyAll(true)             // deny all including mandatory (logs a warning)
+
 // Actions
 widget.init()                    // manually start init (when autoInit: false)
 widget.onReady(callback)         // called once widget is fully initialised
@@ -375,15 +500,61 @@ widget.switchLocale(locale)      // switch locale and re-render (e.g. 'fr', 'de-
 widget.submitConsent(consent)    // programmatically submit consent values
 widget.deleteConsent()           // delete consent record (cookie + backend if enabled)
 widget.reConsent()               // delete consent and re-show banner
-widget.downloadReceipt()         // trigger JSON consent receipt download
 widget.destroy()                 // unmount DOM elements and remove all event listeners
+
+// Runtime configuration
+widget.setDarkMode()             // toggle dark mode
+widget.setDarkMode(true)         // force dark on
+widget.setDarkMode(false)        // force light
+widget.setTheme({ primaryColor: '#ff0000' })  // hot-swap CSS tokens (merges into current theme)
+widget.setConfig({ darkMode: true })          // deep-merge partial config (no re-init)
+widget.setProfile({ mainBanner: { heading: 'Updated' } })  // re-render UI with new profile data
+
+// Diagnostics
+widget.version()                 // { package: '1.0.0', profileVersion: 2, consentVersion: 1 }
+```
+
+### Consent checks
+
+```ts
+// Gate analytics code on a single cookie
+if (widget.isCookieGranted('analytics_storage')) {
+  initAnalytics()
+}
+
+// Read the raw status string when you need it
+const status = widget.isCookieGranted('marketing', true) // 'granted' | 'denied' | 'objected' | false
+
+// Gate a feature on an entire category (all cookies in category must be granted)
+if (widget.isCategoryGranted('cat-analytics')) {
+  loadHeatmaps()
+}
+
+// Inspect each cookie's status in a category
+const statuses = widget.isCategoryGranted('cat-marketing', true)
+// [{ ad_storage: 'granted' }, { ad_personalization: 'denied' }]
+```
+
+### Typed event subscriptions
+
+```ts
+// Both forms are accepted — 'consenti:' prefix is optional
+const handler = (data) => console.log('Consent saved:', data.consent)
+widget.on('consentSubmitted', handler)
+
+// Remove later (must pass the same function reference)
+widget.off('consentSubmitted', handler)
+
+// Available event names:
+// 'bannerInitialized' | 'bannerVisibility' | 'modalVisibility'
+// 'consentBeingSubmitted' | 'consentSubmitted'
 ```
 
 ### Manual init
 
 ```ts
 const widget = new ConsentiSetup({
-  core: {},
+  compliance: { type: 'opt-in' },
   rootEl: '#consent-mount',
   autoInit: false,
 })
@@ -401,32 +572,39 @@ await widget.submitConsent({
   marketing: 'denied',
   necessary: 'granted',  // mandatory cookies are always 'granted' regardless
 })
+
+// Or use the convenience methods:
+await widget.grantAll()   // accept all
+await widget.denyAll()    // reject all non-mandatory
 ```
 
 ---
 
 ## Events
 
-Custom DOM events fire on `document` at every lifecycle step. All are prefixed `consenti:`.
+Custom DOM events fire on `window` at every lifecycle step. All are prefixed `consenti:`.
 
-| Event                          | Fired when                                               | Detail type                    |
-|--------------------------------|----------------------------------------------------------|--------------------------------|
-| `consenti:bannerInitialized`   | Widget initialises and determines banner visibility      | `BannerInitializedDetail`      |
-| `consenti:bannerVisibility`    | Banner shows or hides                                    | `BannerVisibilityDetail`       |
-| `consenti:modalVisibility`     | Preference modal shows or hides                          | `ModalVisibilityDetail`        |
-| `consenti:consentBeingSubmitted` | User clicked a consent button (before API call)        | `ConsentBeingSubmittedDetail`  |
-| `consenti:consentSubmitted`    | Consent saved (cookie written + API call if configured)  | `ConsentSubmittedDetail`       |
+| Event                          | Fired when                                               |
+|--------------------------------|----------------------------------------------------------|
+| `consenti:bannerInitialized`   | Widget initialises and determines banner visibility      |
+| `consenti:bannerVisibility`    | Banner shows or hides                                    |
+| `consenti:modalVisibility`     | Preference modal shows or hides                          |
+| `consenti:consentBeingSubmitted` | User clicked a consent button (before API call)        |
+| `consenti:consentSubmitted`    | Consent saved (cookie written + API call if configured)  |
+
+**Recommended:** use `widget.on()` / `widget.off()` for typed subscriptions (the `consenti:` prefix is optional):
 
 ```ts
-document.addEventListener('consenti:consentSubmitted', (e: Event) => {
-  const detail = (e as CustomEvent<ConsentSubmittedDetail>).detail
-  // detail.consentAction — 'accept_all' | 'reject_all' | 'custom' | 'update'
-  // detail.consentJson   — { analytics: 'granted', marketing: 'denied', ... }
-  // detail.visitorId     — stable UUID
-  // detail.pageUrl       — window.location.href at submission time
-  // detail.gpcDetected   — boolean
-  // detail.timestamp     — ISO 8601
-  // detail.apiResponse   — backend response (if api.enabled: true)
+const handler = (data: ConsentEvent) => console.log(data.consent)
+widget.on('consentSubmitted', handler)
+widget.off('consentSubmitted', handler)  // same reference to unsubscribe
+```
+
+**Raw DOM listeners** (equivalent):
+
+```ts
+window.addEventListener('consenti:consentSubmitted', (e: Event) => {
+  const detail = (e as CustomEvent<ConsentEvent>).detail
 })
 ```
 
@@ -436,7 +614,7 @@ document.addEventListener('consenti:consentSubmitted', (e: Event) => {
 
 ```ts
 new ConsentiSetup({
-  core: { regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   utils: {
     gtm: {
       containerId: 'GTM-XXXXXX',
@@ -484,6 +662,8 @@ new ConsentScript({
   src: 'https://www.googletagmanager.com/gtag/js?id=G-XXXXX',
   onLoad: () => console.log('Analytics loaded'),
   onRevoke: () => console.log('Analytics removed'),
+  // bind: true (default) — auto-removes script on consent revoke, re-injects on re-grant
+  // bind: false          — check consent once at construction; never auto-remove
 })
 ```
 
@@ -556,8 +736,8 @@ Override any token in your own stylesheet:
 
 ```ts
 new ConsentiSetup({
+  compliance: { type: 'opt-in' },
   core: {
-    regulation: 'gdpr',
     theme: {
       primaryColor: '#7c3aed',       // purple brand
       primaryTextColor: '#ffffff',
@@ -573,7 +753,7 @@ new ConsentiSetup({
 
 ```ts
 new ConsentiSetup({
-  core: { profileId: 1 },
+  compliance: { type: 'opt-in' },
   darkMode: true,  // or: window.matchMedia('(prefers-color-scheme: dark)').matches
 })
 ```
@@ -632,7 +812,8 @@ import '@consenti/ui/dist/index.css'
 export function ConsentSetup() {
   useEffect(() => {
     const widget = new ConsentiSetup({
-      core: { regulation: 'gdpr', locale: 'en' },
+      compliance: { type: 'opt-in' },
+      core: { locale: 'en' },
     })
     return () => widget.destroy()
   }, [])
@@ -688,8 +869,8 @@ export function ConsentSetup() {
     let widget: WidgetType
     import('@consenti/ui').then(({ ConsentiSetup }) => {
       widget = new ConsentiSetup({
-        core: { regulation: 'gdpr', locale: 'en', autoHonorGPC: true },
         api: { enabled: true, baseUrl: process.env.NEXT_PUBLIC_API_URL },
+        core: { autoHonorGPC: true },
       })
       widgetRef.current = widget
     })
@@ -711,7 +892,7 @@ let widget: unknown = null
 onMounted(async () => {
   const { ConsentiSetup } = await import('@consenti/ui')
   await import('@consenti/ui/dist/index.css')
-  widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
+  widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
 })
 
 onBeforeUnmount(() => (widget as { destroy?: () => void })?.destroy?.())
@@ -740,7 +921,7 @@ export class ConsentService implements OnDestroy {
   async init() {
     if (!isPlatformBrowser(this.platformId)) return
     const { ConsentiSetup } = await import('@consenti/ui')
-    this.widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
+    this.widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
   }
 
   ngOnDestroy() {
@@ -767,7 +948,7 @@ export class MyComponent {
 import { ConsentiSetup } from '@consenti/ui'
 import '@consenti/ui/dist/index.css'
 
-const widget = new ConsentiSetup({ core: { regulation: 'gdpr', locale: 'en' } })
+const widget = new ConsentiSetup({ compliance: { type: 'opt-in' }, core: { locale: 'en' } })
 
 document.querySelector('#cookie-settings')?.addEventListener('click', () => {
   widget.showModal()
@@ -799,7 +980,7 @@ class MyPlugin extends ConsentiPlugin {
 }
 
 new ConsentiSetup({
-  core: { regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   plugins: [new MyPlugin()],
 })
 ```
@@ -810,7 +991,7 @@ new ConsentiSetup({
 
 ```ts
 // Safe to call during SSR — silently no-ops, never touches the DOM:
-const widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
+const widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
 // All browser API access is guarded by isClient() internally.
 ```
 
@@ -831,8 +1012,8 @@ import {
   simulateConsentSubmitted,
 } from '@consenti/ui/testing'
 
-mockAllGranted()   // fake-grant all cookies for unit tests
-mockAllDenied()    // fake-deny all
+mockAllGranted(['analytics', 'marketing'])   // fake-grant these cookies for unit tests
+mockAllDenied(['analytics', 'marketing'])    // fake-deny these cookies
 simulateConsentSubmitted({ analytics: 'granted' })
 ```
 
@@ -841,19 +1022,30 @@ simulateConsentSubmitted({ analytics: 'granted' })
 ## Minimal Recipes
 
 ```ts
-// CCPA opt-out (no banner shown)
-new ConsentiSetup({ core: { regulation: 'ccpa' } })
+// Auto geo-route — no backend, client-side timezone + language heuristic
+new ConsentiSetup({})
+
+// CCPA opt-out for all visitors
+new ConsentiSetup({ compliance: { type: 'opt-out' } })
 
 // Cross-subdomain consent
-new ConsentiSetup({ core: { regulation: 'gdpr', storage: 'cookie', cookieDomains: '.example.com' } })
+new ConsentiSetup({ core: { storage: 'cookie', cookieDomains: '.example.com' } })
 
 // Authenticated user — cross-device sync via API
-new ConsentiSetup({ core: { regulation: 'gdpr', userId: '{{ server_user_id }}' }, api: { enabled: true } })
+new ConsentiSetup({
+  core: { userId: '{{ server_user_id }}' },
+  api: { enabled: true },
+})
 
 // GPC strict mode + GTM
 new ConsentiSetup({
-  core: { regulation: 'gdpr', autoHonorGPC: 'strict' },
+  core: { autoHonorGPC: 'strict' },
   utils: { gtm: { containerId: 'GTM-XXXXXX', adsDataRedaction: true } },
+})
+
+// Verbose debug logging during development
+new ConsentiSetup({
+  core: { console: ['error', 'warning', 'info', 'log'] },
 })
 ```
 
@@ -865,16 +1057,31 @@ All types are exported from the main entry:
 
 ```ts
 import type {
-  ConsentiConfig,       // top-level config object
-  CoreConfig,           // core section
-  ApiConfig,            // api section
-  UtilsConfig,          // utils section
-  GtmConfig,            // utils.gtm section
-  ThemeConfig,          // core.theme section
-  ConsentValue,         // 'granted' | 'denied' | 'objected'
-  ConsentiProfile,      // local profile class
+  ConsentiConfig,           // top-level config object
+  CoreConfig,               // core section
+  ApiConfig,                // api section
+  ComplianceWidgetConfig,   // compliance section
+  AgeGateWidgetConfig,      // compliance.ageGate section
+  WidgetCountryResolverFn,  // custom geo resolver function type
+  UtilsConfig,              // utils section
+  GtmConfig,                // utils.gtm section
+  ThemeConfig,              // core.theme section
+  ConsentValue,             // 'granted' | 'denied' | 'objected'
+  ConsentiProfile,          // local profile class
+  NonEmptyArray,            // [T, ...T[]] — used by usePrebuiltProfiles
 } from '@consenti/ui'
 ```
+
+### Breaking changes from v0.0.x
+
+The following `CoreConfig` fields were **removed** in v0.1.x:
+
+| Removed field        | Replacement |
+|----------------------|-------------|
+| `core.profileId`     | Use `compliance.type` with a compliance group or local profile key |
+| `core.regulation`    | Use `compliance.type` — compliance group is derived server-side or from pre-built profiles |
+| `core.signCookies`   | Implicit: set `core.cookieSigningKey` to enable signing; no separate flag needed |
+| `core.privacyPolicyUrl` | Add a link button directly in the profile banner/modal `buttons` array with `action: 'link'` |
 
 ---
 

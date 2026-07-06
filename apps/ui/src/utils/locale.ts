@@ -1,3 +1,5 @@
+import { DeepPartial } from '@consenti/types';
+
 /**
  * Locale resolution and deep-merge utilities.
  *
@@ -35,13 +37,13 @@ export function resolveLocale(
 
   // 1. Exact match
   if (translations[requested]) {
-    return deepMerge(base, translations[requested] as Partial<LocaleTranslations>)
+    return deepMerge(base, translations[requested])
   }
 
   // 2. Language prefix (e.g. 'fr' from 'fr-CA')
   const lang = requested.split('-')[0] ?? ''
   if (lang !== requested && translations[lang]) {
-    return deepMerge(base, translations[lang] as Partial<LocaleTranslations>)
+    return deepMerge(base, translations[lang])
   }
 
   // 3. Default locale fallback
@@ -60,23 +62,28 @@ export function resolveLocale(
  * @param base     - The base object (default locale translations).
  * @param override - The partial override (requested locale translations).
  */
-export function deepMerge<T extends object>(base: T, override: Partial<T>): T {
-  const result = { ...base } as Record<string, unknown>
+export function deepMerge<T extends object>(base: T, override: DeepPartial<T>): T {
+  const result = { ...base } as Record<string, T[keyof T]>
 
   for (const key in override) {
     const overrideVal = override[key]
     if (overrideVal === undefined || overrideVal === null) continue
 
+    const baseVal = result[key]
+
     if (
       typeof overrideVal === 'object' &&
       !Array.isArray(overrideVal) &&
-      typeof result[key] === 'object' &&
-      result[key] !== null &&
-      !Array.isArray(result[key])
+      typeof baseVal === 'object' &&
+      baseVal !== null &&
+      !Array.isArray(baseVal)
     ) {
-      result[key] = deepMerge(result[key] as object, overrideVal as Partial<object>)
+      result[key] = deepMerge(
+        baseVal as T[keyof T] & object,
+        overrideVal as DeepPartial<T[keyof T] & object>,
+      ) as T[keyof T]
     } else {
-      result[key] = overrideVal
+      result[key] = overrideVal as T[keyof T]
     }
   }
 
