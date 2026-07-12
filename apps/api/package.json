@@ -51,7 +51,7 @@
     "@consenti/types": "*",
     "@consenti/utils": "*",
     "@preact/preset-vite": "^2.8.1",
-    "lucide-react": "^1.23.0",
+    "lucide-react": "^1.24.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^26.1.0",
