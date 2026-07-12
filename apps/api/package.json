@@ -54,7 +54,7 @@
     "lucide-react": "^1.23.0",
     "@tailwindcss/vite": "^4.3.2",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^26.1.0",
+    "@types/node": "^26.1.1",
     "@types/pg": "^8.11.0",
     "autoprefixer": "^10.4.21",
     "mongodb": "^7.4.0",
