@@ -2,7 +2,27 @@ import type { Metadata } from 'next'
 import { CodeBlock, Terminal } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'Framework Guides' }
+export const metadata: Metadata = {
+  title: 'Framework Guides',
+  description:
+    'Copy-paste integration snippets for wiring the Consenti UI widget into React, Vue, Angular, and Next.js.',
+  alternates: { canonical: '/docs/ui/frameworks' },
+  openGraph: {
+    title: 'Framework Guides',
+    description:
+      'Copy-paste integration snippets for wiring the Consenti UI widget into React, Vue, Angular, and Next.js.',
+    url: 'https://consenti.dev/docs/ui/frameworks',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Framework Guides',
+    description:
+      'Copy-paste integration snippets for wiring the Consenti UI widget into React, Vue, Angular, and Next.js.',
+    images: ['/og-image.jpg'],
+  },
+}
 
 export default function UIFrameworksPage() {
   return (
@@ -11,7 +31,10 @@ export default function UIFrameworksPage() {
 
       <h2>React</h2>
       <Terminal code="npm install @consenti/ui" />
-      <CodeBlock lang="tsx" filename="ConsentSetup.tsx" code={`'use client'  // Next.js App Router
+      <CodeBlock
+        lang="tsx"
+        filename="ConsentSetup.tsx"
+        code={`'use client'  // Next.js App Router
 
 import { useEffect } from 'react'
 import { ConsentiSetup } from '@consenti/ui'
@@ -25,10 +48,13 @@ export function ConsentSetup() {
   }, [])
 
   return null
-}`} />
+}`}
+      />
 
       <h3>useConsent hook</h3>
-      <CodeBlock lang="tsx" code={`import { useConsent } from '@consenti/ui/react'
+      <CodeBlock
+        lang="tsx"
+        code={`import { useConsent } from '@consenti/ui/react'
 
 export function AnalyticsButton() {
   const { hasConsent, consent, showModal } = useConsent()
@@ -39,14 +65,18 @@ export function AnalyticsButton() {
 
   const analyticsGranted = consent?.analytics === 'granted'
   return <span>{analyticsGranted ? 'Analytics on' : 'Analytics off'}</span>
-}`} />
+}`}
+      />
 
       <h2>Next.js App Router</h2>
       <Callout type="info">
         The widget accesses <code>document</code>, <code>window</code>, and <code>navigator</code>.
         Always initialise it in a <code>'use client'</code> component.
       </Callout>
-      <CodeBlock lang="tsx" filename="app/layout.tsx" code={`import { ConsentSetup } from '@/components/ConsentSetup'
+      <CodeBlock
+        lang="tsx"
+        filename="app/layout.tsx"
+        code={`import { ConsentSetup } from '@/components/ConsentSetup'
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -57,9 +87,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </body>
     </html>
   )
-}`} />
+}`}
+      />
 
-      <CodeBlock lang="tsx" filename="components/ConsentSetup.tsx" code={`'use client'
+      <CodeBlock
+        lang="tsx"
+        filename="components/ConsentSetup.tsx"
+        code={`'use client'
 
 import { useEffect, useRef } from 'react'
 import type { ConsentiSetup as WidgetType } from '@consenti/ui'
@@ -80,19 +114,27 @@ export function ConsentSetup() {
   }, [])
 
   return null
-}`} />
+}`}
+      />
 
       <h2>Vue 3 / Nuxt</h2>
-      <CodeBlock lang="ts" filename="composables/useConsenti.ts" code={`// For Nuxt: wrap in process.client check
+      <CodeBlock
+        lang="ts"
+        filename="composables/useConsenti.ts"
+        code={`// For Nuxt: wrap in process.client check
 import { onMounted, onUnmounted } from 'vue'
 import { useConsent } from '@consenti/ui/vue'
 
 export { useConsent }
 
 // Usage in component:
-// const { hasConsent, consent, showModal } = useConsent()`} />
+// const { hasConsent, consent, showModal } = useConsent()`}
+      />
 
-      <CodeBlock lang="vue" filename="app.vue" code={`<script setup lang="ts">
+      <CodeBlock
+        lang="vue"
+        filename="app.vue"
+        code={`<script setup lang="ts">
 import { onMounted, onBeforeUnmount } from 'vue'
 
 let widget: Awaited<typeof import('@consenti/ui')>['ConsentiSetup'] | null = null
@@ -107,10 +149,14 @@ onBeforeUnmount(() => widget?.destroy())
 
 <template>
   <NuxtPage />
-</template>`} />
+</template>`}
+      />
 
       <h2>Angular</h2>
-      <CodeBlock lang="ts" filename="consent.service.ts" code={`import { Injectable, OnDestroy, inject, PLATFORM_ID } from '@angular/core'
+      <CodeBlock
+        lang="ts"
+        filename="consent.service.ts"
+        code={`import { Injectable, OnDestroy, inject, PLATFORM_ID } from '@angular/core'
 import { isPlatformBrowser } from '@angular/common'
 
 @Injectable({ providedIn: 'root' })
@@ -127,9 +173,13 @@ export class ConsentService implements OnDestroy {
   ngOnDestroy() {
     (this.widget as { destroy?: () => void })?.destroy?.()
   }
-}`} />
+}`}
+      />
 
-      <CodeBlock lang="ts" filename="app.component.ts" code={`import { Component, OnInit } from '@angular/core'
+      <CodeBlock
+        lang="ts"
+        filename="app.component.ts"
+        code={`import { Component, OnInit } from '@angular/core'
 import { ConsentService } from './consent.service'
 
 @Component({
@@ -142,10 +192,13 @@ export class AppComponent implements OnInit {
   ngOnInit() {
     this.consent.init()
   }
-}`} />
+}`}
+      />
 
       <h2>Angular — useConsent service</h2>
-      <CodeBlock lang="ts" code={`import { ConsentiService } from '@consenti/ui/angular'
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiService } from '@consenti/ui/angular'
 
 @Component({ ... })
 export class MyComponent {
@@ -154,10 +207,14 @@ export class MyComponent {
   // consent.hasConsent()
   // consent.showModal()
   // consent.getConsent()
-}`} />
+}`}
+      />
 
       <h2>Vanilla JS</h2>
-      <CodeBlock lang="js" filename="main.js" code={`import { ConsentiSetup } from '@consenti/ui'
+      <CodeBlock
+        lang="js"
+        filename="main.js"
+        code={`import { ConsentiSetup } from '@consenti/ui'
 
 const widget = new ConsentiSetup({
   core: { regulation: 'gdpr', locale: 'en' },
@@ -166,7 +223,8 @@ const widget = new ConsentiSetup({
 // Open preference modal from a footer link
 document.querySelector('#cookie-settings')?.addEventListener('click', () => {
   widget.showModal()
-})`} />
+})`}
+      />
     </div>
   )
 }

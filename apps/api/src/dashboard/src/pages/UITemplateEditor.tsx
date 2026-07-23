@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'preact/hooks'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { BannerUIEditor } from '../components/BannerUIEditor'
 import { ModalUIEditor } from '../components/ModalUIEditor'
 import { PreviewPane } from '../components/PreviewPane'
 import { useT } from '../context/locale'
 import {
-  defaultUISettings, defaultCookies, defaultLocaleContent, composeProfileJson,
+  defaultUISettings, defaultCookies, defaultCategories, defaultLocaleContent, composeProfileJson,
+  buttonsToMap, mapToButtonRows,
   type TemplateBannerUI, type TemplateModalUI,
 } from '../utils/templates'
 import { uiTemplatesApi } from '../api/templates'
@@ -29,11 +30,10 @@ const BLANK_MODAL: TemplateModalUI = {
   headingTag: 'h2',
   hasSubheading: false,
   buttons: [],
-  categories: [],
 }
 
 function isBlank(main: TemplateBannerUI, gpc: TemplateBannerUI, modal: TemplateModalUI): boolean {
-  return main.buttons.length === 0 && gpc.buttons.length === 0 && modal.buttons.length === 0 && modal.categories.length === 0
+  return main.buttons.length === 0 && gpc.buttons.length === 0 && modal.buttons.length === 0
 }
 
 export function UITemplateEditor({ id, current }: { id?: string; current: string }) {
@@ -49,6 +49,7 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
   const [loading, setLoading] = useState(!isNew)
+  usePageTitle(loading ? t('uiTemplates.editor.title.edit') : (isNew ? t('uiTemplates.editor.title.new') : t('uiTemplates.editor.title.edit')))
   const { requestConfirm, dialog } = useConfirmDialog()
 
   useEffect(() => {
@@ -56,9 +57,9 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
       uiTemplatesApi.get(id)
         .then(tmpl => {
           setName(tmpl.name)
-          setMainBanner(tmpl.mainBanner as TemplateBannerUI)
-          setGpcBanner(tmpl.gpcBanner as TemplateBannerUI)
-          setPreferenceModal(tmpl.preferenceModal as TemplateModalUI)
+          setMainBanner({ ...tmpl.mainBanner, buttons: mapToButtonRows(tmpl.mainBanner.buttons) })
+          setGpcBanner({ ...tmpl.gpcBanner, buttons: mapToButtonRows(tmpl.gpcBanner.buttons) })
+          setPreferenceModal({ ...tmpl.preferenceModal, buttons: mapToButtonRows(tmpl.preferenceModal.buttons) } as TemplateModalUI)
         })
         .catch(() => setError(t('uiTemplates.editor.error.notFound')))
         .finally(() => setLoading(false))
@@ -67,9 +68,10 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
 
   const previewDraft = composeProfileJson(
     defaultCookies(),
+    defaultCategories(),
     { mainBanner, gpcBanner, preferenceModal },
     'en',
-    { en: defaultLocaleContent(preferenceModal.categories, { mainBanner, gpcBanner, preferenceModal }) },
+    { en: defaultLocaleContent(defaultCategories(), { mainBanner, gpcBanner, preferenceModal }) },
     {},
   )
 
@@ -79,14 +81,15 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
     else setNameError('')
 
     const allButtons = [...mainBanner.buttons, ...gpcBanner.buttons, ...preferenceModal.buttons]
-    if (allButtons.some(b => !b.text.trim())) { setError(t('uiTemplates.editor.error.buttons')); return }
+    if (allButtons.some(b => !b.id.trim())) { setError(t('uiTemplates.editor.error.buttons')); return }
+    // Uniqueness is scoped per section, not global — mainBanner/gpcBanner/preferenceModal are
+    // mutually exclusive surfaces (never rendered together), so reusing an id like 'accept-all'
+    // across all three is normal and intentional (it's what the shipped defaults do).
+    for (const section of [mainBanner.buttons, gpcBanner.buttons, preferenceModal.buttons]) {
+      const ids = section.map(b => b.id.trim())
+      if (new Set(ids).size !== ids.length) { setError(t('uiTemplates.editor.error.uniqueButtonIds')); return }
+    }
     if (allButtons.some(b => b.action === 'custom' && !b.cookies)) { setError(t('uiTemplates.editor.error.customButtons')); return }
-
-    const cats = preferenceModal.categories
-    const catIds = cats.map(c => c.id.trim())
-    if (cats.some(c => !c.id.trim())) { setError(t('uiTemplates.editor.error.catIds')); return }
-    if (new Set(catIds).size !== catIds.length) { setError(t('uiTemplates.editor.error.uniqueCatIds')); return }
-    if (cats.some(c => !c.cookies.length)) { setError(t('uiTemplates.editor.error.catCookies')); return }
 
     if (!ok) return
 
@@ -105,8 +108,14 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
     setError('')
     setSaving(true)
     try {
-      if (isNew) await uiTemplatesApi.create({ name, mainBanner: mainBanner as never, gpcBanner: gpcBanner as never, preferenceModal: preferenceModal as never })
-      else await uiTemplatesApi.update(id!, { name, mainBanner: mainBanner as never, gpcBanner: gpcBanner as never, preferenceModal: preferenceModal as never })
+      const payload = {
+        name,
+        mainBanner: { ...mainBanner, buttons: buttonsToMap(mainBanner.buttons) },
+        gpcBanner: { ...gpcBanner, buttons: buttonsToMap(gpcBanner.buttons) },
+        preferenceModal: { ...preferenceModal, buttons: buttonsToMap(preferenceModal.buttons) },
+      }
+      if (isNew) await uiTemplatesApi.create(payload)
+      else await uiTemplatesApi.update(id!, payload)
       window.location.hash = '#/banners/ui-templates'
     } catch {
       setError(t('uiTemplates.editor.error.failed'))
@@ -128,10 +137,10 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
   const goNext = () => { if (!isLast) setActiveTab(steps[stepIndex + 1].key) }
   const goBack = () => { if (!isFirst) setActiveTab(steps[stepIndex - 1].key) }
 
-  if (loading) return <Layout title={t('uiTemplates.editor.title.edit')} current={current}><p class="text-sm text-gray-400" role="status" aria-live="polite">{t('uiTemplates.editor.loading')}</p></Layout>
+  if (loading) return <p class="text-sm text-gray-400" role="status" aria-live="polite">{t('uiTemplates.editor.loading')}</p>
 
   return (
-    <Layout title={isNew ? t('uiTemplates.editor.title.new') : t('uiTemplates.editor.title.edit')} current={current}>
+    <>
       {dialog}
       <div class="space-y-5">
         <div class="bg-white border border-gray-200 rounded-lg p-5">
@@ -257,6 +266,6 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
 
         <PreviewPane draft={previewDraft} expandable previewMode={activeTab} />
       </div>
-    </Layout>
+    </>
   )
 }

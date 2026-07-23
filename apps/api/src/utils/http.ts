@@ -43,6 +43,21 @@ export function getQueryInt(url: URL, key: string, fallback: number): number {
   return isNaN(n) ? fallback : n
 }
 
+export const MAX_LIST_PAGE_SIZE = 500
+
+/**
+ * Reads and validates `page`/`limit` for a list endpoint. `page` is silently clamped to >= 1
+ * (a stale/malformed page param shouldn't 400 a normal page load — it just re-shows page 1).
+ * `limit` outside [1, MAX_LIST_PAGE_SIZE] is rejected outright: an unbounded or negative limit
+ * can force a full-table scan or an invalid OFFSET at the storage layer.
+ */
+export function getPagination(url: URL, defaultLimit = 50): { page: number; limit: number } | { error: string } {
+  const limit = getQueryInt(url, 'limit', defaultLimit)
+  if (limit < 1 || limit > MAX_LIST_PAGE_SIZE) return { error: `limit must be between 1 and ${MAX_LIST_PAGE_SIZE}` }
+  const page = Math.max(1, getQueryInt(url, 'page', 1))
+  return { page, limit }
+}
+
 export async function nodeRequestToFetch(
   req: IncomingMessage,
   maxBodyBytes = 1_048_576,

@@ -28,7 +28,9 @@ const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
 function mapButton(btn: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {
     text: btn['text'],
-    style: btn['type'],
+    // Input here is already-resolved translation content (composeProfileJson /
+    // buildPreviewDraft), which uses `style` — not the raw dashboard-editor `type` field.
+    style: btn['style'],
     action: btn['action'],
   }
   if (btn['cookies'] !== undefined) out['cookies'] = btn['cookies']
@@ -38,8 +40,9 @@ function mapButton(btn: Record<string, unknown>): Record<string, unknown> {
 
 function withButtons(section: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   if (!section) return undefined
-  const buttons = section['buttons'] as Record<string, unknown>[] | undefined
-  return { ...section, buttons: (buttons ?? []).map(mapButton) }
+  const buttons = section['buttons'] as Record<string, Record<string, unknown>> | undefined
+  const mapped = Object.fromEntries(Object.entries(buttons ?? {}).map(([id, btn]) => [id, mapButton(btn)]))
+  return { ...section, buttons: mapped }
 }
 
 function hasLocaleSwitcher(section: Record<string, unknown> | undefined): boolean {

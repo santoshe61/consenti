@@ -1,4 +1,8 @@
+'use client'
+
+import { Suspense } from 'react'
 import Link from 'next/link'
+import { useSearchParams } from 'next/navigation'
 
 type Tab = 'frontend' | 'both'
 
@@ -91,14 +95,7 @@ const MORE_LINKS: Record<Tab, { href: string; label: string }> = {
   both: { href: '/docs/getting-started/', label: 'Full Getting Started guide →' },
 }
 
-interface QuickStartTabsProps {
-  searchParams: Promise<{ tab?: string }>
-}
-
-export async function QuickStartTabs({ searchParams }: QuickStartTabsProps) {
-  const { tab } = await searchParams
-  const active = (tab === 'both' ? 'both' : 'frontend') as Tab
-
+function QuickStartTabsView({ active }: { active: Tab }) {
   const steps = active === 'frontend' ? FRONTEND_STEPS : BOTH_STEPS
   const more = MORE_LINKS[active]
 
@@ -132,7 +129,7 @@ export async function QuickStartTabs({ searchParams }: QuickStartTabsProps) {
             <div key={step.num} className="bg-[#060f1e] rounded-lg border border-white/[0.07] overflow-hidden">
               {/* Step header */}
               <div className="flex items-center gap-2.5 px-4 py-2.5 border-b border-white/[0.06]">
-                <span className="w-5 h-5 rounded bg-brand-500/20 text-brand-300 text-[10px] font-bold font-mono flex items-center justify-center shrink-0 border border-brand-500/30">
+                <span className="w-5 h-5 rounded bg-brand-500/20 text-white text-[10px] font-bold font-mono flex items-center justify-center shrink-0 border border-brand-500/30">
                   {step.num}
                 </span>
                 <span className="text-xs font-medium text-white/60">{step.title}</span>
@@ -159,5 +156,27 @@ export async function QuickStartTabs({ searchParams }: QuickStartTabsProps) {
         </div>
       </div>
     </section>
+  )
+}
+
+function QuickStartTabsClient() {
+  const searchParams = useSearchParams()
+  const active = (searchParams.get('tab') === 'both' ? 'both' : 'frontend') as Tab
+
+  return <QuickStartTabsView active={active} />
+}
+
+// Suspense fallback: statically renders the default ("frontend") tab so
+// the page can prerender fully; the client swaps to the real tab (from
+// the ?tab= param) on hydration if it differs.
+export function QuickStartTabsFallback() {
+  return <QuickStartTabsView active="frontend" />
+}
+
+export function QuickStartTabs() {
+  return (
+    <Suspense fallback={<QuickStartTabsFallback />}>
+      <QuickStartTabsClient />
+    </Suspense>
   )
 }

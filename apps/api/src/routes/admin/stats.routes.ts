@@ -2,9 +2,11 @@ import type { StorageAdapter, AuthConfig } from '@consenti/types'
 import { json, getQueryInt } from '../../utils/http'
 import { withErrorHandler } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
+import type { StatsService } from '../../services/stats.service'
 
 export function buildAdminStatsRoutes(
   storage: StorageAdapter,
+  stats: StatsService,
   authConfig: AuthConfig,
   secret: string,
 ) {
@@ -18,16 +20,16 @@ export function buildAdminStatsRoutes(
       withErrorHandler(async () => {
         const { denied } = await auth(req)
         if (denied) return denied
-        const stats = await storage.getOverviewStats('default')
-        return json(200, stats)
+        const overview = await stats.getOverview('default')
+        return json(200, overview)
       }),
 
     'GET /stats/categories': async (req: Request, _p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
         const { denied } = await auth(req)
         if (denied) return denied
-        const stats = await storage.getCategoryStats('default')
-        return json(200, stats)
+        const categories = await stats.getCategories('default')
+        return json(200, categories)
       }),
 
     'GET /stats/timeline': async (req: Request, _p: Record<string, string>): Promise<Response> =>
@@ -36,7 +38,7 @@ export function buildAdminStatsRoutes(
         if (denied) return denied
         const url = new URL(req.url)
         const days = getQueryInt(url, 'days', 30)
-        const timeline = await storage.getTimeline('default', days)
+        const timeline = await stats.getTimeline('default', days)
         return json(200, timeline)
       }),
 
@@ -44,7 +46,7 @@ export function buildAdminStatsRoutes(
       withErrorHandler(async () => {
         const { denied } = await auth(req)
         if (denied) return denied
-        const countries = await storage.getCountries('default')
+        const countries = await stats.getCountries('default')
         return json(200, countries)
       }),
 
@@ -52,7 +54,7 @@ export function buildAdminStatsRoutes(
       withErrorHandler(async () => {
         const { denied } = await auth(req)
         if (denied) return denied
-        const gpc = await storage.getGpcStats('default')
+        const gpc = await stats.getGpc('default')
         return json(200, gpc)
       }),
 
@@ -60,10 +62,10 @@ export function buildAdminStatsRoutes(
       withErrorHandler(async () => {
         const { denied } = await auth(req)
         if (denied) return denied
-        const tenants = await storage.getTenants()
+        const tenants = await stats.getTenants()
         const rows = await Promise.all(
           tenants.map(async t => {
-            const s = await storage.getOverviewStats(t.id)
+            const s = await stats.getOverview(t.id)
             return { tenantId: t.id, tenantName: t.name, ...s }
           }),
         )

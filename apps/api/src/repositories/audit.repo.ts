@@ -1,5 +1,5 @@
 import type {
-  StorageAdapter, AuditLog, AuditFilters, CreateAuditLogInput,
+  StorageAdapter, AuditLog, AuditLogSummary, AuditFilters, CreateAuditLogInput, PagedResult,
 } from '@consenti/types'
 
 export class AuditRepo {
@@ -9,7 +9,11 @@ export class AuditRepo {
     return this.adapter.createLog(data)
   }
 
-  list(filters: AuditFilters): Promise<AuditLog[]> {
+  list(filters: AuditFilters): Promise<PagedResult<AuditLogSummary>> {
     return this.adapter.getLogs(filters)
+  }
+
+  get(id: string): Promise<AuditLog | null> {
+    return this.adapter.getAuditLogById(id)
   }
 }

@@ -2,21 +2,37 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { CodeBlock, Terminal } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { QuickStartPathSwitcher } from '@/components/QuickStartPathSwitcher'
 
-export const metadata: Metadata = { title: 'Quick Start' }
-
-interface QuickStartPageProps {
-  searchParams: Promise<{ path?: string }>
+export const metadata: Metadata = {
+  title: 'Quick Start',
+  description:
+    'Pick the setup that fits your project — frontend-only, backend-only, or both — and get Consenti running in minutes.',
+  alternates: { canonical: '/docs/getting-started/quick-start' },
+  openGraph: {
+    title: 'Quick Start',
+    description:
+      'Pick the setup that fits your project — frontend-only, backend-only, or both — and get Consenti running in minutes.',
+    url: 'https://consenti.dev/docs/getting-started/quick-start',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Quick Start',
+    description:
+      'Pick the setup that fits your project — frontend-only, backend-only, or both — and get Consenti running in minutes.',
+    images: ['/og-image.jpg'],
+  },
 }
 
-export default async function QuickStartPage({ searchParams }: QuickStartPageProps) {
-  const { path } = await searchParams
-  const activePath = path === 'frontend' ? 'frontend' : path === 'both' ? 'both' : null
-
-  if (!activePath) {
-    return <PathChooser />
-  }
-
+function PathContent({
+  activePath,
+  children,
+}: {
+  activePath: 'frontend' | 'both'
+  children: React.ReactNode
+}) {
   return (
     <div className="prose max-w-none">
       {/* Path switcher pill */}
@@ -33,8 +49,26 @@ export default async function QuickStartPage({ searchParams }: QuickStartPagePro
         </Link>
       </div>
 
-      {activePath === 'frontend' ? <FrontendPath /> : <BothPath />}
+      {children}
     </div>
+  )
+}
+
+export default function QuickStartPage() {
+  return (
+    <QuickStartPathSwitcher
+      chooser={<PathChooser />}
+      frontend={
+        <PathContent activePath="frontend">
+          <FrontendPath />
+        </PathContent>
+      }
+      both={
+        <PathContent activePath="both">
+          <BothPath />
+        </PathContent>
+      }
+    />
   )
 }
 
@@ -55,15 +89,25 @@ function PathChooser() {
           <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-700/20 flex items-center justify-center mb-4 text-xl">
             🌐
           </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-gray-100 mb-2">Frontend Only</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-gray-100 mb-2">
+            Frontend Only
+          </h3>
           <p className="text-sm text-slate-500 dark:text-gray-400 mb-4 leading-relaxed">
             Drop in the widget. Consent stays in the browser — no server needed.
           </p>
           <ul className="text-sm text-slate-600 dark:text-gray-300 space-y-1.5 mb-5">
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Banner + preference modal</li>
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> GDPR, CCPA &amp; 8 compliance groups</li>
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Consent stored in browser cookie</li>
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> No server, no database</li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> Banner + preference modal
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> GDPR, CCPA &amp; 8 compliance groups
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> Consent stored in browser cookie
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> No server, no database
+            </li>
           </ul>
           <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 group-hover:gap-2 transition-all">
             Start with Frontend Only →
@@ -78,15 +122,25 @@ function PathChooser() {
           <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-700/20 flex items-center justify-center mb-4 text-xl">
             🖥️
           </div>
-          <h3 className="text-lg font-bold text-slate-900 dark:text-gray-100 mb-2">Frontend + Backend</h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-gray-100 mb-2">
+            Frontend + Backend
+          </h3>
           <p className="text-sm text-slate-500 dark:text-gray-400 mb-4 leading-relaxed">
             Widget + Node.js backend + admin dashboard. Manage profiles without redeploying.
           </p>
           <ul className="text-sm text-slate-600 dark:text-gray-300 space-y-1.5 mb-5">
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Everything in Frontend Only, plus…</li>
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Admin dashboard to manage profiles</li>
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Server-side consent records + audit log</li>
-            <li className="flex items-center gap-2"><span className="text-green-500">✓</span> Geo-routing — right profile per country</li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> Everything in Frontend Only, plus…
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> Admin dashboard to manage profiles
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> Server-side consent records + audit log
+            </li>
+            <li className="flex items-center gap-2">
+              <span className="text-green-500">✓</span> Geo-routing — right profile per country
+            </li>
           </ul>
           <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 group-hover:gap-2 transition-all">
             Start with Frontend + Backend →
@@ -95,7 +149,8 @@ function PathChooser() {
       </div>
 
       <p className="mt-6 text-sm text-slate-400 dark:text-gray-500 text-center">
-        Not sure? Start with Frontend Only — you can add the backend later without changing your frontend code.
+        Not sure? Start with Frontend Only — you can add the backend later without changing your
+        frontend code.
       </p>
     </div>
   )
@@ -129,8 +184,8 @@ const widget = new ConsentiSetup({})
 
       <Callout type="tip">
         Want a specific compliance mode instead of auto-detect? Pass{' '}
-        <code>compliance: {'{ type: \'opt-in\' }'}</code> for GDPR or{' '}
-        <code>compliance: {'{ type: \'opt-out\' }'}</code> for CCPA.
+        <code>compliance: {"{ type: 'opt-in' }"}</code> for GDPR or{' '}
+        <code>compliance: {"{ type: 'opt-out' }"}</code> for CCPA.
       </Callout>
 
       <h2>3. React to consent</h2>
@@ -189,13 +244,30 @@ export function ConsentSetup() {
 
       <h2>What to read next</h2>
       <ul>
-        <li><a href="/docs/ui/configuration/">UI Configuration</a> — every <code>ConsentiSetup</code> option</li>
-        <li><a href="/docs/ui/profiles/">Profiles</a> — customize the banner copy, buttons, and cookie categories</li>
-        <li><a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt integration</li>
-        <li><a href="/docs/ui/events/">Events</a> — all <code>consenti:</code> events and payloads</li>
-        <li><a href="/docs/ui/methods/">API Methods</a> — every widget method with examples</li>
-        <li><a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires</li>
-        <li><a href="/docs/getting-started/quick-start/?path=both">Switch to Frontend + Backend →</a></li>
+        <li>
+          <a href="/docs/ui/advanced-configuration/">UI Configuration</a> — every{' '}
+          <code>ConsentiSetup</code> option
+        </li>
+        <li>
+          <a href="/docs/ui/profiles/">Profiles</a> — customize the banner copy, buttons, and cookie
+          categories
+        </li>
+        <li>
+          <a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt
+          integration
+        </li>
+        <li>
+          <a href="/docs/ui/events/">Events</a> — all <code>consenti:</code> events and payloads
+        </li>
+        <li>
+          <a href="/docs/ui/methods/">API Methods</a> — every widget method with examples
+        </li>
+        <li>
+          <a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires
+        </li>
+        <li>
+          <a href="/docs/getting-started/quick-start/?path=both">Switch to Frontend + Backend →</a>
+        </li>
       </ul>
     </>
   )
@@ -206,16 +278,18 @@ async function BothPath() {
     <>
       <h1>Quick Start — Frontend + Backend</h1>
       <p>
-        The backend module records consent server-side and serves an admin dashboard.
-        Profiles are managed through the UI — no code changes needed to update copy or buttons.
+        The backend module records consent server-side and serves an admin dashboard. Profiles are
+        managed through the UI — no code changes needed to update copy or buttons.
       </p>
 
       <h2>1. Install</h2>
-      <Terminal code={`# On your backend (Node.js app)
+      <Terminal
+        code={`# On your backend (Node.js app)
 npm install @consenti/api
 
 # On your frontend (or same app for Next.js / Nuxt)
-npm install @consenti/ui`} />
+npm install @consenti/ui`}
+      />
 
       <h2>2. Start the backend</h2>
       <CodeBlock
@@ -241,9 +315,10 @@ http.createServer(consenti.handler).listen(3001)
 
       <Callout type="info">
         The default <code>json</code> driver works with zero installation. Switch to{' '}
-        <code>node:sqlite</code> (Node 22.5+) or <code>postgresql</code> / <code>mysql</code> /
-        {' '}<code>mongodb</code> before going to production.
-        See <a href="/docs/api/configuration/">API Configuration</a> for all storage options.
+        <code>node:sqlite</code> (Node 22.5+) or <code>postgresql</code> / <code>mysql</code> /{' '}
+        <code>mongodb</code> before going to production. See{' '}
+        <a href="/docs/api/advanced-configuration/#storage">API Advanced Configuration</a> for all
+        storage options.
       </Callout>
 
       <p>Using Express?</p>
@@ -266,8 +341,8 @@ app.listen(3000)`}
       <h2>3. Create a profile in the dashboard</h2>
       <p>
         Open <code>http://localhost:3001/consenti/</code>, log in, and create a profile for each
-        compliance group your site needs. The backend automatically resolves the best profile
-        per visitor via geo-routing.
+        compliance group your site needs. The backend automatically resolves the best profile per
+        visitor via geo-routing.
       </p>
 
       <h2>4. Connect the frontend</h2>
@@ -298,12 +373,26 @@ widget.onReady(() => {
 
       <h2>What to read next</h2>
       <ul>
-        <li><a href="/docs/api/configuration/">API Configuration</a> — storage drivers, auth modes, all options</li>
-        <li><a href="/docs/ui/configuration/">UI Configuration</a> — every <code>ConsentiSetup</code> option</li>
-        <li><a href="/docs/ui/profiles/">Profiles</a> — customize banner, modal, and cookie categories</li>
-        <li><a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt</li>
-        <li><a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires</li>
-        <li><a href="/docs/getting-started/quick-start/?path=frontend">Switch to Frontend Only →</a></li>
+        <li>
+          <a href="/docs/api/advanced-configuration/">API Configuration</a> — storage drivers, auth
+          modes, all options
+        </li>
+        <li>
+          <a href="/docs/ui/advanced-configuration/">UI Configuration</a> — every{' '}
+          <code>ConsentiSetup</code> option
+        </li>
+        <li>
+          <a href="/docs/ui/profiles/">Profiles</a> — customize banner, modal, and cookie categories
+        </li>
+        <li>
+          <a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt
+        </li>
+        <li>
+          <a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires
+        </li>
+        <li>
+          <a href="/docs/getting-started/quick-start/?path=frontend">Switch to Frontend Only →</a>
+        </li>
       </ul>
     </>
   )

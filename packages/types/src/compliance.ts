@@ -15,3 +15,11 @@ import type { COMPLIANCE_REGULATION_IDS, COMPLIANCE_GROUP_IDS } from '@consenti/
 export type Compliance = typeof COMPLIANCE_REGULATION_IDS[number]
 
 export type ComplianceGroupId = typeof COMPLIANCE_GROUP_IDS[number]
+
+/**
+ * `(string & {})` (rather than plain `string`) keeps IDE autocomplete for the
+ * known `ComplianceGroupId` literals while still allowing any other string —
+ * used to target a profile authored against a custom (non-built-in)
+ * `customComplianceGroup` instead of one of the 8 built-in groups.
+ */
+export type ComplianceType = 'auto' | ComplianceGroupId | (string & {}) | Symbol

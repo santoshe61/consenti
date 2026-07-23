@@ -1,5 +1,5 @@
 import { useState } from 'preact/hooks'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { useAuth } from '../context/auth'
 import { useT } from '../context/locale'
 import { usersApi } from '../api/users'
@@ -7,6 +7,7 @@ import { usersApi } from '../api/users'
 export function ChangePassword({ current }: { current: string }) {
   const { user } = useAuth()
   const t = useT()
+  usePageTitle(t('changePassword.title'))
   const [newPassword, setNewPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState<string | null>(null)
@@ -40,7 +41,7 @@ export function ChangePassword({ current }: { current: string }) {
   }
 
   return (
-    <Layout title={t('changePassword.title')} current={current}>
+    <>
       <div class="max-w-md">
         <div class="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
           <p class="text-sm text-gray-500 dark:text-gray-400 mb-5">
@@ -106,6 +107,6 @@ export function ChangePassword({ current }: { current: string }) {
           </form>
         </div>
       </div>
-    </Layout>
+    </>
   )
 }

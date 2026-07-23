@@ -42,11 +42,12 @@ export function castCreateConsent(body: Record<string, unknown>, visitorId: stri
     tenantId,
     visitorId,
     profileId: body['profileId'] as string,
-    profileVersion: typeof body['profileVersion'] === 'number' ? body['profileVersion'] : 1,
     locale: typeof body['locale'] === 'string' ? body['locale'] : 'en',
     consentJson: body['consentJson'] as ConsentValue,
     gpcDetected: Boolean(body['gpcDetected']),
     source: (body['source'] as CreateConsentInput['source']) ?? 'banner',
+    ...(typeof body['ageVerified'] === 'boolean' ? { ageVerified: body['ageVerified'] } : {}),
+    ...(typeof body['parentalConsentToken'] === 'string' ? { parentalConsentToken: body['parentalConsentToken'] } : {}),
   }
 }
 

@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'preact/hooks'
 import { Eye, EyeOff } from 'lucide-react'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { Table } from '../components/Table'
 import { PermissionGate } from '../components/PermissionGate'
 import { useConfirmDialog } from '../components/ConfirmDialog'
+import { RecordDetailModal } from '../components/RecordDetailModal'
 import { useT } from '../context/locale'
 import { usersApi } from '../api/users'
 import { rolesApi } from '../api/roles'
@@ -16,6 +17,7 @@ interface Tenant { id: string; name: string; slug: string }
 export function UserList({ current }: { current: string }) {
   const { user: me } = useAuth()
   const t = useT()
+  usePageTitle(t('users.title'))
   const [users, setUsers] = useState<DashboardAdminUser[]>([])
   const [roles, setRoles] = useState<Role[]>([])
   const [tenants, setTenants] = useState<Tenant[]>([])
@@ -28,6 +30,12 @@ export function UserList({ current }: { current: string }) {
   const [editingUser, setEditingUser] = useState<DashboardAdminUser | null>(null)
   const [editAllowedTenants, setEditAllowedTenants] = useState<string[]>([])
   const [editError, setEditError] = useState('')
+  const [editPassword, setEditPassword] = useState('')
+  const [editConfirmPassword, setEditConfirmPassword] = useState('')
+  const [showEditPassword, setShowEditPassword] = useState(false)
+  const [selected, setSelected] = useState<DashboardAdminUser | null>(null)
+  const isLocalAuth = window.__CONSENTI_CONFIG__?.authMode === 'local'
+  const isSuperadmin = me?.roles.includes('super_admin') ?? false
   const { requestConfirm, dialog } = useConfirmDialog()
 
   const load = () => {
@@ -92,12 +100,26 @@ export function UserList({ current }: { current: string }) {
     setEditingUser(u)
     setEditAllowedTenants(u.allowedTenants ?? [])
     setEditError('')
+    setEditPassword('')
+    setEditConfirmPassword('')
+    setShowEditPassword(false)
   }
 
   const handleEditSave = async () => {
     if (!editingUser) return
+    if (editPassword && editPassword !== editConfirmPassword) {
+      setEditError(t('users.createForm.passwordMismatch'))
+      return
+    }
+    if (editPassword && editPassword.length < 12) {
+      setEditError(t('users.edit.passwordTooShort'))
+      return
+    }
     try {
-      await usersApi.update(editingUser.id, { allowedTenants: editAllowedTenants })
+      await usersApi.update(editingUser.id, {
+        allowedTenants: editAllowedTenants,
+        ...(editPassword ? { password: editPassword } : {}),
+      })
       setEditingUser(null)
       load()
     } catch {
@@ -112,8 +134,21 @@ export function UserList({ current }: { current: string }) {
   }
 
   return (
-    <Layout title={t('users.title')} current={current}>
+    <>
       {dialog}
+
+      <RecordDetailModal
+        open={!!selected}
+        title={t('users.detail.title')}
+        onClose={() => setSelected(null)}
+        fields={selected ? [
+          { label: t('common.name'), value: selected.name },
+          { label: t('common.email'), value: selected.email },
+          { label: t('users.col.status'), value: selected.isActive ? t('users.status.active') : t('users.status.inactive') },
+          { label: t('common.created'), value: new Date(selected.createdAt).toLocaleString() },
+          { label: t('users.allowedSites'), value: selected.allowedTenants?.length ? selected.allowedTenants.join(', ') : t('users.detail.allSites') },
+        ] : []}
+      />
       <div class="flex justify-between items-center mb-4">
         <p class="text-sm text-gray-500">{t('users.count', { n: users.length })}</p>
         <PermissionGate perm="user:create">
@@ -149,6 +184,43 @@ export function UserList({ current }: { current: string }) {
                       {tn.name || tn.slug}
                     </label>
                   ))}
+                </div>
+              </div>
+            )}
+            {isLocalAuth && isSuperadmin && (
+              <div>
+                <p class="text-xs font-medium text-gray-700 mb-1.5">
+                  {t('users.edit.resetPassword')}
+                  <span class="ml-1.5 font-normal text-gray-400">{t('users.edit.resetPasswordHint')}</span>
+                </p>
+                <div class="space-y-2">
+                  <div class="relative">
+                    <input
+                      class="w-full border border-gray-300 rounded px-3 py-2 pr-9 text-sm"
+                      placeholder={t('users.createForm.passwordPlaceholder')}
+                      aria-label={t('users.edit.newPassword')}
+                      type={showEditPassword ? 'text' : 'password'}
+                      value={editPassword}
+                      onInput={e => setEditPassword((e.target as HTMLInputElement).value)}
+                    />
+                    <button
+                      type="button"
+                      class="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      onClick={() => setShowEditPassword(s => !s)}
+                      aria-label={showEditPassword ? t('common.hidePassword') : t('common.showPassword')}
+                      title={showEditPassword ? t('common.hidePassword') : t('common.showPassword')}
+                    >
+                      {showEditPassword ? <EyeOff size={15} aria-hidden="true" /> : <Eye size={15} aria-hidden="true" />}
+                    </button>
+                  </div>
+                  <input
+                    class="w-full border border-gray-300 rounded px-3 py-2 text-sm"
+                    placeholder={t('users.createForm.confirmPasswordPlaceholder')}
+                    aria-label={t('users.edit.confirmNewPassword')}
+                    type={showEditPassword ? 'text' : 'password'}
+                    value={editConfirmPassword}
+                    onInput={e => setEditConfirmPassword((e.target as HTMLInputElement).value)}
+                  />
                 </div>
               </div>
             )}
@@ -270,8 +342,12 @@ export function UserList({ current }: { current: string }) {
         loading={loading}
         keyFn={r => (r as unknown as DashboardAdminUser).id}
         rows={users as unknown as Record<string, unknown>[]}
+        search={{ placeholder: t('common.search'), keys: r => [(r as unknown as DashboardAdminUser).name, (r as unknown as DashboardAdminUser).email] }}
         columns={[
-          { key: 'name', label: t('common.name') },
+          { key: 'name', label: t('common.name'), render: r => {
+            const u = r as unknown as DashboardAdminUser
+            return <button onClick={() => setSelected(u)} class="text-blue-600 dark:text-blue-400 hover:underline">{u.name}</button>
+          }},
           { key: 'email', label: t('common.email') },
           {
             key: 'isActive', label: t('users.col.status'),
@@ -311,6 +387,6 @@ export function UserList({ current }: { current: string }) {
           },
         ]}
       />
-    </Layout>
+    </>
   )
 }

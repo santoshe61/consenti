@@ -3,13 +3,15 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Coffee, Layout, List, Server, ChevronDown, ChevronRight } from 'lucide-react'
+import { Coffee, Layout, List, Map, Server, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import { FaGithub } from 'react-icons/fa'
 
 interface NavItem {
   href: string
   label: string
   badge?: string
+  /** When set, this item renders nested inside a collapsible sub-group at this position in the list. */
+  group?: { id: string; label: string }
 }
 
 interface NavSection {
@@ -124,12 +126,19 @@ const FRONTEND_NAV: NavSection[] = [
     items: [
       { href: '/docs/ui/', label: 'Overview' },
       { href: '/docs/ui/installation/', label: 'Installation' },
-      { href: '/docs/ui/profiles/', label: 'Profiles' },
+      { href: '/docs/ui/profiles/', label: 'Profile' },
       { href: '/docs/ui/configuration/', label: 'Configuration' },
       { href: '/docs/ui/events/', label: 'Events' },
       { href: '/docs/ui/methods/', label: 'API Methods' },
       { href: '/docs/ui/themes/', label: 'Themes & CSS' },
       { href: '/docs/ui/frameworks/', label: 'Frameworks' },
+    ],
+  },
+  {
+    title: 'Advanced Setup',
+    items: [
+      { href: '/docs/ui/advanced-profiles/', label: 'Advanced Profile' },
+      { href: '/docs/ui/advanced-configuration/', label: 'Advanced Configuration' },
     ],
   },
   {
@@ -155,6 +164,7 @@ const BACKEND_NAV: NavSection[] = [
       { href: '/docs/api/', label: 'Overview' },
       { href: '/docs/api/installation/', label: 'Installation' },
       { href: '/docs/api/configuration/', label: 'Configuration' },
+      { href: '/docs/api/advanced-configuration/', label: 'Advanced Configuration' },
       { href: '/docs/api/routes/', label: 'API Routes' },
       { href: '/docs/api/routes/public/', label: 'Public Routes' },
       { href: '/docs/api/routes/admin/', label: 'Admin Routes' },
@@ -171,6 +181,17 @@ const BACKEND_NAV: NavSection[] = [
     ],
   },
 ]
+
+function navGroupForPath(nav: NavSection[], pathname: string): string | null {
+  for (const section of nav) {
+    for (const item of section.items) {
+      if (item.group && (pathname === item.href || pathname === item.href.slice(0, -1))) {
+        return item.group.id
+      }
+    }
+  }
+  return null
+}
 
 function isBackendPath(pathname: string) {
   return (
@@ -189,6 +210,11 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
     activeGroupId ? new Set([activeGroupId]) : new Set()
   )
 
+  const activeNavGroupId = navGroupForPath(FRONTEND_NAV, pathname) ?? navGroupForPath(BACKEND_NAV, pathname)
+  const [expandedNavGroups, setExpandedNavGroups] = useState<Set<string>>(
+    activeNavGroupId ? new Set([activeNavGroupId]) : new Set()
+  )
+
   useEffect(() => {
     setActiveTab(isBackendPath(pathname) ? 'backend' : 'frontend')
     const gid = groupForPath(pathname)
@@ -198,10 +224,29 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
         return new Set([...prev, gid])
       })
     }
+    const ngid = navGroupForPath(FRONTEND_NAV, pathname) ?? navGroupForPath(BACKEND_NAV, pathname)
+    if (ngid) {
+      setExpandedNavGroups((prev) => {
+        if (prev.has(ngid)) return prev
+        return new Set([...prev, ngid])
+      })
+    }
   }, [pathname])
 
   function toggleGroup(id: string) {
     setExpandedGroups((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  function toggleNavGroup(id: string) {
+    setExpandedNavGroups((prev) => {
       const next = new Set(prev)
       if (next.has(id)) {
         next.delete(id)
@@ -249,14 +294,16 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
               {section.icon}
               {section.title}
             </div>
-            {section.items.map((item) => {
+            {section.items.map((item, idx) => {
               const active = pathname === item.href || pathname === item.href.slice(0, -1)
-              return (
+              const prevGroupId = section.items[idx - 1]?.group?.id
+              const isGroupStart = item.group && item.group.id !== prevGroupId
+              const link = item.group && !expandedNavGroups.has(item.group.id) ? null : (
                 <Link
                   key={item.href}
                   href={item.href}
                   {...(onClose ? { onClick: onClose } : {})}
-                  className={`nav-link mx-2 ${active ? 'nav-link-active' : ''}`}
+                  className={`nav-link mx-2 ${item.group ? 'ml-5' : ''} ${active ? 'nav-link-active' : ''}`}
                 >
                   {item.label}
                   {item.badge && (
@@ -266,6 +313,23 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
                   )}
                 </Link>
               )
+              if (!isGroupStart) return link
+              const groupId = item.group!.id
+              const isExpanded = expandedNavGroups.has(groupId)
+              return (
+                <div key={groupId} className="mx-2">
+                  <button
+                    onClick={() => toggleNavGroup(groupId)}
+                    className="w-full flex items-center justify-between px-3 py-1.5 text-[13px] font-medium rounded-md mx-0 transition-colors text-left text-slate-600 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800"
+                  >
+                    <span className="flex-1">{item.group!.label}</span>
+                    <span className="shrink-0 text-slate-400 dark:text-gray-500">
+                      {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                    </span>
+                  </button>
+                  {link}
+                </div>
+              )
             })}
           </div>
         ))}
@@ -273,6 +337,14 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
         {/* Compliances — expandable groups */}
         <div>
           <div className="nav-section">Compliances</div>
+          <Link
+            href="/docs/compliance/jurisdiction-coverage-map/"
+            {...(onClose ? { onClick: onClose } : {})}
+            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/jurisdiction-coverage-map' || pathname === '/docs/compliance/jurisdiction-coverage-map/' ? 'nav-link-active' : ''}`}
+          >
+            <Map size={13} className="text-brand-500 shrink-0" />
+            Jurisdiction Coverage Map
+          </Link>
           {COMPLIANCE_GROUPS.map((group) => {
             const isExpanded = expandedGroups.has(group.id)
             const hasActiveChild = group.items.some(
@@ -283,8 +355,8 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
                 <button
                   onClick={() => toggleGroup(group.id)}
                   className={`w-full flex items-center justify-between px-3 py-1.5 text-[13px] font-medium rounded-md mx-0 transition-colors text-left ${hasActiveChild
-                      ? 'text-brand-700 dark:text-brand-400'
-                      : 'text-slate-600 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800'
+                    ? 'text-brand-700 dark:text-brand-400'
+                    : 'text-slate-600 dark:text-gray-400 hover:text-slate-800 dark:hover:text-gray-200 hover:bg-slate-50 dark:hover:bg-gray-800'
                     }`}
                 >
                   <span className="flex-1">{group.label}</span>
@@ -319,9 +391,16 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
 
         <div className="mt-6 mx-3 pt-4 border-t border-slate-100">
           <Link
-            href="/docs/changelog/"
+            href="/docs/upcoming-features/"
             {...(onClose ? { onClick: onClose } : {})}
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 transition-colors no-underline"
+          >
+            <Sparkles size={15} /> Upcoming Features
+          </Link>
+          <Link
+            href="/docs/changelog/"
+            {...(onClose ? { onClick: onClose } : {})}
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
           >
             <List size={15} /> Changelog
           </Link>

@@ -1,17 +1,17 @@
 import { apiFetch } from './client'
-import type { ServerCookieTemplate, ServerUITemplate, ProfileSummary } from '@consenti/types'
+import type { ServerConsentTemplate, ServerUITemplate, CookieMap, CategoryMap, ProfileSummary } from '@consenti/types'
 
-export const cookieTemplatesApi = {
-  list: () => apiFetch<ServerCookieTemplate[]>('/cookie-templates'),
-  get: (id: string) => apiFetch<ServerCookieTemplate>(`/cookie-templates/${id}`),
-  create: (data: { name: string; cookies: unknown[] }) =>
-    apiFetch<ServerCookieTemplate>('/cookie-templates', { method: 'POST', body: JSON.stringify(data) }),
-  update: (id: string, data: { name?: string; cookies?: unknown[] }) =>
-    apiFetch<ServerCookieTemplate>(`/cookie-templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
-  delete: (id: string) => apiFetch<{ ok: boolean }>(`/cookie-templates/${id}`, { method: 'DELETE' }),
+export const consentTemplatesApi = {
+  list: () => apiFetch<ServerConsentTemplate[]>('/consent-templates'),
+  get: (id: string) => apiFetch<ServerConsentTemplate>(`/consent-templates/${id}`),
+  create: (data: { name: string; cookies: CookieMap; categories: CategoryMap }) =>
+    apiFetch<ServerConsentTemplate>('/consent-templates', { method: 'POST', body: JSON.stringify(data) }),
+  update: (id: string, data: { name?: string; cookies?: CookieMap; categories?: CategoryMap }) =>
+    apiFetch<ServerConsentTemplate>(`/consent-templates/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
+  delete: (id: string) => apiFetch<{ ok: boolean }>(`/consent-templates/${id}`, { method: 'DELETE' }),
   copy: (id: string, name?: string) =>
-    apiFetch<ServerCookieTemplate>(`/cookie-templates/${id}/copy`, { method: 'POST', body: JSON.stringify({ name }) }),
-  profileUsage: (id: string) => apiFetch<ProfileSummary[]>(`/cookie-templates/${id}/profile-usage`),
+    apiFetch<ServerConsentTemplate>(`/consent-templates/${id}/copy`, { method: 'POST', body: JSON.stringify({ name }) }),
+  profileUsage: (id: string) => apiFetch<ProfileSummary[]>(`/consent-templates/${id}/profile-usage`),
 }
 
 export const uiTemplatesApi = {

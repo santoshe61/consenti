@@ -1,7 +1,11 @@
+import { useMemo } from 'preact/hooks'
+import type { CookiePurpose } from '@consenti/types'
+import { COOKIE_PURPOSE_IDS, COOKIE_PURPOSE_DEFAULTS, KNOWN_COOKIE_PURPOSES, TRACKER_KNOWLEDGE_BASE, matchTrackerKnowledge } from '@consenti/utils'
 import type { TemplateCookie } from '../utils/templates'
 import { VendorPicker } from './VendorPicker'
 import { TcfPurposePicker } from './TcfPurposePicker'
-import { useT } from '../context/locale'
+import { AutoComplete, type AutoCompleteItem } from './AutoComplete'
+import { useT, type TranslationKey } from '../context/locale'
 
 interface CookieDefinitionRowProps {
   cookie: TemplateCookie
@@ -11,42 +15,72 @@ interface CookieDefinitionRowProps {
   duplicateIds?: Set<string>
   tcfEnabled?: boolean
   showCpra?: boolean
+  /** The legal basis of the category this parameter currently belongs to, if any — drives the Pre Grant checkbox. */
+  categoryLegalBasis?: 'mandatory' | 'consent' | 'legitimate_interest' | undefined
 }
 
-export function CookieDefinitionRow({ cookie, idx, onChange, onRemove, duplicateIds, tcfEnabled, showCpra }: CookieDefinitionRowProps) {
+export function CookieDefinitionRow({ cookie, idx, onChange, onRemove, duplicateIds, tcfEnabled, showCpra, categoryLegalBasis }: CookieDefinitionRowProps) {
   const t = useT()
   const set = <K extends keyof TemplateCookie>(k: K, v: TemplateCookie[K]) => onChange({ ...cookie, [k]: v })
+  const withPurposeDefaults = (c: TemplateCookie, purpose: CookiePurpose): TemplateCookie => ({
+    ...c,
+    purpose,
+    listenGpc: COOKIE_PURPOSE_DEFAULTS[purpose].listenGpc,
+    cpraCategory: COOKIE_PURPOSE_DEFAULTS[purpose].cpraCategory,
+  })
+  const trackerMatch = matchTrackerKnowledge(cookie.id)
+  const setId = (id: string) => {
+    const known = KNOWN_COOKIE_PURPOSES[id.trim()] ?? matchTrackerKnowledge(id)?.category
+    if (known && known !== cookie.purpose) onChange(withPurposeDefaults({ ...cookie, id }, known))
+    else onChange({ ...cookie, id })
+  }
+  const trackerSuggestions = useMemo((): AutoCompleteItem[] =>
+    TRACKER_KNOWLEDGE_BASE.map(e => ({ key: e.pattern, label: e.pattern, value: e.pattern, meta: e.vendor })),
+    [])
   const idEmpty = !cookie.id.trim()
   const idDup = !idEmpty && (duplicateIds?.has(cookie.id.trim()) ?? false)
   const idError = idEmpty ? 'Required' : idDup ? 'Duplicate ID' : ''
-  const expiryError = cookie.expiry < 1 ? 'Must be ≥ 1' : ''
-  const isMandatory = cookie.legalBasis === 'mandatory'
+  const purposeError = !cookie.purpose ? 'Required' : ''
+  const isNecessary = cookie.purpose === 'necessary'
+  const isMandatory = isNecessary || categoryLegalBasis === 'mandatory'
+  const preGrantLocked = categoryLegalBasis !== 'consent'
+
+  const handlePurposeChange = (e: Event) => {
+    const v = (e.target as HTMLSelectElement).value as CookiePurpose | ''
+    if (v) onChange(withPurposeDefaults(cookie, v));
+  }
 
   const rowBg = idx !== undefined
-    ? (idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50')
+    ? (idx % 2 === 0 ? 'bg-white' : 'bg-gray-10/50')
     : 'bg-white'
 
   return (
     <tr class={`border-b align-top text-xs ${rowBg}`}>
       <td class="py-2.5 pr-3 pl-1">
-        <input
-          class={`border rounded px-2 py-1.5 w-60 font-mono ${idError ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+        <AutoComplete
           value={cookie.id}
-          onInput={e => set('id', (e.target as HTMLInputElement).value)}
+          onChange={setId}
+          source={{ type: 'local', items: trackerSuggestions }}
           placeholder="analytics_storage"
+          emptyText={t('consentTemplates.editor.idNoMatches')}
+          inputClassName={`border rounded px-2 py-1.5 w-60 font-mono text-xs ${idError ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
         />
-        {idError && <p class="text-xs text-red-500 mt-0.5">{idError}</p>}
+        {idError
+          ? <p class="text-xs text-red-500 mt-0.5">{idError}</p>
+          : trackerMatch && <p class="text-xs text-gray-400 mt-0.5">{t('cookieTemplates.editor.trackerDetected', { vendor: trackerMatch.vendor })}</p>}
       </td>
       <td class="py-2.5 pr-3">
         <select
-          class="border border-gray-300 rounded pl-2 pr-4 py-1.5 text-xs w-40"
-          value={cookie.legalBasis}
-          onChange={e => set('legalBasis', (e.target as HTMLSelectElement).value as TemplateCookie['legalBasis'])}
+          class={`border rounded pl-2 pr-4 py-1.5 text-xs w-32 ${purposeError ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
+          value={cookie.purpose ?? ''}
+          onChange={handlePurposeChange}
         >
-          <option value="consent">Consent</option>
-          <option value="legitimate_interest">Legitimate Interest</option>
-          <option value="mandatory">{t('cookieTemplates.col.mandatoryShort')}</option>
+          <option value="" disabled>{t('consentTemplates.editor.purposePlaceholder')}</option>
+          {COOKIE_PURPOSE_IDS.map(p => (
+            <option key={p} value={p}>{t(`consentTemplates.purpose.${p}` as TranslationKey)}</option>
+          ))}
         </select>
+        {purposeError && <p class="text-xs text-red-500 mt-0.5">{purposeError}</p>}
       </td>
       <td class="py-2.5 pr-3 text-center">
         <input
@@ -55,22 +89,18 @@ export function CookieDefinitionRow({ cookie, idx, onChange, onRemove, duplicate
           checked={cookie.listenGpc}
           disabled={isMandatory}
           onChange={e => set('listenGpc', (e.target as HTMLInputElement).checked)}
-          title={isMandatory ? t('cookieTemplates.editor.gpcMandatoryTitle') : ''}
+          title={isMandatory ? t('consentTemplates.editor.gpcMandatoryTitle') : ''}
         />
       </td>
-      <td class="py-2.5 pr-3">
-        <div class="flex items-center gap-1">
-          <input
-            type="number"
-            min="1"
-            max="3650"
-            class={`border rounded px-2 py-1.5 w-16 ${expiryError ? 'border-red-400 bg-red-50' : 'border-gray-300'}`}
-            value={cookie.expiry}
-            onInput={e => set('expiry', parseInt((e.target as HTMLInputElement).value) || 1)}
-          />
-          <span class="text-gray-400 text-xs">days</span>
-        </div>
-        {expiryError && <p class="text-xs text-red-500 mt-0.5">{expiryError}</p>}
+      <td class="py-2.5 pr-3 text-center">
+        <input
+          type="checkbox"
+          class="w-4 h-4 accent-blue-600"
+          checked={preGrantLocked ? true : (cookie.preGrant ?? false)}
+          disabled={preGrantLocked}
+          onChange={e => set('preGrant', (e.target as HTMLInputElement).checked)}
+          title={preGrantLocked ? 'Already effectively pre-granted — only editable when the category legal basis is Consent' : ''}
+        />
       </td>
       {tcfEnabled && (
         <td class="py-2.5 pr-3 min-w-[160px]">

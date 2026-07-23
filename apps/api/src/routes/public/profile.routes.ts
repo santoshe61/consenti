@@ -50,30 +50,24 @@ export function buildProfileRoutes(
         return json(200, result)
       }),
 
-    // Versioned profile file route (for dashboard preview)
-    'GET /profiles/:tenantId/:profileId/:version/:locale': async (
+    // Historical snapshot file route — :profileId resolves to its lineage, :entryId picks
+    // the specific edit within that lineage (see ProfileService.listVersions/getVersionFile).
+    'GET /profiles/:tenantId/:profileId/:entryId/:locale': async (
       _req: Request,
       params: Record<string, string>,
     ): Promise<Response> =>
       withErrorHandler(async () => {
-        const { tenantId, profileId, version, locale } = params as Record<string, string>
-        if (!tenantId || !profileId || !version || !locale) return errorResponse(400, 'Missing path parameters')
-        const ver = parseInt(version, 10)
-        if (isNaN(ver) || ver < 1) return errorResponse(400, 'Invalid version')
+        const { profileId, entryId, locale } = params as Record<string, string>
+        if (!profileId || !entryId || !locale) return errorResponse(400, 'Missing path parameters')
 
-        if (profilesDir) {
-          const filePath = join(profilesDir, tenantId, profileId, version, `${locale}.json`)
-          if (existsSync(filePath)) return serveJsonFile(filePath)
-          const defaultPath = join(profilesDir, tenantId, profileId, version, 'default.json')
-          if (existsSync(defaultPath)) return serveJsonFile(defaultPath)
-        }
-
-        const content = profiles.getVersionFile(profileId, ver, locale)
+        const content = await profiles.getVersionFile(profileId, entryId, locale)
         if (!content) return errorResponse(404, 'Version not found')
         return new Response(content, { headers: JSON_HEADERS })
       }),
 
     // Geo-resolve endpoint — for compliance.type='auto' widgets
+    // Accepts: ?data=<base64-encoded GeoHints JSON> (preferred) OR legacy ?tz=&lang=&locale= params
+    // Response: { path: string|null, complianceGroup: string, locale: string, found: boolean }
     'GET /resolve-profile': async (request: Request, _params: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
         if (!geoResolver) return errorResponse(501, 'Geo compliance routing not configured')
@@ -83,61 +77,76 @@ export function buildProfileRoutes(
           request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
           request.headers.get('x-real-ip') ??
           ''
-        const timezone = url.searchParams.get('tz') ?? ''
-        const language =
-          url.searchParams.get('lang') ??
-          request.headers.get('accept-language') ??
-          ''
-        const requestedLocale = url.searchParams.get('locale') ?? ''
+
+        // Decode hints from the `data` param (widget sends base64-encoded JSON), falling
+        // back to individual legacy query params for backwards compatibility.
+        let timezone = url.searchParams.get('tz') ?? ''
+        let language = url.searchParams.get('lang') ?? request.headers.get('accept-language') ?? ''
+        let requestedLocale = url.searchParams.get('locale') ?? ''
+
+        const dataParam = url.searchParams.get('data')
+        if (dataParam) {
+          try {
+            const decoded = JSON.parse(Buffer.from(dataParam, 'base64').toString('utf8')) as {
+              timezone?: string; language?: string; languages?: string[]; locale?: string
+            }
+            if (decoded.timezone) timezone = decoded.timezone
+            if (decoded.language) language = decoded.language
+            if (decoded.locale) requestedLocale = decoded.locale
+          } catch {
+            // ignore malformed data param — fall back to legacy params
+          }
+        }
 
         const geo = await geoResolver.resolve({ ip, language, timezone })
 
         if (!geo.complianceGroup) {
-          return errorResponse(404, 'Could not resolve compliance group for this location')
+          return json(200, { path: null, complianceGroup: 'opt-in', locale: requestedLocale || 'en', found: false })
         }
 
         const profile = await profiles.findActiveByComplianceGroup(geo.complianceGroup)
         if (!profile) {
-          return errorResponse(404, `No active profile found for compliance group: ${geo.complianceGroup}`)
+          return json(200, { path: null, complianceGroup: geo.complianceGroup, locale: requestedLocale || 'en', found: false })
         }
 
-        // Determine best locale
-        const pj = profile.profileJson as { localeContents?: Record<string, unknown>; defaultLocale?: string }
-        const availableLocales = pj.localeContents ? Object.keys(pj.localeContents) : []
+        // Determine best locale for this profile
+        const availableLocales = profile.profileJson.locales ?? []
         let resolvedLocale = profile.defaultLocale
         if (requestedLocale && availableLocales.includes(requestedLocale)) {
           resolvedLocale = requestedLocale
-        } else if (geo.locale && availableLocales.includes(geo.locale)) {
-          resolvedLocale = geo.locale
+        } else if (availableLocales.length > 0) {
+          // Try language prefix match (e.g. 'de-AT' → 'de')
+          const langPrefix = (requestedLocale || language).split('-')[0] ?? ''
+          const prefixMatch = availableLocales.find(l => l === langPrefix || l.startsWith(`${langPrefix}-`))
+          if (prefixMatch) resolvedLocale = prefixMatch
         }
 
         const complianceGroup = geo.complianceGroup
         const tenantId = profile.tenantId
 
-        let warning: string | undefined
+        // Check if the resolved static file exists on disk
+        let found = false
         let filePath = profilesDir
           ? join(profilesDir, tenantId, complianceGroup, `${resolvedLocale}.json`)
           : ''
 
-        if (profilesDir && !existsSync(filePath)) {
-          const defaultPath = join(profilesDir, tenantId, complianceGroup, 'default.json')
+        if (profilesDir && existsSync(filePath)) {
+          found = true
+        } else if (profilesDir) {
+          // Locale file missing → try the profile's default locale
+          const defaultPath = join(profilesDir, tenantId, complianceGroup, `${profile.defaultLocale}.json`)
           if (existsSync(defaultPath)) {
             resolvedLocale = profile.defaultLocale
-            warning = 'locale_not_found'
             filePath = defaultPath
+            found = true
           }
         }
 
-        const path = `${basePath}/profiles/${tenantId}/${complianceGroup}/${resolvedLocale}`
+        const servePath = found
+          ? `${basePath}/profiles/${tenantId}/${complianceGroup}/${resolvedLocale}`
+          : null
 
-        return json(200, {
-          path,
-          resolvedLocale,
-          resolvedComplianceGroup: complianceGroup,
-          profileId: profile.id,
-          version: profile.version,
-          ...(warning ? { warning } : {}),
-        })
+        return json(200, { path: servePath, complianceGroup, locale: resolvedLocale, found })
       }),
 
     // Legacy: single-param profile route (by ID)

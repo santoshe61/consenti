@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'preact/hooks'
 import { Pencil, Trash2, Check, X, Plus } from 'lucide-react'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { useT } from '../context/locale'
 import { rolesApi } from '../api/roles'
@@ -92,6 +92,7 @@ function RoleForm({
 
 export function RoleList({ current }: { current: string }) {
   const t = useT()
+  usePageTitle(t('roles.title'))
   const [roles, setRoles] = useState<Role[]>([])
   const [allPerms, setAllPerms] = useState<Permission[]>([])
   const [selectedRole, setSelectedRole] = useState<Role | null>(null)
@@ -185,7 +186,7 @@ export function RoleList({ current }: { current: string }) {
   const grouped = groupPermissions(allPerms)
 
   return (
-    <Layout title={t('roles.title')} current={current}>
+    <>
       {dialog}
 
       {error && (
@@ -354,6 +355,6 @@ export function RoleList({ current }: { current: string }) {
           </div>
         </div>
       )}
-    </Layout>
+    </>
   )
 }

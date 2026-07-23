@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
 import { Check, Copy, SquarePen, Trash, BookCopy, History, Power, PowerOff, Info } from 'lucide-react'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { Table } from '../components/Table'
 import { PermissionGate } from '../components/PermissionGate'
 import { useConfirmDialog } from '../components/ConfirmDialog'
@@ -13,6 +13,7 @@ import { COMPLIANCE_GROUPS } from '@consenti/utils'
 
 export function ProfileList({ current }: { current: string }) {
   const t = useT()
+  usePageTitle(t('profiles.title'))
   const [profiles, setProfiles] = useState<ProfileSummary[]>([])
   const [loading, setLoading] = useState(true)
   const [copying, setCopying] = useState<string | null>(null)
@@ -57,15 +58,7 @@ export function ProfileList({ current }: { current: string }) {
     if (!ok) return
     setCopying(p.id)
     try {
-      const full = await profilesApi.get(p.id)
-      const { isActive: _dropped, ...profileJson } = full.profileJson as Record<string, unknown> & { isActive?: unknown }
-      void _dropped
-      await profilesApi.create({
-        name: `Copy of ${p.name}`,
-        defaultLocale: full.defaultLocale,
-        profileJson: { ...profileJson, isActive: false },
-        choice: 'inactive',
-      })
+      await profilesApi.copy(p.id)
       load()
     } catch {
       // ignore
@@ -126,7 +119,7 @@ export function ProfileList({ current }: { current: string }) {
     : t('profiles.count', { n: count })
 
   return (
-    <Layout title={t('profiles.title')} current={current}>
+    <>
       {dialog}
       {conflictInfo && createPortal(
         <div class="fixed inset-0 z-50 flex items-center justify-center">
@@ -158,20 +151,43 @@ export function ProfileList({ current }: { current: string }) {
       )}
       <div class="flex justify-between items-center mb-4">
         <p class="text-sm text-gray-500">{countLabel}</p>
-        <PermissionGate perm="profile:create">
+        <div class="flex items-center gap-2">
           <a
-            href="#/banners/profiles/new"
-            class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            href="#/banners/profiles/archived"
+            class="border border-gray-300 text-gray-600 px-4 py-2 rounded-lg text-sm font-medium hover:bg-gray-50 transition-colors flex items-center gap-1.5"
           >
-            {t('profiles.newProfile')}
+            <History size={14} aria-hidden="true" />
+            {t('profiles.archived.cta')}
           </a>
-        </PermissionGate>
+          <PermissionGate perm="profile:create">
+            <a
+              href="#/banners/profiles/new"
+              class="bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors"
+            >
+              {t('profiles.newProfile')}
+            </a>
+          </PermissionGate>
+        </div>
       </div>
 
       <Table
         loading={loading}
         keyFn={r => r.id as string}
         rows={profiles as unknown as Record<string, unknown>[]}
+        search={{
+          placeholder: t('profiles.search.placeholder'),
+          keys: r => [r['name'] as string, r['id'] as string, r['consentTemplateName'] as string | undefined, r['uiTemplateName'] as string | undefined],
+        }}
+        filters={[
+          {
+            label: t('profiles.filter.status'),
+            options: [
+              { value: 'active', label: t('profiles.filter.active') },
+              { value: 'inactive', label: t('profiles.filter.inactive') },
+            ],
+            predicate: (r, value) => (value === 'active') === (r['isActive'] as boolean),
+          },
+        ]}
         columns={[
           {
             key: 'name', label: t('profiles.col.name'),
@@ -202,26 +218,61 @@ export function ProfileList({ current }: { current: string }) {
             key: 'complianceGroup', label: 'Compliance Group',
             render: r => {
               const p = r as unknown as ProfileSummary
-              if (!p.complianceGroup) return <span class="text-xs text-gray-400">—</span>
+              const slug = p.complianceGroup ?? p.customComplianceGroup
+              if (!p.complianceGroup) {
+                return p.customComplianceGroup
+                  ? (
+                    <div>
+                      <div class="font-medium text-sm text-gray-900">{p.customComplianceGroup}</div>
+                      <div class="flex items-center gap-1">
+                        <span class="text-sm text-gray-700 font-mono">{slug}</span>
+                        <button
+                          onClick={e => { e.stopPropagation(); handleCopyId(slug!) }}
+                          class="text-gray-400 hover:text-gray-600 transition-colors"
+                          aria-label={t('profiles.action.copySlug')}
+                          title={t('profiles.action.copySlug')}
+                        >
+                          {copiedId === slug
+                            ? <Check size={11} className="text-green-500" aria-hidden="true" />
+                            : <Copy size={11} aria-hidden="true" />}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                  : <span class="text-xs text-gray-400">—</span>
+              }
               const group = COMPLIANCE_GROUPS[p.complianceGroup as keyof typeof COMPLIANCE_GROUPS]
               const label = group?.label ?? p.complianceGroup
               const compliances = group?.compliances ?? []
               return (
-                <div class="flex items-center gap-1.5">
-                  <span class="text-sm text-gray-700">{label}</span>
-                  {compliances.length > 0 && (
-                    <Tooltip
-                      content={
-                        <div class="space-y-0.5">
-                          {(compliances as string[]).map(c => (
-                            <div key={c} class="text-xs">{c}</div>
-                          ))}
-                        </div>
-                      }
+                <div>
+                  <div class="font-medium text-sm text-gray-900">{label}</div>
+                  <div class="flex items-center gap-1.5">
+                    <span class="text-sm text-gray-700">{slug}</span>
+                    <button
+                      onClick={e => { e.stopPropagation(); handleCopyId(slug!) }}
+                      class="text-gray-400 hover:text-gray-600 transition-colors"
+                      aria-label={t('profiles.action.copySlug')}
+                      title={t('profiles.action.copySlug')}
                     >
-                      <Info size={13} className="text-gray-400 cursor-help" aria-hidden="true" />
-                    </Tooltip>
-                  )}
+                      {copiedId === slug
+                        ? <Check size={11} className="text-green-500" aria-hidden="true" />
+                        : <Copy size={11} aria-hidden="true" />}
+                    </button>
+                    {compliances.length > 0 && (
+                      <Tooltip
+                        content={
+                          <div class="space-y-0.5">
+                            {(compliances as string[]).map(c => (
+                              <div key={c} class="text-xs">{c}</div>
+                            ))}
+                          </div>
+                        }
+                      >
+                        <Info size={13} className="text-gray-400 cursor-help" aria-hidden="true" />
+                      </Tooltip>
+                    )}
+                  </div>
                 </div>
               )
             },
@@ -238,21 +289,14 @@ export function ProfileList({ current }: { current: string }) {
             },
           },
           {
-            key: 'version', label: t('profiles.col.version'),
-            render: r => {
-              const p = r as unknown as ProfileSummary
-              return <span class="text-xs font-mono text-gray-600">v{p.version}</span>
-            },
-          },
-          {
             key: 'templates', label: t('profiles.col.templates'),
             render: r => {
               const p = r as unknown as ProfileSummary
               return (
                 <div class="text-xs text-gray-500 space-y-0.5">
-                  {p.cookieTemplateName && <div>Cookie: <span class="text-gray-700">{p.cookieTemplateName}</span></div>}
+                  {p.consentTemplateName && <div>Consent: <span class="text-gray-700">{p.consentTemplateName}</span></div>}
                   {p.uiTemplateName && <div>UI: <span class="text-gray-700">{p.uiTemplateName}</span></div>}
-                  {!p.cookieTemplateName && !p.uiTemplateName && <span class="text-gray-300">—</span>}
+                  {!p.consentTemplateName && !p.uiTemplateName && <span class="text-gray-300">—</span>}
                 </div>
               )
             },
@@ -317,6 +361,6 @@ export function ProfileList({ current }: { current: string }) {
         ]}
         emptyText={t('profiles.empty')}
       />
-    </Layout>
+    </>
   )
 }

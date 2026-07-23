@@ -1,0 +1,25 @@
+Consenti has been deployed.
+
+{{- if .Values.ingress.enabled }}
+
+Admin dashboard: http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.config.basePath }}/
+Public API:      http{{ if .Values.ingress.tls.enabled }}s{{ end }}://{{ .Values.ingress.host }}{{ .Values.config.basePath }}/api/v1/
+{{- else }}
+
+Ingress is disabled. Port-forward to reach it:
+
+  kubectl port-forward svc/{{ include "consenti.fullname" . }} 3000:{{ .Values.service.port }}
+
+Then:
+  Admin dashboard: http://localhost:3000{{ .Values.config.basePath }}/
+  Public API:      http://localhost:3000{{ .Values.config.basePath }}/api/v1/
+{{- end }}
+
+{{- if eq .Values.config.dbDriver "node:sqlite" "json" }}
+
+You're running a single-replica, single-PVC deployment ({{ .Values.config.dbDriver }} driver).
+Switch to postgresql/mysql/mongodb before scaling beyond one replica.
+{{- end }}
+
+This is a community-contributed reference chart — not covered by CI, tests, or support
+commitments. See deploy/README.md before using it anywhere real.

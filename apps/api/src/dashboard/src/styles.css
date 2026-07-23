@@ -1,6 +1,11 @@
 @import "tailwindcss";
 @custom-variant dark (&:where(.dark, .dark *));
 
+@theme {
+  --color-blue-600: #1abf85;
+  --color-blue-700: #1abf85;
+}
+
 select,
 input[type="text"],
 input:not([type]) {
@@ -99,4 +104,16 @@ input[type=submit],
 input[type=radio],
 input[type=checkbox] {
   cursor: pointer;
+  accent-color: #14a76e;
+}
+
+select:disabled,
+button:disabled,
+input[type=button]:disabled,
+input[type=submit]:disabled,
+input[type=radio]:disabled,
+input[type=checkbox]:disabled {
+  cursor: not-allowed;
+  opacity: 0.8;
+  background-color: #f3f3f3;
 }

@@ -1,7 +1,10 @@
 import type { StorageAdapter, AuthConfig, VisitorFilters } from '@consenti/types'
-import { json, getQueryInt, getQueryParam } from '../../utils/http'
+import { json, getQueryParam, getPagination } from '../../utils/http'
 import { errorResponse, withErrorHandler } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
+
+/** See NOTICE_SHOWN_ENABLED in routes/public/notice.routes.ts — same dormant feature, kept for future reference. */
+const NOTICE_SHOWN_ENABLED: boolean = false
 
 export function buildAdminVisitorRoutes(
   storage: StorageAdapter,
@@ -22,17 +25,30 @@ export function buildAdminVisitorRoutes(
         const url = new URL(req.url)
         const from = getQueryParam(url, 'from')
         const to = getQueryParam(url, 'to')
-        const limit = getQueryInt(url, 'limit', 50)
-        if (limit > 500) return errorResponse(400, 'limit must not exceed 500')
+        const q = getQueryParam(url, 'q')
+        const pagination = getPagination(url)
+        if ('error' in pagination) return errorResponse(400, pagination.error)
+        const { page, limit } = pagination
         const filters: VisitorFilters = {
           tenantId: 'default',
-          page: getQueryInt(url, 'page', 1),
+          page,
           limit,
           ...(from !== undefined ? { from } : {}),
           ...(to !== undefined ? { to } : {}),
+          ...(q !== undefined ? { q } : {}),
         }
         const visitors = await storage.getVisitors(filters)
         return json(200, visitors)
+      }),
+
+    'GET /visitors/:visitorId/notice-shown': async (req: Request, p: Record<string, string>): Promise<Response> =>
+      withErrorHandler(async () => {
+        if (!NOTICE_SHOWN_ENABLED) return errorResponse(404, 'Not found')
+
+        const { denied } = await auth(req, 'visitor:view')
+        if (denied) return denied
+        const records = await storage.getNoticeShownForVisitor(p['visitorId'] ?? '')
+        return json(200, records)
       }),
   }
 }

@@ -77,6 +77,15 @@ const nextConfig: NextConfig = {
         destination: 'https://consenti.dev/:path*',
         permanent: true,
       },
+      // Force https: Next can't match on URL scheme directly, but the
+      // terminating proxy/CDN (nginx, ALB, Cloudflare, Vercel, etc.) sets
+      // x-forwarded-proto, so redirect on that instead.
+      {
+        source: '/:path*',
+        has: [{ type: 'header', key: 'x-forwarded-proto', value: 'http' }],
+        destination: 'https://consenti.dev/:path*',
+        permanent: true,
+      },
       // App shortcuts
       { source: '/demo', destination: '/demo-playground/frontend', permanent: false },
       { source: '/demo/', destination: '/demo-playground/frontend', permanent: false },

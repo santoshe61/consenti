@@ -311,6 +311,24 @@ document.addEventListener('consenti:consentSubmitted', (e: CustomEvent) => {
 
 ---
 
+## UI Widget — Scripts, Actions & Triggers
+
+`ConsentScript` conditionally injects/removes a `<script>` tag based on one parameter's grant status. `ConsentAction` does the same but fires `onGrant`/`onDeny` callbacks instead — for SDKs with their own opt-in/opt-out method (Segment, Mixpanel, Sentry, …). `CategoryAction`/`CategoryScript` are the category-scoped equivalents, gated on every member parameter being granted. `BannerTrigger` (renamed from `CookieTrigger`) opens the banner or modal on click. `scanConsentScripts()` is a zero-JS, declarative alternative: mark a `<script type="text/plain" data-consenti-consent-script="...">` tag and it's gated automatically, once per `init()` cycle.
+
+```ts
+import { ConsentScript, ConsentAction, CategoryAction, CategoryScript, BannerTrigger } from '@consenti/ui'
+
+new ConsentScript({ cookieId: 'analytics_storage', widget, src: 'https://cdn.example.com/analytics.js' })
+new ConsentAction({ id: 'analytics_storage', widget, onGrant: () => sdk.optIn(), onDeny: () => sdk.optOut() })
+new CategoryAction({ id: 'marketing', widget, onGrant: () => adSdk.enableAll(), onDeny: () => adSdk.disableAll() })
+new CategoryScript({ categoryId: 'marketing', widget, src: 'https://example.com/ad-pixel.js' })
+new BannerTrigger({ widget, el: '#footer-cookie-settings', action: 'modal' })
+```
+
+`Cookie.preGrant?: boolean` pre-grants a consent-basis parameter's default to `'granted'` (only meaningful when its category's `legalBasis === 'consent'`; never overrides an active GPC signal).
+
+---
+
 ## UI Widget — API Methods
 
 ```ts
@@ -323,7 +341,7 @@ const consent = widget.getConsent()
 // Accept all categories
 widget.acceptAll()
 
-// Reject all non-mandatory categories
+// Reject Optional non-mandatory categories
 widget.rejectAll()
 
 // Accept specific categories
@@ -361,20 +379,22 @@ Or define a profile inline (no backend needed):
 const widget = new ConsentiSetup({
   compliance: { type: 'opt-in' },
   profileOverride: {
-    id: 'my-profile',
-    version: 1,
-    text: {
-      bannerTitle: 'We value your privacy',
-      bannerDescription: 'We use cookies to improve your experience.',
-      acceptAll: 'Accept All',
-      rejectAll: 'Reject All',
-      customize: 'Customize',
+    mainBanner: {
+      position: 'bottom',
+      heading: 'We value your privacy',
+      htmlText: 'We use cookies to improve your experience.',
+      buttons: [
+        { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
+        { text: 'Reject Optional', style: 'secondary', action: 'custom', cookies: '!' },
+        { text: 'Customize', style: 'secondary', action: 'manage' },
+      ],
     },
-    position: 'bottom-center',  // 'bottom-left' | 'bottom-right' | 'bottom-center' | 'top'
-    categories: [
-      { id: 'analytics', name: 'Analytics', description: 'Usage statistics', mandatory: false },
-      { id: 'marketing', name: 'Marketing', description: 'Targeted ads', mandatory: false },
-    ],
+    preferenceModal: {
+      categories: {
+        analytics: { heading: 'Analytics', htmlText: 'Usage statistics', legalBasis: 'consent', cookies: ['analytics'] },
+        marketing: { heading: 'Marketing', htmlText: 'Targeted ads', legalBasis: 'consent', cookies: ['marketing'] },
+      },
+    },
   },
 })
 ```
@@ -601,29 +621,39 @@ This deletes all entries in `consent_records`, `consent_history`, and the `visit
 ### Consent records as evidence
 
 Every consent record includes:
-- `profile_version` — which version of the cookie policy the user consented to
+- `profileId` — the exact profile consented under. A new id is minted on every profile edit (the previous row is archived as history), so this alone identifies which cookie policy version was in effect — no separate version counter
 - `created_at` / `updated_at` — exact ISO 8601 timestamps
 - `source` — `'banner'`, `'api'`, or `'import'`
 - `consent_history` — immutable append-only log of every change
 
 ### Legitimate Interest (Article 6(1)(f))
 
+Set on a **category** (not a cookie) — legal basis is category-owned:
+
 ```json
 {
-  "id": "ad_personalization",
-  "type": "legitimate_interest",
-  "legitimateInterest": {
-    "enabled": true,
-    "description": "We show relevant ads under legitimate interest."
+  "preferenceModal": {
+    "categories": {
+      "marketing": {
+        "heading": "Marketing",
+        "htmlText": "Relevant ads based on your activity.",
+        "legalBasis": "legitimate_interest",
+        "legitimateInterest": {
+          "enabled": true,
+          "description": "We show relevant ads under legitimate interest."
+        },
+        "cookies": ["ad_personalization"]
+      }
+    }
   }
 }
 ```
 
-Status values for LI cookies: `"granted"` (user did not object) or `"objected"` (user exercised Art. 21 right to object).
+Status values for LI parameters: `"granted"` (user did not object) or `"objected"` (user exercised Art. 21 right to object).
 
-### Re-consent on profile version bump
+### Re-consent when the profile changes
 
-When you update a profile (e.g. adding new cookies), the `version` field increments. The widget's `verify` endpoint returns `{ valid: false, reasons: ['profile_version_mismatch'] }` for consents given under an older version, triggering re-consent.
+Profiles have no in-place version counter — every edit mints a new `Profile.id` and archives the previous one as history. The widget's `verify` endpoint compares the consent's `profileId` against the compliance group's currently active profile id and returns `{ valid: false, reasons: ['profile_changed'], currentProfileId, consentProfileId }` when they differ, triggering re-consent.
 
 ---
 

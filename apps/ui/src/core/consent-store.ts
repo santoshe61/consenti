@@ -1,72 +1,55 @@
 /**
  * Consent cookie read/write operations.
  *
- * Cookie name format : `consenti_{userId}_{profileId}`
- * Cookie value format: `t:{epochSeconds}::{cookieId}:{status}|...`
- * Signed value format: `t:{epochSeconds}::{pairs}::sig:{hmac-hex}`
+ * Cookie name : `consenti_data` (fixed single name)
+ * Cookie value: compact JSON with single-letter keys — see `ConsentCookieData` in `@consenti/types`.
  *
- * The compact `t:{seconds}` timestamp replaces the previous ISO-8601 format to reduce
- * cookie size. Old `ConsentTimestamp:{ISO}` cookies are parsed transparently for
- * backwards compatibility.
+ * Signing: when a `cookieSigningKey` is configured, the encoded JSON is signed with
+ * HMAC-SHA256 and the hex signature is appended as `::sig:{hex}`. On read the signature
+ * is stripped before JSON-parsing and verified independently.
  *
- * Visitor identity is derived from the consent cookie name (no separate `consenti_uid`
- * cookie is written). This avoids dropping identifiers before the user has given consent,
- * which is required by TTDSG §25 (Germany) and similar ePrivacy laws.
+ * Migration: on first read after upgrading from v0.x, any legacy `consenti_{userId}_{profileId}`
+ * cookie is detected, parsed, and transparently migrated to the new format. The old cookie is
+ * then deleted. No consent data is lost.
  *
- * The store supports both `document.cookie` and `localStorage` via `ConsentStorage`.
- * An in-memory cache avoids repeated cookie reads on the hot path (e.g. `hasConsent()`
- * called in render loops by the React/Vue hooks).
+ * Visitor identity: the `i` field (per-submission UUID) in `ConsentCookieData` identifies a
+ * specific consent record. No tracking identifier is written before the user gives consent
+ * (TTDSG §25 / ePrivacy compliance).
  */
 
-import type { ConsentValue, ParsedConsent, CookieOptions, Cookie } from '../types'
+import type { ConsentValue, ParsedConsent, CookieOptions, ConsentCookieData } from '../types'
 import { ConsentStorage } from '../utils/storage'
+import { encodeConsent, decodeConsent, expandConsent, compressConsent } from '../utils/cookie'
 import { logger } from '../utils/console'
+import { generatePrefixedId } from '../utils/uuid'
 
-export function resolveConsentMaxAge(cookies: Cookie[]): number {
-  const minDays = cookies
-    .map(c => c.expiry ?? 365)
-    .reduce((min, d) => Math.min(min, d), 365)
-  return minDays * 24 * 60 * 60
+/** Converts the profile-wide `expiryDays` into a cookie `maxAge` in seconds. */
+export function resolveConsentMaxAge(expiryDays: number): number {
+  return expiryDays * 24 * 60 * 60
 }
 
-const COOKIE_NAME_PREFIX = 'consenti'
+/** Fixed cookie name for the compact consent format. */
+export const CONSENT_COOKIE_NAME = 'consenti_data'
 
 /**
- * Builds the full cookie name for a visitor + profile combination.
- *
- * @param userId    - UUID assigned to this visitor.
- * @param profileId - Numeric profile ID from `core.profileId`.
+ * Peeks at the locale recorded with an existing consent record, without needing a profile ID
+ * (the cookie/localStorage key is fixed regardless of profile). Used to resolve a returning,
+ * already-consented visitor's locale before the profile — and hence a full `ConsentStore`
+ * instance — is known. Returns `null` if no consent exists or no locale was recorded.
  */
-export function buildConsentCookieName(userId: string, profileId: number): string {
-  return `${COOKIE_NAME_PREFIX}_${userId}_${profileId}`
+export function peekConsentLocale(storageMode: 'cookie' | 'localStorage' = 'cookie'): string | null {
+  const storage = new ConsentStorage(storageMode)
+  const raw = storage.read(CONSENT_COOKIE_NAME)
+  if (!raw) return null
+  return decodeConsent(raw)?.l || null
 }
 
-/**
- * Serialises a `ConsentValue` map into the compact cookie value string (without signature).
- *
- * @param consent - The consent map to serialise.
- * @returns A string in the form `t:{epochSeconds}::{id}:{status}|...`
- */
-export function buildCookieValue(consent: ConsentValue): string {
-  const epochSeconds = Math.floor(Date.now() / 1000)
-  const pairs = Object.entries(consent)
-    .map(([id, status]) => `${id}:${status}`)
-    .join('|')
-  return `t:${epochSeconds}::${pairs}`
-}
+const LEGACY_PREFIX = 'consenti'
 
-/**
- * Parses a raw cookie string back into a `ParsedConsent` object.
- *
- * Handles both the current compact format (`t:{epochSeconds}`) and the legacy
- * ISO-8601 format (`ConsentTimestamp:{ISO}`) for backwards compatibility.
- *
- * Returns `null` if the value is malformed, missing required segments, or contains
- * an unrecognised consent status. Callers should treat `null` as "no valid consent".
- *
- * @param value - Raw string read from the cookie / localStorage.
- */
-export function parseConsentCookie(value: string): ParsedConsent | null {
+// ─── Legacy parser (migration only) ──────────────────────────────────────────
+
+/** Parses the old `t:{epoch}::{pairs}` cookie value format. Used only during migration. */
+function parseLegacyCookieValue(value: string): ParsedConsent | null {
   const parts = value.split('::')
   if (parts.length < 2) return null
 
@@ -74,13 +57,11 @@ export function parseConsentCookie(value: string): ParsedConsent | null {
   let timestamp: string
 
   if (tsPart.startsWith('t:')) {
-    // Compact format: t:{epochSeconds}
     const epochStr = tsPart.slice(2)
     const epoch = parseInt(epochStr, 10)
     if (!epochStr || isNaN(epoch)) return null
     timestamp = new Date(epoch * 1000).toISOString()
   } else if (tsPart.startsWith('ConsentTimestamp:')) {
-    // Legacy ISO-8601 format
     timestamp = tsPart.replace('ConsentTimestamp:', '')
     if (!timestamp) return null
   } else {
@@ -89,111 +70,127 @@ export function parseConsentCookie(value: string): ParsedConsent | null {
 
   const consentPart = parts[1] ?? ''
   const sigPart = parts[2]
-
   const consent: ConsentValue = {}
   for (const pair of consentPart.split('|')) {
     const colonIdx = pair.indexOf(':')
     if (colonIdx === -1) return null
     const id = pair.slice(0, colonIdx)
     const status = pair.slice(colonIdx + 1)
-    if (!id || (status !== 'granted' && status !== 'denied' && status !== 'objected')) {
-      return null
-    }
+    if (!id || (status !== 'granted' && status !== 'denied' && status !== 'objected')) return null
     consent[id] = status
   }
 
   const result: ParsedConsent = { timestamp, consent }
-  if (sigPart?.startsWith('sig:')) {
-    result.signature = sigPart.slice(4)
-  }
-
+  if (sigPart?.startsWith('sig:')) result.signature = sigPart.slice(4)
   return result
 }
 
+// ─── ConsentStore ─────────────────────────────────────────────────────────────
+
+type WriteMeta = { source?: number; gpcDetected?: boolean; consentId?: string; locale?: string }
+
 /**
- * Manages reading and writing the per-profile consent cookie for a single visitor.
+ * Manages reading and writing the `consenti_data` consent cookie for a single visitor.
  *
  * One `ConsentStore` instance is created per `ConsentiSetup` and lives for the
- * lifetime of the widget. An in-memory cache (`cachedConsent`, `cachedTimestamp`)
- * prevents repeat cookie reads on every call to `hasConsent()` / `getConsent()`.
+ * lifetime of the widget. An in-memory cache (`cachedData`) prevents repeat cookie
+ * reads on the hot path (e.g. `hasConsent()` called in render loops).
  */
 export class ConsentStore {
   private storage: ConsentStorage
-  private cachedConsent: ConsentValue | null = null
-  private cachedTimestamp: string | null = null
-  private cookies: Cookie[] = []
+  private cachedData: ConsentCookieData | null = null
+  private expiryDays = 365
+  /** 0 = unknown (embedded/local profile with no server-side version counter). */
+  private profileVersion = 0
 
   /**
-   * @param userId        - Visitor UUID (from `consenti_uid` cookie).
-   * @param profileId     - Numeric profile ID.
-   * @param storageMode   - `'cookie'` (default, cross-subdomain) or `'localStorage'` (origin-scoped).
-   * @param cookieDomains - Comma-separated domain list. First entry used as `Domain` attribute.
+   * @param profileId      - profile ID.
+   * @param storageMode    - `'cookie'` (default) or `'localStorage'`.
+   * @param cookieDomains  - Comma-separated domain list; first entry is used as `Domain` attribute.
+   * @param appUserId      - Logged-in application user ID; empty string / undefined for anonymous.
    */
   constructor(
-    private userId: string,
-    private profileId: number,
-    storageMode: 'cookie' | 'localStorage',
+    private profileId: string,
+    private storageMode: 'cookie' | 'localStorage',
     private cookieDomains?: string,
+    private appUserId?: string,
   ) {
     this.storage = new ConsentStorage(storageMode)
   }
 
-  /** Set profile cookies so max-age can be derived from the shortest expiry. */
-  setProfileCookies(cookies: Cookie[]): void {
-    this.cookies = cookies
+  /** Updates the profile-wide expiry (days) used to derive the consent cookie's max-age. */
+  setProfileExpiry(expiryDays: number): void {
+    this.expiryDays = expiryDays
   }
 
-  /** The full cookie / localStorage key for this visitor + profile combination. */
+  /** Records which profile version this store is writing consent for (0 = unknown). */
+  setProfileVersion(version: number): void {
+    this.profileVersion = version
+  }
+
+  /** Returns `consenti_data` (the fixed cookie name used for all consent records). */
   get cookieName(): string {
-    return buildConsentCookieName(this.userId, this.profileId)
+    return CONSENT_COOKIE_NAME
   }
 
   /**
    * Reads and parses the stored consent record.
-   * Updates the in-memory cache on success.
    *
-   * @returns The parsed consent or `null` if absent / malformed.
+   * If `consenti_data` is absent but a legacy `consenti_{userId}_{profileId}` cookie
+   * exists for this profile, it is automatically migrated to the new format.
+   *
+   * Updates the in-memory cache on success.
    */
   read(): ParsedConsent | null {
-    const raw = this.storage.read(this.cookieName)
-    if (!raw) return null
-    const parsed = parseConsentCookie(raw)
-    if (parsed) {
-      this.cachedConsent = parsed.consent
-      this.cachedTimestamp = parsed.timestamp
+    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    if (raw) {
+      const data = decodeConsent(raw)
+      if (data) {
+        this.cachedData = data
+        return this.toParseConsent(data)
+      }
     }
-    return parsed
+
+    const migrated = this.migrateLegacyCookie()
+    if (migrated) {
+      this.cachedData = migrated
+      return this.toParseConsent(migrated)
+    }
+
+    return null
   }
 
   /**
    * Reads, parses, and cryptographically verifies the stored consent record.
    *
-   * If the cookie has a `::sig:{hmac}` segment, the signature is verified against
-   * the raw value using HMAC-SHA256. A mismatch means the cookie was tampered with —
-   * the cookie is deleted and `null` is returned so the widget re-prompts for consent.
+   * If the cookie value has a `::sig:{hmac}` suffix, the HMAC-SHA256 signature is verified
+   * against the JSON body. A mismatch means tampering — the cookie is deleted and `null`
+   * is returned so the widget re-prompts. Cookies without a signature are accepted as-is
+   * (backwards compatible with cookies written before signing was enabled).
    *
-   * If the cookie has no signature segment, it is treated as valid (backwards compatible
-   * with cookies written before `signCookies` was enabled).
-   *
-   * @param signingKey - The HMAC key (from profile API response or `core.cookieSigningKey`).
-   * @returns The parsed consent, or `null` if absent / malformed / signature invalid.
+   * @param signingKey - HMAC key (from profile API response or `core.cookieSigningKey`).
    */
   async readAndVerify(signingKey: string): Promise<ParsedConsent | null> {
-    const raw = this.storage.read(this.cookieName)
-    if (!raw) return null
+    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    if (!raw) {
+      const migrated = this.migrateLegacyCookie()
+      if (migrated) {
+        this.cachedData = migrated
+        return this.toParseConsent(migrated)
+      }
+      return null
+    }
 
-    const parts = raw.split('::')
-    if (parts.length < 2) return null
+    const sigIdx = raw.lastIndexOf('::sig:')
+    const jsonStr = sigIdx !== -1 ? raw.slice(0, sigIdx) : raw
+    const sigStr = sigIdx !== -1 ? raw.slice(sigIdx + 6) : undefined
 
-    const parsed = parseConsentCookie(raw)
-    if (!parsed) return null
+    const data = decodeConsent(raw)
+    if (!data) return null
 
-    const hasSig = parts.length === 3 && (parts[2] ?? '').startsWith('sig:')
-    if (hasSig) {
+    if (sigStr) {
       const { verifyValue } = await import('../utils/hmac')
-      const valueToVerify = (parts[0] ?? '') + '::' + (parts[1] ?? '')
-      const sig = (parts[2] ?? '').slice(4)
-      const valid = await verifyValue(valueToVerify, sig, signingKey)
+      const valid = await verifyValue(jsonStr, sigStr, signingKey)
       if (!valid) {
         logger.warn('Cookie signature mismatch — consent cleared and banner will re-appear')
         this.delete()
@@ -201,80 +198,89 @@ export class ConsentStore {
       }
     }
 
-    this.cachedConsent = parsed.consent
-    this.cachedTimestamp = parsed.timestamp
-    return parsed
+    this.cachedData = data
+    const parsed = this.toParseConsent(data)
+    return sigStr ? { ...parsed, signature: sigStr } : parsed
   }
 
   /**
    * Writes a consent record to storage.
    *
    * @param consent   - The consent map to persist.
-   * @param signature - Optional pre-computed HMAC hex string. Use `writeAndSign()` instead
-   *                    if you need signing — it guarantees the signature covers the exact
-   *                    value that gets written (timestamps match).
+   * @param meta      - Optional metadata: `source` (0=click, 1=widget method), `gpcDetected`, `consentId`.
+   * @param signature - Optional pre-computed HMAC hex. Use `writeAndSign()` to sign atomically.
    */
-  write(consent: ConsentValue, signature?: string): void {
-    let value = buildCookieValue(consent)
-    if (signature) {
-      value = `${value}::sig:${signature}`
-    }
-    const opts = this.buildCookieOpts()
-    this.storage.write(this.cookieName, value, opts)
-    this.cachedConsent = consent
-    this.cachedTimestamp = new Date().toISOString()
+  write(consent: ConsentValue, meta: WriteMeta = {}, signature?: string): void {
+    const data = this.buildCookieData(consent, meta)
+    let encoded = encodeConsent(data)
+    if (signature) encoded = `${encoded}::sig:${signature}`
+    this.storage.write(CONSENT_COOKIE_NAME, encoded, this.buildCookieOpts())
+    this.cachedData = data
   }
 
   /**
-   * Builds the cookie value, signs it with HMAC-SHA256 in a single atomic step,
-   * and writes the signed value to storage.
+   * Builds the cookie value, signs it with HMAC-SHA256, and writes it atomically.
    *
-   * Using this instead of `write(consent, signature)` ensures the signature
-   * covers exactly the value that is written — there is no timestamp drift
-   * between building, signing, and writing.
+   * Using this instead of `write(consent, meta, signature)` ensures the signature covers
+   * exactly the value that is written (no timestamp drift between building and signing).
    *
    * @param consent    - The consent map to persist.
-   * @param signingKey - The HMAC key string.
-   * @returns The hex-encoded signature, stored in `this.lastSignature` by the caller.
+   * @param signingKey - HMAC key string.
+   * @param meta       - Optional metadata (same as `write()`).
+   * @returns The hex-encoded signature.
    */
-  async writeAndSign(consent: ConsentValue, signingKey: string): Promise<string> {
+  async writeAndSign(consent: ConsentValue, signingKey: string, meta: WriteMeta = {}): Promise<string> {
     const { signValue } = await import('../utils/hmac')
-    const rawValue = buildCookieValue(consent)
-    const sig = await signValue(rawValue, signingKey)
-    const finalValue = `${rawValue}::sig:${sig}`
-    const opts = this.buildCookieOpts()
-    this.storage.write(this.cookieName, finalValue, opts)
-    this.cachedConsent = consent
-    this.cachedTimestamp = new Date().toISOString()
+    const data = this.buildCookieData(consent, meta)
+    const encoded = encodeConsent(data)
+    const sig = await signValue(encoded, signingKey)
+    this.storage.write(CONSENT_COOKIE_NAME, `${encoded}::sig:${sig}`, this.buildCookieOpts())
+    this.cachedData = data
     return sig
   }
 
   /** Removes the consent record from storage and clears the in-memory cache. */
   delete(): void {
     const opts = this.buildCookieOpts()
-    this.storage.remove(this.cookieName, opts)
-    this.cachedConsent = null
-    this.cachedTimestamp = null
+    this.storage.remove(CONSENT_COOKIE_NAME, opts)
+    this.deleteLegacyCookies()
+    this.cachedData = null
   }
 
   /** Returns `true` if a valid consent record exists (uses cache when available). */
   hasConsent(): boolean {
-    if (this.cachedConsent) return true
+    if (this.cachedData) return true
     return this.read() !== null
   }
 
   /** Returns the stored consent map, or `null` if no consent has been given. */
   getConsent(): ConsentValue | null {
-    if (this.cachedConsent) return this.cachedConsent
+    if (this.cachedData) return expandConsent(this.cachedData)
     return this.read()?.consent ?? null
   }
 
   /** Returns the `Date` of the last consent submission, or `false` if no consent exists. */
   getConsentDate(): Date | false {
-    if (this.cachedTimestamp) return new Date(this.cachedTimestamp)
+    if (this.cachedData) return new Date(this.cachedData.t * 1000)
     const parsed = this.read()
     if (!parsed) return false
     return new Date(parsed.timestamp)
+  }
+
+  /** Returns the per-submission consent UUID (`i` field), or `null` if no consent exists. */
+  getConsentId(): string | null {
+    if (this.cachedData) return this.cachedData.i
+    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    if (!raw) return null
+    return decodeConsent(raw)?.i ?? null
+  }
+
+  /** Returns the locale recorded with the stored consent (`l` field), or `null` if unset/no consent exists. */
+  getConsentLocale(): string | null {
+    if (this.cachedData) return this.cachedData.l || null
+    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    if (!raw) return null
+    return decodeConsent(raw)?.l || null
   }
 
   /**
@@ -282,67 +288,104 @@ export class ConsentStore {
    * Used by the cross-tab BroadcastChannel handler to keep other tabs in sync.
    */
   setInMemory(consent: ConsentValue): void {
-    this.cachedConsent = consent
-    this.cachedTimestamp = new Date().toISOString()
+    this.cachedData = {
+      s: this.profileId,
+      v: this.profileVersion,
+      i: this.cachedData?.i ?? generatePrefixedId('cons'),
+      t: Math.round(Date.now() / 1000),
+      u: this.appUserId ?? '',
+      g: 0,
+      p: 0,
+      c: compressConsent(consent),
+      l: this.cachedData?.l ?? '',
+    }
   }
 
   /** Clears the in-memory cache. Used when consent is deleted from another tab. */
   clearInMemory(): void {
-    this.cachedConsent = null
-    this.cachedTimestamp = null
+    this.cachedData = null
   }
 
-  /**
-   * Derives the visitor UUID from an existing consent cookie, or generates a new one
-   * in memory.
-   *
-   * No separate identifier cookie is written before consent. Storing a tracking
-   * identifier before the user has given consent violates TTDSG §25 (Germany) and
-   * equivalent ePrivacy laws in the EU. The UUID is embedded in the consent cookie
-   * name and only persisted when consent is first saved (via `write()` / `writeAndSign()`).
-   *
-   * @param profileId   - The active profile ID, used to locate an existing consent cookie.
-   * @param storageMode - The configured storage mode (`'cookie'` or `'localStorage'`).
-   */
-  static getOrCreateUserId(profileId: number, storageMode: 'cookie' | 'localStorage'): string {
-    if (typeof document === 'undefined') return crypto.randomUUID()
+  // ─── Private helpers ───────────────────────────────────────────────────────
 
-    // Look for an existing consent cookie matching `consenti_*_{profileId}`.
-    const prefix = `${COOKIE_NAME_PREFIX}_`
-    const suffix = `_${profileId}`
-    const all = storageMode === 'localStorage'
-      ? ConsentStore._localStorageKeys()
-      : ConsentStore._cookieNames()
+  private toParseConsent(data: ConsentCookieData): ParsedConsent {
+    return {
+      timestamp: new Date(data.t * 1000).toISOString(),
+      consent: expandConsent(data),
+    }
+  }
 
-    for (const name of all) {
-      if (name.startsWith(prefix) && name.endsWith(suffix)) {
-        const inner = name.slice(prefix.length, name.length - suffix.length)
-        // Validate it looks like a UUID (8-4-4-4-12 hex groups).
-        if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inner)) {
-          return inner
-        }
+  private buildCookieData(consent: ConsentValue, meta: WriteMeta = {}): ConsentCookieData {
+    return {
+      s: this.profileId,
+      v: this.profileVersion,
+      i: meta.consentId ?? generatePrefixedId('cons'),
+      t: Math.round(Date.now() / 1000),
+      u: this.appUserId ?? '',
+      g: meta.gpcDetected ? 1 : 0,
+      p: meta.source ?? 0,
+      c: compressConsent(consent),
+      l: meta.locale ?? '',
+    }
+  }
+
+  private migrateLegacyCookie(): ConsentCookieData | null {
+    if (typeof document === 'undefined') return null
+
+    const suffix = `_${this.profileId}`
+    const allNames: string[] = this.storageMode === 'localStorage'
+      ? (typeof localStorage !== 'undefined' ? Object.keys(localStorage) : [])
+      : document.cookie.split(';').map(c => c.split('=')[0]?.trim() ?? '')
+
+    for (const name of allNames) {
+      if (!name.startsWith(`${LEGACY_PREFIX}_`) || !name.endsWith(suffix)) continue
+
+      const raw = this.storage.read(name)
+      if (!raw) continue
+      const parsed = parseLegacyCookieValue(raw)
+      if (!parsed) continue
+
+      const inner = name.slice(LEGACY_PREFIX.length + 1, name.length - suffix.length)
+      const legacyUserId = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(inner)
+        ? inner : ''
+
+      const data: ConsentCookieData = {
+        s: this.profileId,
+        v: 0, // legacy cookie predates the version counter — genuinely unknown
+        i: generatePrefixedId('cons'),
+        t: Math.round(new Date(parsed.timestamp).getTime() / 1000),
+        u: legacyUserId,
+        g: 0,
+        p: 0,
+        c: compressConsent(parsed.consent),
+        l: '', // legacy format predates locale tracking — genuinely unknown
+      }
+
+      this.storage.write(CONSENT_COOKIE_NAME, encodeConsent(data), this.buildCookieOpts())
+      this.storage.remove(name, this.buildCookieOpts())
+      logger.info(`Migrated consent cookie from "${name}" to "${CONSENT_COOKIE_NAME}"`)
+      return data
+    }
+    return null
+  }
+
+  private deleteLegacyCookies(): void {
+    if (typeof document === 'undefined' || this.storageMode === 'localStorage') return
+    const suffix = `_${this.profileId}`
+    const opts = this.buildCookieOpts()
+    for (const c of document.cookie.split(';')) {
+      const name = c.split('=')[0]?.trim() ?? ''
+      if (name.startsWith(`${LEGACY_PREFIX}_`) && name.endsWith(suffix)) {
+        this.storage.remove(name, opts)
       }
     }
-
-    return crypto.randomUUID()
-  }
-
-  /** Returns all document.cookie names. */
-  private static _cookieNames(): string[] {
-    return document.cookie.split(';').map((c) => c.split('=')[0]?.trim() ?? '')
-  }
-
-  /** Returns all localStorage keys (empty array when unavailable). */
-  private static _localStorageKeys(): string[] {
-    if (typeof localStorage === 'undefined') return []
-    return Object.keys(localStorage)
   }
 
   private buildCookieOpts(): CookieOptions {
     const opts: CookieOptions = {
       path: '/',
       sameSite: 'Lax',
-      maxAge: this.cookies.length > 0 ? resolveConsentMaxAge(this.cookies) : 365 * 24 * 60 * 60,
+      maxAge: resolveConsentMaxAge(this.expiryDays),
     }
     if (this.cookieDomains) {
       const domain = this.cookieDomains.split(',')[0]?.trim()

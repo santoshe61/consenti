@@ -1,4 +1,4 @@
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { useT } from '../context/locale'
 
 const WORKFLOW_STEPS = [
@@ -43,7 +43,8 @@ const GEO_PROVIDER_KEYS = ['default', 'language', 'geoip', 'hostedGeoipLite', 'm
 
 const FEATURES = [
   'dashboard',
-  'cookieTemplates',
+  'reports',
+  'consentTemplates',
   'uiTemplates',
   'profiles',
   'consents',
@@ -58,9 +59,10 @@ const FEATURES = [
 
 export function HowItWorks({ current }: { current: string }) {
   const t = useT()
+  usePageTitle(t('howItWorks.title'))
 
   return (
-    <Layout title={t('howItWorks.title')} current={current}>
+    <>
       <div class="space-y-4">
 
         {/* Intro */}
@@ -74,7 +76,7 @@ export function HowItWorks({ current }: { current: string }) {
             <h2 class="text-sm font-semibold text-gray-700 mb-4">{t('howItWorks.workflow.heading')}</h2>
             <ol class="space-y-4">
               {WORKFLOW_STEPS.map((base, i) => (
-                <li key={base} class="flex gap-4">
+                <li key={base} class="flex gap-4 hover:bg-gray-50 p-1">
                   <span class="flex-shrink-0 w-7 h-7 rounded-full bg-blue-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                     {i + 1}
                   </span>
@@ -92,7 +94,7 @@ export function HowItWorks({ current }: { current: string }) {
             <h2 class="text-sm font-semibold text-gray-700 mb-4">{t('howItWorks.consentFlow.heading')}</h2>
             <ol class="space-y-4">
               {CONSENT_FLOW_STEPS.map((base, i) => (
-                <li key={base} class="flex gap-4">
+                <li key={base} class="flex gap-4 hover:bg-gray-50 p-1">
                   <span class="flex-shrink-0 w-7 h-7 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                     {i + 1}
                   </span>
@@ -114,7 +116,7 @@ export function HowItWorks({ current }: { current: string }) {
             <p class="text-xs text-gray-500 mb-4 leading-relaxed">{t('howItWorks.profileResolution.intro')}</p>
             <ol class="space-y-4">
               {PROFILE_RESOLUTION_STEPS.map((base, i) => (
-                <li key={base} class="flex gap-4">
+                <li key={base} class="flex gap-4 hover:bg-gray-50 p-1">
                   <span class="flex-shrink-0 w-7 h-7 rounded-full bg-teal-600 text-white text-xs font-bold flex items-center justify-center mt-0.5">
                     {i + 1}
                   </span>
@@ -132,7 +134,7 @@ export function HowItWorks({ current }: { current: string }) {
             <h2 class="text-sm font-semibold text-gray-700 mb-4">{t('howItWorks.enums.heading')}</h2>
 
             <div class="space-y-5">
-              <div>
+              <div class="hover:bg-gray-50 p-1">
                 <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">{t('howItWorks.enums.legalBasis.heading')}</p>
                 <ul class="space-y-1.5">
                   {LEGAL_BASIS_KEYS.map(k => (
@@ -143,7 +145,7 @@ export function HowItWorks({ current }: { current: string }) {
                 </ul>
               </div>
 
-              <div>
+              <div class="hover:bg-gray-50 p-1">
                 <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">{t('howItWorks.enums.consentStatus.heading')}</p>
                 <ul class="space-y-1.5">
                   {CONSENT_STATUS_KEYS.map(k => (
@@ -154,7 +156,7 @@ export function HowItWorks({ current }: { current: string }) {
                 </ul>
               </div>
 
-              <div>
+              <div class="hover:bg-gray-50 p-1">
                 <p class="text-xs font-semibold text-gray-600 uppercase tracking-wide mb-2">{t('howItWorks.enums.geoProvider.heading')}</p>
                 <ul class="space-y-1.5">
                   {GEO_PROVIDER_KEYS.map(k => (
@@ -175,7 +177,7 @@ export function HowItWorks({ current }: { current: string }) {
           <p class="text-xs text-gray-500 mb-4 leading-relaxed">{t('howItWorks.complianceGroups.intro')}</p>
           <div class="space-y-4 grid md:grid-cols-2 gap-4">
             {COMPLIANCE_GROUPS.map(({ key, color }) => (
-              <div key={key} class="border border-gray-100 rounded-md p-4">
+              <div key={key} class="border border-gray-100 rounded-md p-4 hover:bg-gray-50">
                 <div class="flex items-start gap-3">
                   <div class="min-w-0">
                     <span class={`flex-shrink-0 text-xs font-mono font-semibold px-2 py-0.5 rounded ${color}`}>
@@ -203,7 +205,7 @@ export function HowItWorks({ current }: { current: string }) {
           <h2 class="text-sm font-semibold text-gray-700 mb-4">{t('howItWorks.features.heading')}</h2>
           <div class="divide-y divide-gray-100 grid md:grid-cols-2 gap-8">
             {FEATURES.map(feature => (
-              <div key={feature} class="py-3 first:pt-0 last:pb-0">
+              <div key={feature} class="py-3 first:pt-0 last:pb-0 hover:bg-gray-50 p-1">
                 <p class="text-sm font-semibold text-gray-800">{t(`howItWorks.features.${feature}.title` as Parameters<typeof t>[0])}</p>
                 <p class="text-xs text-gray-500 mt-0.5 leading-relaxed">{t(`howItWorks.features.${feature}.desc` as Parameters<typeof t>[0])}</p>
               </div>
@@ -216,7 +218,7 @@ export function HowItWorks({ current }: { current: string }) {
           <h2 class="text-sm font-semibold text-blue-800 mb-1">{t('howItWorks.docs.heading')}</h2>
           <p class="text-xs text-blue-700 mb-3 leading-relaxed">{t('howItWorks.docs.text')}</p>
           <a
-            href="https://consenti.dev/docs"
+            href="https://consenti.dev/docs?utm_source=dashboard&utm_medium=how-it-works&utm_campaign=consenti-api"
             target="_blank"
             rel="noopener noreferrer"
             class="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800 hover:underline transition-colors"
@@ -231,6 +233,6 @@ export function HowItWorks({ current }: { current: string }) {
         </div>
 
       </div>
-    </Layout>
+    </>
   )
 }

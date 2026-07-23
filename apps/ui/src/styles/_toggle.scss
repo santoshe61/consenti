@@ -28,13 +28,42 @@
   }
 
   &__text {
-    color: #949dab;
+    color: var(--consenti-color-text-muted);
     font-size: 13px;
     margin: 0;
+
+    &--clamped {
+      display: -webkit-box;
+      -webkit-line-clamp: 3;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+    }
+  }
+
+  &__text-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  &__show-more {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--consenti-color-primary);
+    cursor: pointer;
+    font-size: 12px;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+
+    &:hover {
+      opacity: 0.8;
+    }
   }
 
   &__li-desc {
-    margin: var(--consenti-spacing-sm) 0 0;
+    margin-bottom: var(--consenti-spacing-sm);
     font-size: 12px;
     color: #6b7280;
     font-style: italic;
@@ -63,6 +92,45 @@
 
     &--mandatory {
       cursor: default;
+    }
+
+    // Category master toggle only (role="checkbox", tri-state) — rendered when its
+    // parameters are a mix of granted/not-granted. Without this, a mixed-state master
+    // toggle would fall through to the default (non-`aria-checked="true"`) styling and
+    // visually read as fully denied even when most parameters are granted.
+    &--partial {
+      background: var(--consenti-toggle-bg-partial, var(--consenti-color-accent, #f59e0b));
+
+      .consenti-category__toggle-icon--check,
+      .consenti-category__toggle-icon--cross,
+      .consenti-category__toggle-icon--objected {
+        opacity: 0;
+      }
+
+      // Beats the plain `.consenti-toggle--li .toggle-icon--objected` rule below on
+      // specificity (both classes land on this same element in mixed/partial state) —
+      // otherwise source order would let the LI off-state icon leak through here.
+      &.consenti-toggle--li .consenti-category__toggle-icon--objected {
+        opacity: 0;
+      }
+
+      .consenti-category__toggle-knob {
+        transform: translateX(calc((var(--consenti-toggle-width) - var(--consenti-toggle-height)) / 2));
+      }
+
+      &::after {
+        content: '';
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        width: 8px;
+        height: 2px;
+        border-radius: 1px;
+        background: rgba(255, 255, 255, 0.9);
+        pointer-events: none;
+        z-index: 1;
+      }
     }
   }
 
@@ -102,6 +170,13 @@
         opacity: 0;
       }
     }
+
+    // Legitimate-interest toggles (.consenti-toggle--li) show this instead of the plain
+    // cross when off — the visitor *objected* rather than being denied by default.
+    &--objected {
+      right: 8px;
+      opacity: 0;
+    }
   }
 
   &__toggle-knob {
@@ -118,5 +193,163 @@
     [aria-checked="true"] & {
       transform: translateX(calc(var(--consenti-toggle-width) - var(--consenti-toggle-height)));
     }
+  }
+
+  // Per-parameter list rendered inside each category — one row per cookie/parameter
+  // with its own binary switch, shown below the category heading/text/master toggle.
+  &__params {
+    display: flex;
+    flex-direction: column;
+    gap: var(--consenti-spacing-xs, 6px);
+    margin-top: var(--consenti-spacing-sm);
+    padding-top: var(--consenti-spacing-sm);
+    border-top: 1px dashed var(--consenti-color-border);
+  }
+
+  &__param {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--consenti-spacing-sm);
+  }
+
+  &__param-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-width: 0;
+  }
+
+  &__param-label {
+    font-size: 12px;
+    font-family: var(--consenti-font-family-mono, monospace);
+    color: var(--consenti-color-text);
+    overflow-wrap: anywhere;
+  }
+
+  &__param-meta {
+    font-size: 11px;
+    color: var(--consenti-color-text-muted);
+  }
+
+  &__param-toggle {
+    flex-shrink: 0;
+    position: relative;
+    width: calc(var(--consenti-toggle-width) * 0.8);
+    height: calc(var(--consenti-toggle-height) * 0.8);
+    border-radius: calc(var(--consenti-toggle-height) * 0.4);
+    background: var(--consenti-toggle-bg-off);
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s ease;
+    padding: 0;
+
+    &:focus-visible {
+      outline: 2px solid var(--consenti-color-primary);
+      outline-offset: 2px;
+    }
+
+    &[aria-checked="true"] {
+      background: var(--consenti-toggle-bg-on);
+    }
+
+    &--mandatory {
+      cursor: default;
+      opacity: 0.6;
+    }
+
+    .consenti-category__toggle-icon {
+      width: 8px;
+      height: 8px;
+
+      svg {
+        width: 8px;
+        height: 8px;
+      }
+
+      &--check {
+        left: 6px;
+      }
+
+      &--cross {
+        right: 6px;
+      }
+
+      &--objected {
+        right: 6px;
+      }
+    }
+
+    .consenti-category__toggle-knob {
+      width: calc(var(--consenti-toggle-height) * 0.8 - 4px);
+      height: calc(var(--consenti-toggle-height) * 0.8 - 4px);
+
+    }
+
+    &[aria-checked="true"] {
+      .consenti-category__toggle-knob {
+        transform: translateX(calc(var(--consenti-toggle-width) * 0.8 - var(--consenti-toggle-height) * 0.8));
+      }
+    }
+  }
+}
+
+// Legitimate-interest toggle modifier — applies to both the category master toggle
+// (.consenti-category__toggle) and per-parameter switches (.consenti-category__param-toggle).
+// Off-state (aria-checked="false") shows the objected icon instead of the plain cross.
+.consenti-toggle--li {
+  .consenti-category__toggle-icon--cross {
+    opacity: 0;
+  }
+
+  .consenti-category__toggle-icon--objected {
+    opacity: 1;
+  }
+
+  &[aria-checked="true"] .consenti-category__toggle-icon--objected {
+    opacity: 0;
+  }
+}
+
+// RTL: `translateX`/`left`/`right` below are physical and don't mirror on their own —
+// flip the knob travel direction and icon sides so the switch reads naturally right-to-left.
+[dir='rtl'] {
+  .consenti-category__toggle-knob {
+    left: auto;
+    right: 2px;
+  }
+
+  .consenti-category__toggle[aria-checked='true'] .consenti-category__toggle-knob {
+    transform: translateX(calc(-1 * (var(--consenti-toggle-width) - var(--consenti-toggle-height))));
+  }
+
+  .consenti-category__toggle--partial .consenti-category__toggle-knob {
+    transform: translateX(calc(-1 * (var(--consenti-toggle-width) - var(--consenti-toggle-height)) / 2));
+  }
+
+  .consenti-category__param-toggle[aria-checked='true'] .consenti-category__toggle-knob {
+    transform: translateX(calc(-1 * (var(--consenti-toggle-width) * 0.8 - var(--consenti-toggle-height) * 0.8)));
+  }
+
+  .consenti-category__toggle-icon--check {
+    left: auto;
+    right: 8px;
+  }
+
+  .consenti-category__toggle-icon--cross,
+  .consenti-category__toggle-icon--objected {
+    right: auto;
+    left: 8px;
+  }
+
+  .consenti-category__param-toggle .consenti-category__toggle-icon--check {
+    left: auto;
+    right: 6px;
+  }
+
+  .consenti-category__param-toggle .consenti-category__toggle-icon--cross,
+  .consenti-category__param-toggle .consenti-category__toggle-icon--objected {
+    right: auto;
+    left: 6px;
   }
 }

@@ -26,6 +26,7 @@
   &--primary {
     background: var(--consenti-color-primary);
     color: var(--consenti-color-primary-text);
+    border: 1px solid var(--consenti-color-primary);
   }
 
   &--secondary {
@@ -36,7 +37,7 @@
     &:hover {
       background: var(--consenti-color-primary);
       color: var(--consenti-color-secondary);
-      border: 1px solid var(--consenti-color-secondary);
+      // border: 1px solid var(--consenti-color-secondary);
     }
   }
 
@@ -47,6 +48,7 @@
     padding-right: 0;
     text-decoration: underline;
     text-underline-offset: 4px;
+    border: 1px solid transparent;
   }
 
   &--accent {
@@ -54,17 +56,20 @@
     color: var(--consenti-color-accent-text);
   }
 
-  &--close {
+  &--action {
     background: transparent;
     color: var(--consenti-color-text);
     font-size: 20px;
     line-height: 1;
-    padding: 4px 8px;
     border-radius: 50%;
+    height: 24px;
+    width: 24px;
+    font-size: 24px;
+    padding: 0;
 
-    &:hover {
-      background: var(--consenti-color-secondary);
-      opacity: 1;
-    }
+    // &:hover {
+    //   background: var(--consenti-color-secondary);
+    //   opacity: 1;
+    // }
   }
 }

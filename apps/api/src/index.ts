@@ -16,17 +16,21 @@ import { JsonFileAdapter } from './storage/json/json-file.adapter'
 import { ProfileRepo } from './repositories/profile.repo'
 import { ConsentRepo } from './repositories/consent.repo'
 import { VisitorRepo } from './repositories/visitor.repo'
+import { NoticeRepo } from './repositories/notice.repo'
 import { AuditRepo } from './repositories/audit.repo'
+import { StatsService } from './services/stats.service'
 import { UserRepo } from './repositories/user.repo'
 import { ProfileService } from './services/profile.service'
 import { GeoResolverService } from './services/geo-resolver.service'
 import { LocaleJsonCacheService } from './services/locale-json-cache.service'
 import { ConsentService } from './services/consent.service'
 import { VisitorService } from './services/visitor.service'
+import { NoticeService } from './services/notice.service'
 import { UserService } from './services/user.service'
 import { LocalAuth } from './auth/local.auth'
 import { buildProfileRoutes } from './routes/public/profile.routes'
 import { buildConsentRoutes } from './routes/public/consent.routes'
+import { buildNoticeRoutes } from './routes/public/notice.routes'
 import { buildAdminAuthRoutes } from './routes/admin/auth.routes'
 import { buildAdminProfileRoutes } from './routes/admin/profiles.routes'
 import { buildAdminConsentRoutes } from './routes/admin/consents.routes'
@@ -38,14 +42,16 @@ import { buildAdminStatsRoutes } from './routes/admin/stats.routes'
 import { buildAdminExportRoutes } from './routes/admin/export.routes'
 import { buildAdminApiKeyRoutes } from './routes/admin/apikeys.routes'
 import { buildAdminTenantRoutes } from './routes/admin/tenants.routes'
+import { buildAdminSettingsRoutes } from './routes/admin/settings.routes'
 import { buildAdminTcfRoutes } from './routes/admin/tcf.routes'
-import { buildAdminCookieTemplateRoutes } from './routes/admin/cookie-templates.routes'
+import { buildAdminConsentTemplateRoutes } from './routes/admin/consent-templates.routes'
 import { buildAdminUITemplateRoutes } from './routes/admin/ui-templates.routes'
 import { buildAdminAnalyticsRoutes } from './routes/admin/analytics.routes'
+import { buildAdminSetupRoutes } from './routes/admin/setup.routes'
 import { resolveStoragePaths } from './utils/storage-path'
 import { resolveTenant } from './middleware/tenant.middleware'
 import { RateLimiter } from './middleware/rate-limit.middleware'
-import { handleCors, withCors, addSecurityHeaders } from './middleware/cors.middleware'
+import { handleCors, withCors, addSecurityHeaders, checkOriginAllowed } from './middleware/cors.middleware'
 import { errorResponse } from './middleware/error.middleware'
 import { nodeRequestToFetch, fetchResponseToNode, PayloadTooLargeError } from './utils/http'
 import type { ConsentiServerConfig, StorageAdapter, StorageConfig } from '@consenti/types'
@@ -119,6 +125,10 @@ interface RouteEntry {
   paramNames: string[]
   handler: Handler
   rateLimit: boolean
+  /** Enforce `TenantSettings.adminAllowedOrigins` as a CORS-layer check on top of this route's
+   * own auth. Only ever set on the authenticated admin API group — not on unauthenticated
+   * static assets like `widget.js`/`widget.css`, which must stay embeddable from any origin. */
+  originCheck: boolean
 }
 
 function compilePath(path: string): { pattern: RegExp; paramNames: string[] } {
@@ -137,6 +147,7 @@ interface RouteGroup {
   prefix: string
   routes: Record<string, Handler>
   rateLimit?: boolean
+  originCheck?: boolean
 }
 
 function branded404(basePath: string): Response {
@@ -184,6 +195,8 @@ function buildFetchRouter(
   basePath: string,
   groups: RouteGroup[],
   rateLimiter: RateLimiter | null,
+  storage: StorageAdapter,
+  resolveTenantId: (req: Request) => Promise<string>,
 ): (request: Request) => Promise<Response> {
   const entries: RouteEntry[] = []
 
@@ -193,7 +206,11 @@ function buildFetchRouter(
       const method = key.slice(0, spaceIdx).toUpperCase()
       const path = key.slice(spaceIdx + 1)
       const { pattern, paramNames } = compilePath(`${group.prefix}${path}`)
-      entries.push({ method, pattern, paramNames, handler, rateLimit: group.rateLimit ?? false })
+      entries.push({
+        method, pattern, paramNames, handler,
+        rateLimit: group.rateLimit ?? false,
+        originCheck: group.originCheck ?? false,
+      })
     }
   }
 
@@ -219,6 +236,16 @@ function buildFetchRouter(
       if (entry.method !== method) continue
       const match = pathname.match(entry.pattern)
       if (!match) continue
+      // Origin-layer check on top of the route's own Bearer-token auth — only ever set for
+      // the authenticated admin API group. No-ops for non-browser callers (no Origin header)
+      // and whenever adminAllowedOrigins is unset, matching checkOriginAllowed's own defaults.
+      if (entry.originCheck) {
+        const tenantId = await resolveTenantId(request)
+        const { adminAllowedOrigins } = await storage.getSettings(tenantId)
+        if (!checkOriginAllowed(request, adminAllowedOrigins ?? [])) {
+          return withCors(errorResponse(403, 'Origin not allowed for the admin API'), request)
+        }
+      }
       const params: Record<string, string> = {}
       entry.paramNames.forEach((name, i) => {
         const val = match[i + 1]
@@ -305,7 +332,7 @@ function createStorageAdapter(config: NonNullable<ConsentiServerConfig['storage'
     case 'node:sqlite': return new NodeSqliteBuiltinAdapter(config)
     case 'better-sqlite3':
     case 'sqlite': return new BetterSqlite3Adapter(config)
-    case 'node-sqlite3-wasm': new NodeSqlite3WasmAdapter(config)
+    case 'node-sqlite3-wasm': return new NodeSqlite3WasmAdapter(config)
     case 'json':
     default: return new JsonFileAdapter(config)
   }
@@ -317,10 +344,14 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
     userConfig as unknown as Record<string, unknown>,
   ) as ConsentiServerConfig
 
-  if (!userConfig.storage) {
-    console.warn('[Consenti] No storage config — using node-sqlite3-wasm (SQLite WASM) at ./consenti-data.db. Switch to a database driver for production.')
+  // Also surfaced (not just logged) on the setup wizard's confirmation step — see setup.routes.ts.
+  const usingJsonStorage = config.storage?.driver === 'json'
+  const usingDefaultCredentials = !userConfig.auth && !process.env['CONSENTI_ADMIN_PASSWORD']
+
+  if (usingJsonStorage) {
+    console.warn('[Consenti] Using the JSON file storage driver — fine for development, but switch to a database driver (node:sqlite, postgresql, mysql, mongodb) for production. Set storage.driver or CONSENTI_DB_DRIVER.')
   }
-  if (!userConfig.auth && !process.env['CONSENTI_ADMIN_PASSWORD']) {
+  if (usingDefaultCredentials) {
     console.warn('[Consenti] No auth config or CONSENTI_ADMIN_PASSWORD env var — using demo credentials. Set CONSENTI_ADMIN_EMAIL and CONSENTI_ADMIN_PASSWORD before going to production.')
   }
 
@@ -339,8 +370,10 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   const profileRepo = new ProfileRepo(storage)
   const consentRepo = new ConsentRepo(storage)
   const visitorRepo = new VisitorRepo(storage)
+  const noticeRepo = new NoticeRepo(storage)
   const auditRepo = new AuditRepo(storage)
   const userRepo = new UserRepo(storage)
+  const statsService = new StatsService(storage)
 
   const pluginEngine = new PluginEngine()
   if (config.plugins?.length) pluginEngine.register(config.plugins)
@@ -366,9 +399,10 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
 
   const profileService = new ProfileService(profileRepo, auditRepo, 'default', storage, eventBus, localeCache, profilesDir, config.handleCache, config.s3Api)
   const visitorService = new VisitorService(visitorRepo, 'default', eventBus)
+  const noticeService = new NoticeService(noticeRepo, 'default')
   const consentService = new ConsentService(
     consentRepo, visitorRepo, profileRepo, auditRepo, 'default', config.compliance,
-    pluginEngine, eventBus, config.tcf,
+    pluginEngine, eventBus, config.tcf, storage, config.consentSigningKey,
   )
   const userService = new UserService(userRepo, auditRepo)
 
@@ -396,7 +430,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
 
   const configScript = dashboardEnabled
     ? buildConsentiConfigScript(
-      buildConsentiRuntimeConfig(dashboardDir, basePath, config.branding, config.compliance),
+      buildConsentiRuntimeConfig(dashboardDir, basePath, config.branding, config.compliance, authConfig.mode),
     )
     : ''
 
@@ -434,15 +468,26 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
         rateLimit: true,
         routes: {
           ...buildProfileRoutes(profileService, geoResolver, profilesDir, apiBase),
-          ...buildConsentRoutes(consentService, visitorService, profileService, resolveTenantId),
+          ...buildConsentRoutes(consentService, visitorService, profileService, resolveTenantId, storage, adminSecret),
+          ...buildNoticeRoutes(noticeService),
         },
       },
       {
+        // Unauthenticated static assets — must stay embeddable/fetchable from any origin
+        // (customer sites load the widget script cross-origin), so no originCheck here even
+        // though they share the adminBase prefix with the real, authenticated admin API below.
         prefix: adminBase,
         rateLimit: false,
         routes: {
           'GET /widget.js': async () => serveDistFile(join(DIST_DIR, 'widget', 'widget.js'), 'application/javascript; charset=utf-8'),
           'GET /widget.css': async () => serveDistFile(join(DIST_DIR, 'widget', 'widget.css'), 'text/css; charset=utf-8'),
+        },
+      },
+      {
+        prefix: adminBase,
+        rateLimit: false,
+        originCheck: true,
+        routes: {
           ...buildAdminAuthRoutes(localAuth, storage, authConfig, adminSecret, authLimiter),
           ...buildAdminProfileRoutes(profileService, storage, authConfig, adminSecret),
           ...buildAdminConsentRoutes(storage, authConfig, adminSecret),
@@ -450,21 +495,26 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
           ...buildAdminUserRoutes(userService, storage, authConfig, adminSecret),
           ...buildAdminRoleRoutes(storage, authConfig, adminSecret),
           ...buildAdminAuditRoutes(storage, authConfig, adminSecret),
-          ...buildAdminStatsRoutes(storage, authConfig, adminSecret),
-          ...buildAdminExportRoutes(storage, authConfig, adminSecret),
+          ...buildAdminStatsRoutes(storage, statsService, authConfig, adminSecret),
+          ...buildAdminExportRoutes(storage, authConfig, adminSecret, profileService),
           ...buildAdminApiKeyRoutes(storage, authConfig, adminSecret),
           ...buildAdminTenantRoutes(storage, authConfig, adminSecret),
+          ...buildAdminSettingsRoutes(storage, authConfig, adminSecret),
           ...buildAdminTcfRoutes(storage, authConfig, adminSecret),
-          ...buildAdminCookieTemplateRoutes(storage, authConfig, adminSecret),
+          ...buildAdminConsentTemplateRoutes(storage, authConfig, adminSecret),
           ...buildAdminUITemplateRoutes(storage, authConfig, adminSecret),
           ...buildAdminAnalyticsRoutes(storage, authConfig, adminSecret),
+          ...buildAdminSetupRoutes(profileService, storage, authConfig, adminSecret, config, { usingJsonStorage, usingDefaultCredentials }),
         },
       },
     ],
     rateLimiter,
+    storage,
+    resolveTenantId,
   )
 
   let retentionTimer: ReturnType<typeof setInterval> | null = null
+  let auditRetentionTimer: ReturnType<typeof setInterval> | null = null
 
   // Resolves after storage.connect() + bootstrap() complete — consumers can await
   // this before accepting requests to guarantee the admin user already exists.
@@ -493,6 +543,15 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
           .catch((err: unknown) => console.warn('[consenti] Data retention purge failed:', err))
         void purge()
         retentionTimer = setInterval(() => { void purge() }, 24 * 60 * 60_000)
+      }
+
+      if (config.dataRetention?.auditLogPurgeAfterDays) {
+        const days = config.dataRetention.auditLogPurgeAfterDays
+        const purgeAudit = () => storage.purgeExpiredAuditLogs(days)
+          .then(n => { if (n > 0) console.warn(`[consenti] Purged ${n} audit log entries older than ${days} days`) })
+          .catch((err: unknown) => console.warn('[consenti] Audit log retention purge failed:', err))
+        void purgeAudit()
+        auditRetentionTimer = setInterval(() => { void purgeAudit() }, 24 * 60 * 60_000)
       }
     })
     .catch((err: unknown) => {
@@ -651,6 +710,8 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
     ready,
     destroy: async () => {
       if (retentionTimer) clearInterval(retentionTimer)
+      if (auditRetentionTimer) clearInterval(auditRetentionTimer)
+      statsService.dispose()
       if (config.tcf?.enabled) stopGvlRefresh()
       await pluginEngine.destroy()
     },
@@ -661,6 +722,11 @@ export { SQLiteAdapter } from './storage/sqlite/sqlite.adapter'
 export { MongoDBAdapter } from './storage/mongodb/mongodb.adapter'
 export { MySQLAdapter } from './storage/mysql/mysql.adapter'
 export { PostgreSQLAdapter } from './storage/postgresql/postgresql.adapter'
+
+export { ConsentAction } from './hooks/consent-action'
+export type { ConsentActionOptions, ConsentActionParams } from './hooks/consent-action'
+export { CategoryAction } from './hooks/category-action'
+export type { CategoryActionOptions, CategoryActionParams } from './hooks/category-action'
 
 export type {
   ConsentiServerConfig,

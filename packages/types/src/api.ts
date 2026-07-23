@@ -1,5 +1,18 @@
-import type { Cookie, ProfileConfig, ConsentValue } from './ui'
+import type { ProfileConfig, ConsentValue, MainBanner, GpcBanner, PreferenceModal } from './ui'
 import type { ComplianceGroupId } from './compliance'
+
+/** Resolved content for one non-default locale — template shape merged with that locale's
+ * author text, computed client-side (dashboard) the same way the default locale's content on
+ * `StoredProfileJson` is. Never persisted in the DB row; `ProfileService` writes it straight to
+ * that locale's on-disk version file. Keyed by locale code on `CreateProfileInput`/
+ * `UpdateProfileInput.localeContent` — only locales actually touched this save need an entry;
+ * any other locale already in `profileJson.locales` is carried forward unchanged from the
+ * previous version. */
+export interface LocaleContentInput {
+  mainBanner: MainBanner
+  gpcBanner?: GpcBanner
+  preferenceModal: PreferenceModal
+}
 
 // ─── Server config ────────────────────────────────────────────────────────────
 
@@ -12,6 +25,20 @@ export interface StorageConfig {
   port?: number
   user?: string
   password?: string
+  /** Postgres/MySQL only. Max pool connections. Default: 10 (both drivers' own default — set
+   * explicitly here so it's a documented, tunable value rather than an implicit library default). */
+  poolMax?: number
+  /**
+   * Postgres/MySQL only. Milliseconds before an in-flight query is aborted, so one slow/runaway
+   * query can't hold a pool connection indefinitely. Unset by default: a forced default could
+   * silently break legitimate long-running operations (e.g. exporting millions of records) that
+   * this project has no way to load-test — opt in once you've measured your own worst-case query.
+   */
+  statementTimeoutMs?: number
+  /** Postgres only. Milliseconds a client may sit idle inside an open transaction before being
+   * terminated — protects against a `BEGIN` with no matching `COMMIT`/`ROLLBACK` holding a
+   * connection forever. Unset by default, same reasoning as `statementTimeoutMs`. */
+  idleInTransactionTimeoutMs?: number
 }
 
 export interface OidcConfig {
@@ -74,18 +101,34 @@ export interface ProfileSummary {
   name: string
   defaultLocale: string
   complianceGroup: ComplianceGroupId | null
-  version: number
+  customComplianceGroup: string | null
   isActive: boolean
-  cookieTemplateName: string | null
+  consentTemplateName: string | null
   uiTemplateName: string | null
   createdAt: string
   updatedAt: string
 }
 
+/**
+ * One snapshot in a profile's edit history. `Profile.id` is stable across edits; each save
+ * increments `Profile.version` in place and writes a new snapshot under that version number.
+ */
 export interface ProfileVersionEntry {
   version: number
   createdAt: string
   locales: string[]
+}
+
+/**
+ * A profile-id directory found on disk with no matching DB row — the profile was deleted
+ * (or predates the current versioning model) but its version-snapshot history wasn't. Built
+ * from a directory listing only (id, version count, last-modified) — no file content is read
+ * until a specific version is opened via the normal version-history endpoints.
+ */
+export interface ArchivedProfileSummary {
+  id: string
+  versionCount: number
+  lastModified: string
 }
 
 export interface OptInFilters {
@@ -163,6 +206,21 @@ export interface ComplianceValidationResult {
   warnings: ComplianceWarningItem[]
 }
 
+/** One mandatory-content field left blank — see `validateProfileContent`
+ * (`apps/api/src/services/profile-content-validator.service.ts`). */
+export interface ContentValidationError {
+  locale: string
+  section: 'mainBanner' | 'gpcBanner' | 'preferenceModal'
+  /** Dot-path within the section, e.g. `'htmlText'`, `'buttons.accept-all'`, `'categories.marketing.heading'`. */
+  field: string
+  message: string
+}
+
+export interface ContentValidationResult {
+  valid: boolean
+  errors: ContentValidationError[]
+}
+
 export interface ComplianceConfig {
   /** @deprecated use type */
   gdpr?: boolean
@@ -199,6 +257,11 @@ export interface TcfConfig {
 
 export interface DataRetentionConfig {
   purgeAfterDays: number
+  /** When set, audit log entries older than this are purged on the same daily timer as consent
+   * record retention. Independent of `purgeAfterDays` since audit trails are often required to
+   * be kept longer than the consent records they reference for compliance/investigation
+   * purposes. Unset by default — audit logs are kept indefinitely unless explicitly configured. */
+  auditLogPurgeAfterDays?: number
 }
 
 export interface BrandingConfig {
@@ -230,8 +293,13 @@ export interface ConsentiServerConfig {
   trustedProxies?: string[]
   branding?: BrandingConfig
   s3Api?: S3ApiConfig
+  /** When set, every consent record is HMAC-SHA256 signed at create/update time (hex-encoded,
+   * stored in `signature`) and the signature is checked on `GET /consent/:visitorId/verify`.
+   * No-op and no schema burden when unset — opt-in tamper-evidence for server-stored records,
+   * independent of the widget's own cookie-signing (`core.cookieSigningKey`). */
+  consentSigningKey?: string
   /** Called after every profile activate/deactivate/delete. isPurge=true means invalidate; false means warm. */
-  handleCache?: (paths: string[], currentVersion: number, isPurge: boolean) => void
+  handleCache?: (paths: string[], profileId: string, isPurge: boolean) => void
 }
 
 // ─── DB domain types ──────────────────────────────────────────────────────────
@@ -244,13 +312,34 @@ export interface Tenant {
   updatedAt: string
 }
 
+/** Tenant-wide dashboard-managed defaults, shown on the API Config page. */
+export interface TenantSettings {
+  /** Public API origin allowlist. Distinct from `ProfileConfig.allowedOrigins`, which the
+   * origin check on `POST /consent` prefers when a profile sets its own list; this is the
+   * fallback. The public API has no auth token, so this is its only access gate. */
+  allowedOrigins?: string[]
+  /** Admin API origin allowlist — an additional CORS-layer check on top of Bearer-token auth
+   * for browser-originated `/consenti/admin/*` requests. Empty/unset means no restriction
+   * (Bearer token auth alone still applies); only enforced when the request carries an
+   * `Origin` header — server-to-server callers are unaffected. */
+  adminAllowedOrigins?: string[]
+  /** Whether this tenant has completed (or skipped) the first-run setup wizard. Gates the
+   * one-time `#/setup` redirect in the dashboard — never reset once true. Default: false. */
+  setupCompleted?: boolean
+}
+
 export interface ApiKey {
   id: string
   tenantId: string
   keyHash: string
   name: string
   isActive: boolean
+  /** User id of the admin who created this key. Undefined for keys created before this field existed. */
+  createdBy?: string
+  /** Optional expiry set at creation. Checked lazily at auth time and on list — no background sweep. */
+  expireBy?: string
   createdAt: string
+  updatedAt?: string
 }
 
 export interface Profile {
@@ -258,8 +347,9 @@ export interface Profile {
   tenantId: string
   name: string
   defaultLocale: string
+  /** Starts at 1, incremented in place on every save. The row itself is mutated, never replaced — see {@link ProfileVersionEntry} for the on-disk snapshot history this produces. */
   version: number
-  profileJson: ProfileConfig
+  profileJson: StoredProfileJson
   createdAt: string
   updatedAt: string
 }
@@ -269,7 +359,6 @@ export interface ConsentDbRecord {
   tenantId: string
   visitorId: string
   profileId: string
-  profileVersion: number
   locale: string
   consentJson: ConsentValue
   gpcDetected: boolean
@@ -277,6 +366,10 @@ export interface ConsentDbRecord {
   ageVerified?: boolean
   parentalConsentToken?: string
   tcfString?: string
+  /** HMAC-SHA256 signature over the record's core fields, hex-encoded. Only present when
+   * `consentSigningKey` is configured — opt-in tamper-evidence for server-stored records,
+   * independent of the widget's own cookie-signing (`core.cookieSigningKey`). */
+  signature?: string
   createdAt: string
   updatedAt: string
 }
@@ -333,6 +426,24 @@ export interface Permission {
   description?: string
 }
 
+/** Proof that the consent banner was rendered to a visitor — recorded even if they never
+ * interact with it, distinct from (and never merged into) an actual consent decision. */
+export interface NoticeShownRecord {
+  id: string
+  tenantId: string
+  visitorId: string
+  profileId: string
+  locale: string
+  createdAt: string
+}
+
+export interface CreateNoticeShownInput {
+  tenantId: string
+  visitorId: string
+  profileId: string
+  locale: string
+}
+
 export interface AuditLog {
   id: string
   tenantId: string
@@ -345,26 +456,44 @@ export interface AuditLog {
   createdAt: string
 }
 
+/** List-view shape for consents — omits the fields not shown in a table row (`consentJson`,
+ * `parentalConsentToken`, `tcfString`, `signature`), so paginated list queries don't have to pull
+ * those blobs off disk for every row. Fetch the full `ConsentDbRecord` via `getConsent(visitorId)`
+ * when a single record's full detail is actually needed (e.g. opening a detail modal). */
+export type ConsentSummary = Omit<ConsentDbRecord, 'consentJson' | 'parentalConsentToken' | 'tcfString' | 'signature'>
+
+/** List-view shape for audit logs — omits `oldData`/`newData` (full before/after snapshots) for
+ * the same reason as `ConsentSummary`. Fetch the full `AuditLog` via `getAuditLogById(id)` when a
+ * single entry's full detail is needed. */
+export type AuditLogSummary = Omit<AuditLog, 'oldData' | 'newData'>
+
 // ─── Input types ──────────────────────────────────────────────────────────────
 
 export interface CreateProfileInput {
   tenantId: string
   name: string
   defaultLocale: string
-  profileJson: ProfileConfig
+  profileJson: StoredProfileJson
+  /** Non-default locales' resolved content for this save — see {@link LocaleContentInput}. */
+  localeContent?: Record<string, LocaleContentInput>
 }
 
 export interface UpdateProfileInput {
   name?: string
   defaultLocale?: string
-  profileJson?: ProfileConfig
+  profileJson?: StoredProfileJson
+  /** Explicit new version number — set by `ProfileService.update()` to `old.version + 1` for a content edit. Omitted for isActive-only flips (activate/deactivate), which leave the version unchanged. */
+  version?: number
+  /** Non-default locales' resolved content for this save — see {@link LocaleContentInput}. Any
+   * locale in `profileJson.locales` not present here is carried forward unchanged from the
+   * previous version's on-disk file. */
+  localeContent?: Record<string, LocaleContentInput>
 }
 
 export interface CreateConsentInput {
   tenantId: string
   visitorId: string
   profileId: string
-  profileVersion: number
   locale: string
   consentJson: ConsentValue
   gpcDetected: boolean
@@ -372,12 +501,14 @@ export interface CreateConsentInput {
   ageVerified?: boolean
   parentalConsentToken?: string
   tcfString?: string
+  signature?: string
 }
 
 export interface UpdateConsentInput {
   consentJson: ConsentValue
   locale?: string
   gpcDetected?: boolean
+  signature?: string
 }
 
 export interface CreateVisitorInput {
@@ -434,6 +565,8 @@ export interface ConsentFilters {
   to?: string
   page?: number
   limit?: number
+  /** Free-text search across visitorId, profileId, locale, source. */
+  q?: string
 }
 
 export interface VisitorFilters {
@@ -442,6 +575,8 @@ export interface VisitorFilters {
   to?: string
   page?: number
   limit?: number
+  /** Free-text search across visitorId, country. */
+  q?: string
 }
 
 export interface AuditFilters {
@@ -452,15 +587,28 @@ export interface AuditFilters {
   to?: string
   page?: number
   limit?: number
+  /** Free-text search across action, resourceType, resourceId, userId. */
+  q?: string
+}
+
+/** Page of results plus the total row count matching the same filters (ignoring page/limit) —
+ * lets callers compute total page count for numbered pagination without a second round trip. */
+export interface PagedResult<T> {
+  items: T[]
+  total: number
+  page: number
+  limit: number
 }
 
 // ─── Response types ───────────────────────────────────────────────────────────
 
 export interface ConsentVerifyResult {
   valid: boolean
-  reasons: Array<'profile_version_mismatch' | 'consent_expired' | 'hmac_invalid'>
-  currentProfileVersion?: number
-  consentProfileVersion?: number
+  reasons: Array<'profile_changed' | 'consent_expired' | 'hmac_invalid'>
+  /** The id of the profile currently active for this consent's compliance group, if any. */
+  currentProfileId?: string
+  /** The id of the profile this consent was originally collected against. */
+  consentProfileId?: string
 }
 
 export interface JwtPayload {
@@ -519,6 +667,8 @@ export interface CreateApiKeyInput {
   tenantId: string
   name: string
   keyHash: string
+  createdBy?: string
+  expireBy?: string
 }
 
 export interface CreateTenantInput {
@@ -546,7 +696,7 @@ export interface StorageAdapter {
   findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null>
   /** Lightweight list — no profile_json blob; single JOIN for template names. */
   listProfilesSummary(tenantId: string): Promise<ProfileSummary[]>
-  findProfilesUsingCookieTemplate(templateId: string): Promise<ProfileSummary[]>
+  findProfilesUsingConsentTemplate(templateId: string): Promise<ProfileSummary[]>
   findProfilesUsingUITemplate(templateId: string): Promise<ProfileSummary[]>
   getOptInStats(tenantId: string, filters: OptInFilters): Promise<OptInStats>
 
@@ -554,17 +704,20 @@ export interface StorageAdapter {
   updateConsent(visitorId: string, data: UpdateConsentInput): Promise<ConsentDbRecord>
   deleteConsent(visitorId: string): Promise<void>
   getConsent(visitorId: string): Promise<ConsentDbRecord | null>
-  getConsents(filters: ConsentFilters): Promise<ConsentDbRecord[]>
+  getConsents(filters: ConsentFilters): Promise<PagedResult<ConsentSummary>>
   streamConsents(filters: ConsentFilters): AsyncIterable<ConsentDbRecord>
 
   createVisitor(data: CreateVisitorInput): Promise<Visitor>
   updateVisitor(visitorId: string, data: UpdateVisitorInput): Promise<Visitor>
   deleteVisitor(visitorId: string): Promise<void>
   getVisitor(visitorId: string): Promise<Visitor | null>
-  getVisitors(filters: VisitorFilters): Promise<Visitor[]>
+  getVisitors(filters: VisitorFilters): Promise<PagedResult<Visitor>>
 
   getConsentHistory(visitorId: string): Promise<ConsentHistoryEntry[]>
   streamAuditLogs(filters: AuditFilters): AsyncIterable<AuditLog>
+
+  createNoticeShown(data: CreateNoticeShownInput): Promise<NoticeShownRecord>
+  getNoticeShownForVisitor(visitorId: string): Promise<NoticeShownRecord[]>
 
   getOverviewStats(tenantId: string): Promise<OverviewStats>
   getCategoryStats(tenantId: string): Promise<CategoryStats>
@@ -576,18 +729,27 @@ export interface StorageAdapter {
   createTenant(data: CreateTenantInput): Promise<Tenant>
   updateTenant(id: string, data: UpdateTenantInput): Promise<Tenant>
   deleteTenant(id: string): Promise<void>
+  /** Returns `{}` (all fields unset) if no settings row exists yet for this tenant. */
+  getSettings(tenantId: string): Promise<TenantSettings>
+  updateSettings(tenantId: string, data: Partial<TenantSettings>): Promise<TenantSettings>
   createApiKey(data: CreateApiKeyInput): Promise<ApiKey>
   getApiKeyByHash(keyHash: string): Promise<ApiKey | null>
   revokeApiKey(id: string): Promise<void>
+  /** Re-enables a previously revoked key (same hash, no new secret). Clears `expireBy` if it's
+   * in the past, so a lazily-expired key doesn't immediately re-expire on the next check. */
+  reactivateApiKey(id: string): Promise<void>
+  /** Permanently removes the key row — unlike `revokeApiKey`, this cannot be undone. */
+  deleteApiKey(id: string): Promise<void>
   getApiKeys(tenantId: string): Promise<ApiKey[]>
   purgeExpiredConsents(olderThanDays: number): Promise<number>
+  purgeExpiredAuditLogs(olderThanDays: number): Promise<number>
 
-  createCookieTemplate(data: import('./ui').CreateCookieTemplateInput): Promise<import('./ui').ServerCookieTemplate>
-  updateCookieTemplate(id: string, data: import('./ui').UpdateCookieTemplateInput): Promise<import('./ui').ServerCookieTemplate>
-  deleteCookieTemplate(id: string): Promise<void>
-  getCookieTemplate(id: string): Promise<import('./ui').ServerCookieTemplate | null>
-  getCookieTemplates(tenantId: string): Promise<import('./ui').ServerCookieTemplate[]>
-  copyCookieTemplate(id: string, newName: string): Promise<import('./ui').ServerCookieTemplate>
+  createConsentTemplate(data: import('./ui').CreateConsentTemplateInput): Promise<import('./ui').ServerConsentTemplate>
+  updateConsentTemplate(id: string, data: import('./ui').UpdateConsentTemplateInput): Promise<import('./ui').ServerConsentTemplate>
+  deleteConsentTemplate(id: string): Promise<void>
+  getConsentTemplate(id: string): Promise<import('./ui').ServerConsentTemplate | null>
+  getConsentTemplates(tenantId: string): Promise<import('./ui').ServerConsentTemplate[]>
+  copyConsentTemplate(id: string, newName: string): Promise<import('./ui').ServerConsentTemplate>
 
   createUITemplate(data: import('./ui').CreateUITemplateInput): Promise<import('./ui').ServerUITemplate>
   updateUITemplate(id: string, data: import('./ui').UpdateUITemplateInput): Promise<import('./ui').ServerUITemplate>
@@ -617,7 +779,8 @@ export interface StorageAdapter {
   revokePermissionFromRole(roleId: string, permissionId: string): Promise<void>
 
   createLog(data: CreateAuditLogInput): Promise<void>
-  getLogs(filters: AuditFilters): Promise<AuditLog[]>
+  getLogs(filters: AuditFilters): Promise<PagedResult<AuditLogSummary>>
+  getAuditLogById(id: string): Promise<AuditLog | null>
 }
 
 // ─── Plugin system ────────────────────────────────────────────────────────────
@@ -664,32 +827,34 @@ export interface ConsentiRuntimeConfig {
     type?: string
     gpc?: boolean | 'strict'
   }
+  /** Active admin auth mode — dashboard-only features like password reset are gated on 'local'. */
+  authMode: AuthConfig['mode']
 }
 
-// ─── Dashboard view types ─────────────────────────────────────────────────────
+// ─── Server-side stored profile shape ──────────────────────────────────────────
 
-/** Loose runtime JSON shape of a profile as stored and returned by the admin API. */
-export interface ProfileJson {
-  cookieTemplateId?: string
-  uiTemplateId?: string
-  localeContents?: Record<string, unknown>
-  cookies?: Cookie[]
-  translations?: Record<string, unknown>
-  defaultLocale?: string
-  darkMode?: boolean
-  regulations?: string[]
-  regulation?: string
-  allowedOrigins?: string[]
-  dpdpa?: Record<string, string>
-  _meta?: { cookieTemplateId?: string; uiTemplateId?: string }
-  complianceGroup?: string
-  isActive?: boolean
-  hidePoweredBy?: boolean
-  allowReceipt?: boolean
-  gpcMode?: 'ignore' | 'honor' | 'strict'
-  /** Per-compliance extra config (e.g. DPDPA data fiduciary name). */
-  complianceConfig?: Record<string, string>
+/**
+ * The server's stored shape of `Profile.profileJson` — extends the shared `ProfileConfig`
+ * (`./ui`, also used by `apps/ui`'s local `ConsentiProfile`/`registerProfile()` authoring, which
+ * genuinely needs the full multi-locale `translations`/`localeContents` blob for its own
+ * no-backend use case and must stay untouched).
+ *
+ * On the server, only `defaultLocale`'s own resolved content is ever stored here —
+ * `mainBanner`/`gpcBanner`/`preferenceModal` (inherited from `ProfileConfig` as-is: template shape
+ * merged with the author's text, optional fields simply omitted rather than blank — never a
+ * multi-locale map). Every other locale's content lives only in its own per-version JSON file on
+ * disk (`profiles/{tenant}/{id}/{version}/{locale}.json`, see `ProfileService`), never in the DB
+ * row — `translations`/`localeContents` (both full multi-locale blobs) are dropped entirely.
+ */
+export interface StoredProfileJson extends Omit<ProfileConfig, 'translations' | 'localeContents'> {
+  /** Every locale this profile has content for — drives the dashboard's tab list. Content for any
+   * locale other than `defaultLocale` lives only in that locale's on-disk version file, not here. */
+  locales: string[]
 }
+
+/** Loose runtime JSON shape of a profile as returned by the admin API — same fields as
+ * `StoredProfileJson`, all optional (a response may not populate every field). */
+export type ProfileJson = Partial<StoredProfileJson>
 
 /** Profile as returned by admin dashboard API endpoints (uses loose profileJson). */
 export interface DashboardProfile {

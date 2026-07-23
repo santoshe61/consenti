@@ -38,6 +38,13 @@ export default defineConfig(({ command }) => ({
   // In dev mode use / so the dashboard is simply at localhost:<port>/.
   base: command === 'build' ? '/consenti/' : '/',
   server: {
+    // Vite's dev server enables its own permissive CORS handling by default, which
+    // intercepts/rewrites preflight responses for proxied routes before the real
+    // backend's own Access-Control-* headers (set in cors.middleware.ts) ever reach
+    // the browser — breaking credentialed cross-origin requests (widget dev harness on
+    // a different port hitting the proxied API). Disabled so proxied responses pass
+    // through untouched; the backend's own CORS handling is authoritative.
+    cors: false,
     proxy: {
       '/consenti/admin': { target: BACKEND, changeOrigin: true },
       '/consenti/api': { target: BACKEND, changeOrigin: true },

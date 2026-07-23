@@ -114,8 +114,8 @@ const widget = new ConsentiSetup({
   core: {
     tenantId: 'acme',              // identifies your tenant's profiles; default: 'default'
     locale: 'en',                  // BCP 47; 'auto' = navigator.language; default: 'auto'
-    autoHonorGPC: true,            // explicit operator override: false | true | 'strict'
-                                   // overrides profile.gpcMode when set
+    dir: 'auto',                   // 'ltr' | 'rtl' | 'auto'; 'auto' derives from locale
+                                   // (ar/he/fa/ur/ps/sd/ug/yi → rtl); default: 'auto'
     storage: 'cookie',             // 'cookie' | 'localStorage'; default: 'cookie'
     cookieDomains: '.example.com', // comma-separated; first entry used as Domain attribute
     cookieSigningKey: 'min-32-char-secret', // HMAC-SHA256 signing; implicit from presence
@@ -166,11 +166,18 @@ const widget = new ConsentiSetup({
     // WidgetCountryResolverFn → custom async function: () => Promise<{ country, region, confidence }>
     geoDataProvider: 'default',
 
-    // Age gate (optional)
+    // Age gate (optional) — see "Age Gate" section below
     ageGate: {
       enabled: false,
       minimumAge: 13,
       requireParentalConsent: false,
+    },
+
+    // TCF (IAB Transparency & Consent Framework) client stub (optional) — see "TCF" section below
+    tcf: {
+      enabled: false,
+      cmpId: 0,       // must match the cmpId configured on the backend (TcfConfig)
+      cmpVersion: 1,
     },
   },
 
@@ -210,6 +217,30 @@ const widget = new ConsentiSetup({
   },
 })
 ```
+
+### `profileOverride` — deep-merge and delete semantics
+
+`profileOverride` (and `widget.setProfile()` at runtime) is deep-merged onto the resolved profile
+— server-fetched, pre-built, or locally registered — before anything renders. Merge rules:
+
+- Omitting a key (or setting it to `undefined`) leaves the resolved profile's value untouched.
+- An object value merges recursively, key by key — you only need to specify what differs.
+- An array value replaces/merges by index against the base array.
+- Setting a key to `null` **deletes it** from the merged result (JSON Merge Patch / RFC 7396
+  semantics). This is the way to remove a single entry from a keyed map — a cookie category, a
+  parameter — without having to know or repeat the rest of that map's contents:
+
+```ts
+profileOverride: {
+  preferenceModal: {
+    categories: { marketing: null },   // removes the 'marketing' category entirely
+  },
+},
+```
+
+`{ marketing: undefined }` or `{ marketing: {} }` do **not** delete the entry — the former is a
+no-op (same as omitting the key), the latter merges an empty object onto the existing category,
+changing nothing. Only an explicit `null` removes it.
 
 ---
 
@@ -260,7 +291,7 @@ new ConsentiSetup({
 | **1A** | `api.enabled = false`, `compliance.type = 'auto'` | Timezone + language → group → pre-built profile |
 | **1B** | `api.enabled = false`, `compliance.type = ComplianceGroupId` | Direct pre-built profile load |
 | **2A** | `api.enabled = true`, `compliance.type = 'auto'` | `GET /resolve-profile?tz&lang&locale&tenantId` → `filePath` → static JSON |
-| **2B** | `api.enabled = true`, `compliance.type = ComplianceGroupId` | `GET /profiles/:tenantId/:group/:locale.json` |
+| **2B** | `api.enabled = true`, `compliance.type = ComplianceGroupId` | `GET /profiles/:tenantId/:group/:locale` |
 | **Local** | `compliance.type = localKey` + registered `ConsentiProfile` | Locally registered profile |
 | **Fallback** | Any fetch failure | Pre-built profile → `DEFAULT_PROFILE` |
 
@@ -276,25 +307,80 @@ Set `api.trustDomain: true` to bypass this check (useful for localhost / dev env
 
 ## GPC — Global Privacy Control
 
-GPC mode is set per-profile on the server (`gpcMode: 'honor' | 'strict' | 'ignore'`). Widget config (`core.autoHonorGPC`) overrides the profile value when explicitly set.
+GPC mode is set per-profile on the server (`gpcMode: 'honor' | 'strict' | 'ignore'`). Widget config profileOverrides overrides the profile value when explicitly set.
+
+---
+
+## Age Gate
+
+Set `compliance.ageGate.enabled: true` to require age confirmation before the visitor sees any
+other consent UI (banner, GPC, CCPA opt-out — all of it waits behind the age gate on first visit):
 
 ```ts
-// Respect profile's gpcMode setting (default)
-new ConsentiSetup({ compliance: { type: 'opt-in' } })
-
-// Force honor GPC regardless of profile setting
-new ConsentiSetup({ core: { autoHonorGPC: true } })
-
-// Force strict GPC — pre-deny silently, no banner
-new ConsentiSetup({ core: { autoHonorGPC: 'strict' } })
+new ConsentiSetup({
+  compliance: {
+    ageGate: { enabled: true, minimumAge: 16, requireParentalConsent: true },
+  },
+})
 ```
 
-| `core.autoHonorGPC` | Effect |
-|---|---|
-| `undefined` (default) | Profile's `gpcMode` takes effect |
-| `false` | GPC signal always ignored |
-| `true` | `'honor'` — pre-deny GPC cookies; show GPC banner variant |
-| `'strict'` | Pre-deny silently — no banner shown |
+- **Confirmed** (visitor is old enough) → the normal banner/GPC/CCPA flow proceeds exactly as if
+  the age gate didn't exist, and every consent submission from then on carries `ageVerified: true`.
+- **Declined, `requireParentalConsent: false`** → a deny-all consent is submitted immediately
+  (mandatory/strictly-necessary cookies still granted), no banner shown, `ageVerified: false`.
+- **Declined, `requireParentalConsent: true`** → same deny-all submission, plus a
+  `parentalConsentToken` is generated and a `consenti:parentalConsentRequired` event fires
+  carrying it. There's no email-verification pipeline built into this package — the event is the
+  hook for wiring your own out-of-band parental-consent process (once verified externally, call
+  `PUT /consent/:visitorId` yourself to update the record).
+
+The prompt only asks once per visitor per profile — it doesn't re-appear once any consent record
+exists (same "already decided" check the banner itself uses).
+
+---
+
+## TCF — IAB Transparency & Consent Framework
+
+Set `compliance.tcf.enabled: true` to install `window.__tcfapi`, the standard IAB entry point
+third-party ad-tech scripts call to read consent (`ping`, `getTCData`, `addEventListener`,
+`removeEventListener`):
+
+```ts
+new ConsentiSetup({
+  compliance: {
+    tcf: { enabled: true, cmpId: 280, cmpVersion: 1 }, // cmpId must match the backend's TcfConfig
+  },
+})
+```
+
+The stub follows the standard queue-command convention, so it's safe regardless of load order
+relative to third-party scripts that call `__tcfapi` before Consenti has initialized. Only one CMP
+may own `window.__tcfapi` per page — if it's already set (a real CMP, or another `ConsentiSetup`
+instance on a multi-profile page), this stub does not overwrite it.
+
+This is a simplified implementation: `tcString` is a base64url-encoded JSON payload (the same
+format the backend's `tcfString` uses), not the full IAB binary bitfield encoding, and vendor-list
+metadata (`gvlVersion`, `publisherCC`) is a placeholder since the widget doesn't fetch the GVL
+client-side. For full IAB TCF v2.2 compliance, use the `iabtcf-core` npm package instead.
+
+---
+
+## RTL / Text Direction
+
+`core.dir` controls the banner/modal's reading direction:
+
+```ts
+new ConsentiSetup({ core: { locale: 'ar', dir: 'auto' } }) // → rtl, derived from locale
+new ConsentiSetup({ core: { dir: 'rtl' } })                 // explicit, independent of locale
+```
+
+`'auto'` (the default) maps a known RTL-language prefix (`ar`, `he`, `fa`, `ur`, `ps`, `sd`, `ug`,
+`yi`) to `rtl`; anything else is `ltr`. The `dir` attribute is set on the widget's root element, so
+browser-native mirroring (flex layout, `text-align: start/end`) and the widget's own `[dir="rtl"]`
+CSS overrides (toggle switches, locale switcher, close button) apply automatically — no separate
+RTL stylesheet needed. Explicit banner/modal position variants (`left-bottom`, `right-bottom`,
+modal `left`/`right` slide-in) are **not** mirrored — those are screen positions you chose
+deliberately, independent of text direction.
 
 ---
 
@@ -327,12 +413,12 @@ import { ConsentiProfile, ConsentiSetup } from '@consenti/ui'
 const profile = new ConsentiProfile({
   defaultLocale: 'en',
   complianceGroup: 'opt-in',
-  cookies: [
-    { id: 'necessary',  mandatory: true,  expiry: 365 },
-    { id: 'analytics',  listenGpc: true,  expiry: 365 },
-    { id: 'marketing',  listenGpc: true,  expiry: 365,  cpraCategory: 'sale' },
+  cookies: {
+    necessary: { purpose: 'necessary', listenGpc: false },
+    analytics: { purpose: 'analytics', listenGpc: true },
+    marketing: { purpose: 'marketing', listenGpc: true, cpraCategory: 'sale' },
     // cpraCategory: 'sale' | 'sharing' | 'sensitive' — used by CPRA group
-  ],
+  },
   translations: {
     en: {
       mainBanner: {
@@ -343,13 +429,14 @@ const profile = new ConsentiProfile({
         heading: 'We value your privacy',
         headingTag: 'h2',        // HTML tag for the heading; default 'h2'
         htmlText: 'We use cookies to improve your experience.',
-        buttons: [
-          { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
+        buttons: {
+          // key = machine id, rendered as the button's DOM id: `consenti-btn-{id}`, for targeting a specific button
           // cookies: '*' = grant all | '!' = deny all | ['id1','id2'] = grant specific
-          { text: 'Reject Optional',    style: 'secondary', action: 'custom', cookies: '!' },
-          { text: 'Customize',          style: 'secondary', action: 'manage' },
-          { text: 'Privacy Policy',     style: 'text',      action: 'link',   url: '/privacy' },
-        ],
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
+          'reject-optional': { text: 'Reject Optional', style: 'secondary', action: 'custom', cookies: '!' },
+          customize: { text: 'Customize', style: 'secondary', action: 'manage' },
+          'privacy-policy': { text: 'Privacy Policy', style: 'text', action: 'link', url: '/privacy' },
+        },
       },
       gpcBanner: {               // shown instead of mainBanner when GPC detected
         position: 'bottom',
@@ -357,10 +444,10 @@ const profile = new ConsentiProfile({
         headingTag: 'h2',
         showLocaleSwitcher: false,
         htmlText: "Your browser's GPC signal was detected. Ad cookies have been pre-denied.",
-        buttons: [
-          { text: 'Understood', style: 'primary',   action: 'custom', cookies: '!' },
-          { text: 'Customize',  style: 'secondary', action: 'manage' },
-        ],
+        buttons: {
+          understood: { text: 'Understood', style: 'primary', action: 'custom', cookies: '!' },
+          customize: { text: 'Customize', style: 'secondary', action: 'manage' },
+        },
       },
       preferenceModal: {
         heading: 'Cookie Preferences',
@@ -373,34 +460,32 @@ const profile = new ConsentiProfile({
         persistent: false,        // true = cannot dismiss by clicking outside
         overlayOpacity: 50,
         mobileFullScreenBreakpoint: 576,
-        buttons: [
-          { text: 'Accept All',       style: 'primary', action: 'custom', cookies: '*' },
-          { text: 'Save Preferences', style: 'primary', action: 'submit' },
-          { text: 'Reject Optional',  style: 'text',    action: 'custom', cookies: '!' },
-        ],
-        categories: [
-          {
-            id: 'cat-necessary',
+        buttons: {
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
+          'save-preferences': { text: 'Save Preferences', style: 'primary', action: 'submit' },
+          'reject-optional': { text: 'Reject Optional', style: 'text', action: 'custom', cookies: '!' },
+        },
+        categories: {
+          necessary: {
             heading: 'Strictly Necessary',
             headingTag: 'h3',
             htmlText: 'Required for the site to function. <strong>Cannot be disabled.</strong>',
-            mandatory: true,
+            legalBasis: 'mandatory',
             cookies: ['necessary'],
           },
-          {
-            id: 'cat-analytics',
+          analytics: {
             heading: 'Analytics',
             htmlText: 'Helps us understand how visitors use the site.',
-            type: 'consent',     // 'consent' | 'legitimate_interest'
+            legalBasis: 'consent',     // 'mandatory' | 'consent' | 'legitimate_interest'
             cookies: ['analytics'],
           },
-          {
-            id: 'cat-marketing',
+          marketing: {
             heading: 'Marketing',
             htmlText: 'Used to personalise ads and measure campaign performance.',
+            legalBasis: 'consent',
             cookies: ['marketing'],
           },
-        ],
+        },
       },
     },
     fr: {
@@ -435,18 +520,77 @@ The widget calls `GET /resolve-profile?tz&lang&locale&tenantId`, receives the pr
 
 ## Cookie Format
 
-Consent is persisted as a single cookie named `consenti_{userId}_{profileId}`.
+Consent is persisted as a single cookie named `consenti_data` with a compact JSON value:
 
-```
-t:{unixTimestamp}::{cookieId}:{status}|{cookieId}:{status}|…[::sig:{hmac}]
+```json
+{"s":1,"v":2,"i":"5huf-…","u":"","t":1751692400,"g":0,"p":0,"c":{"analytics_storage":"g","ad_storage":"d"}}
 ```
 
-Example:
-```
-t:1782133054::analytics:granted|marketing:denied|necessary:granted::sig:abc123
-```
+| Field | Type | Meaning |
+|---|---|---|
+| `s` | number | Profile ID |
+| `v` | number | Profile version |
+| `i` | string | Per-submission UUID (consent receipt ID) |
+| `u` | string | Logged-in user ID (`""` for anonymous) |
+| `t` | number | Unix timestamp of consent |
+| `g` | 0 \| 1 | GPC signal detected |
+| `p` | number | Consent source: 0 = user click, 1 = widget method |
+| `c` | object | Consent map: cookie ID → `"g"` (granted), `"o"` (objected), `"d"` (denied) |
+
+When the widget is upgraded from an older version, any existing `consenti_{profileId}` cookie is automatically read, migrated to the new format, and deleted — no consent loss occurs.
 
 The consent cookie lifetime equals the shortest `cookie.expiry` value across all profile cookies (in days, converted to `max-age` seconds). When that cookie expires the browser deletes it, the widget sees no consent, and re-shows the banner.
+
+---
+
+## Display Features
+
+### Footer Metadata
+
+When `showFooterMetadata: true` is set in the resolved profile, a metadata strip is injected inside the banner and modal after the main content. It shows the visitor's Consent ID (truncated UUID), Consent Date, Profile Version, and a "Privacy Settings" button that opens the preference modal.
+
+Configured in the dashboard (ProfileEditor → Step 1) or via `profileOverride`:
+
+```ts
+new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  profileOverride: { showFooterMetadata: true },
+})
+```
+
+### Enhanced Accessibility
+
+When `enhanceAccessibility: true` is set in the resolved profile, the class `.consenti--enhanced-a11y` is added to the root element. This applies:
+
+- Minimum 44 × 44 px hit area on all buttons (WCAG 2.1 SC 2.5.5)
+- 3 px solid focus ring (`outline-offset: 2px`) on all focusable elements
+- No impact on default styling — opt-in only
+
+```ts
+profileOverride: { enhanceAccessibility: true }
+```
+
+### Responsive Button Stacking (`stackButtonsOnBreakpoint`)
+
+Set `mainBanner.stackButtonsOnBreakpoint` (and/or `gpcBanner.stackButtonsOnBreakpoint`) to a pixel width. Below that breakpoint the banner's buttons stack vertically and stretch to full width — useful for narrow mobile screens where 3+ buttons overflow.
+
+```ts
+profileOverride: {
+  mainBanner: { stackButtonsOnBreakpoint: 576 },  // px; 0 or undefined = disabled
+}
+```
+
+A scoped `<style>` element containing a single `@media (max-width: Npx)` rule is injected into the root element — no external stylesheet required, and it's removed on `destroy()`.
+
+### Modal Focus Trap (`trapFocus`)
+
+When `preferenceModal.trapFocus: true`, keyboard Tab / Shift+Tab navigation is confined within the consent modal while it is open. `Escape` closes the modal and returns focus to the triggering element.
+
+```ts
+profileOverride: {
+  preferenceModal: { trapFocus: true },
+}
+```
 
 ---
 
@@ -472,7 +616,13 @@ const widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
 // Consent state
 widget.hasConsent()                      // boolean — true if valid consent record exists
 widget.getConsent()                      // Record<string, 'granted'|'denied'|'objected'> | null
-widget.getGTMConsent()                   // consent in GTM / Google Consent Mode v2 format
+widget.getConsent('google-gtm')          // Google Consent Mode v2 format
+widget.getConsent('category')            // { necessary, functional, preferences, analytics, marketing }
+widget.getConsent('adobe')               // { analytics, target, manager, optimizer }
+widget.getConsent('meta')                // { pixel, api, plugins, facebookLogin }
+widget.getConsent('microsoft-clarity')   // { session, heatmaps, performance }
+widget.getConsent('twilio-segment')      // { identify, page, track, group, alias }
+widget.getGTMConsent()                   // @deprecated — use getConsent('google-gtm')
 widget.getConsentDate()                  // Date | false — time of last submission
 widget.isCookieGranted('analytics')      // boolean — true if that cookie is 'granted'
 widget.isCookieGranted('analytics', true)// 'granted' | 'denied' | 'objected' | false
@@ -575,7 +725,7 @@ await widget.submitConsent({
 
 // Or use the convenience methods:
 await widget.grantAll()   // accept all
-await widget.denyAll()    // reject all non-mandatory
+await widget.denyAll()    // Reject Optional non-mandatory
 ```
 
 ---
@@ -591,6 +741,7 @@ Custom DOM events fire on `window` at every lifecycle step. All are prefixed `co
 | `consenti:modalVisibility`     | Preference modal shows or hides                          |
 | `consenti:consentBeingSubmitted` | User clicked a consent button (before API call)        |
 | `consenti:consentSubmitted`    | Consent saved (cookie written + API call if configured)  |
+| `consenti:parentalConsentRequired` | Age gate declined with `requireParentalConsent: true` — carries `parentalConsentToken` |
 
 **Recommended:** use `widget.on()` / `widget.off()` for typed subscriptions (the `consenti:` prefix is optional):
 
@@ -612,39 +763,64 @@ window.addEventListener('consenti:consentSubmitted', (e: Event) => {
 
 ## GTM / Google Consent Mode v2
 
+Setting `utils.gtm` to any object (even `{}`) turns on real Consent Mode signalling — no gtag.js
+needs to already be on the page, Consenti defines the standard stub itself.
+
 ```ts
 new ConsentiSetup({
   compliance: { type: 'opt-in' },
   utils: {
     gtm: {
-      containerId: 'GTM-XXXXXX',
-      urlPassthrough: true,    // cookieless conversion modelling
-      adsDataRedaction: true,  // redact ad pings when consent denied
+      containerId: 'GTM-XXXXXX', // omit if you load GTM/gtag.js yourself
+      urlPassthrough: true,      // cookieless conversion modelling
+      adsDataRedaction: true,    // redact ad pings when consent denied
     },
   },
 })
 ```
 
-Consenti pushes to `window.dataLayer` in the standard Google Consent Mode v2 format:
+**`GtmConfig` options:**
+
+| Option | Type | Default | Description |
+|---|---|---|---|
+| `containerId` | `string` | `undefined` | GTM container ID, e.g. `'GTM-XXXXXX'`. When set, Consenti injects the GTM library itself — omit if you already load GTM/gtag.js separately (Consent Mode signalling works either way). |
+| `dataLayer` | `string` | `'dataLayer'` | Name of the dataLayer array on `window`. Override only for a custom variable name. |
+| `verbose` | `boolean` | `false` | When `true`, additionally mirrors every `consenti:*` event onto the dataLayer as a generic `{ event, content }` push — for custom, non-Consent-Mode GTM triggers. |
+| `events` | `string[]` | `[]` | Only relevant when `verbose: true` — narrows which event names get mirrored. Empty means all. Has no effect on the core `gtag('consent', …)` calls, which always fire. |
+| `urlPassthrough` | `boolean` | `false` | Calls `gtag('set', 'url_passthrough', true)` alongside every consent update. |
+| `adsDataRedaction` | `boolean` | `false` | Calls `gtag('set', 'ads_data_redaction', true)` when `ad_storage` is denied. |
+
+Consenti calls the real `gtag()` consent API — via the standard stub-queue pattern, so it works
+whether your own gtag.js/GTM snippet loads before or after Consenti:
 
 ```js
 // On initialisation (default denied state)
-dataLayer.push({ 'event': 'consent_default', 'analytics_storage': 'denied', ... })
+gtag('consent', 'default', { analytics_storage: 'denied', ... })
 
 // On submission
-dataLayer.push({ 'event': 'consent_update', 'analytics_storage': 'granted', 'ad_storage': 'denied', ... })
+gtag('consent', 'update', { analytics_storage: 'granted', ad_storage: 'denied', ... })
+
+// Plus, when configured:
+gtag('set', 'url_passthrough', true)
+gtag('set', 'ads_data_redaction', true) // true when ad_storage is denied
 ```
 
-`getGTMConsent()` returns consent in GTM format:
+Set `utils.gtm.verbose: true` to additionally mirror every `consenti:*` event onto the dataLayer
+as a generic `{ event, content }` push — off by default.
+
+`getConsent('google-gtm')` returns consent in Google Consent Mode v2 format. `getGTMConsent()` is a deprecated alias for the same call.
 
 ```ts
-widget.getGTMConsent()
+widget.getConsent('google-gtm')
 // {
 //   analytics_storage: 'granted',
 //   ad_storage: 'denied',
 //   ad_user_data: 'denied',
 //   ad_personalization: 'denied',
 //   functionality_storage: 'granted',
+//   security_storage: 'granted',
+//   ads_data_redaction: 'true',
+//   url_passthrough: 'false',
 // }
 ```
 
@@ -870,7 +1046,7 @@ export function ConsentSetup() {
     import('@consenti/ui').then(({ ConsentiSetup }) => {
       widget = new ConsentiSetup({
         api: { enabled: true, baseUrl: process.env.NEXT_PUBLIC_API_URL },
-        core: { autoHonorGPC: true },
+        core: {  },
       })
       widgetRef.current = widget
     })
@@ -1037,15 +1213,28 @@ new ConsentiSetup({
   api: { enabled: true },
 })
 
-// GPC strict mode + GTM
+// GTM
 new ConsentiSetup({
-  core: { autoHonorGPC: 'strict' },
+  core: {},
   utils: { gtm: { containerId: 'GTM-XXXXXX', adsDataRedaction: true } },
 })
 
 // Verbose debug logging during development
 new ConsentiSetup({
   core: { console: ['error', 'warning', 'info', 'log'] },
+})
+
+// Arabic site — RTL derived automatically from locale
+new ConsentiSetup({ core: { locale: 'ar' } })
+
+// COPPA — block under-13s, require parental consent
+new ConsentiSetup({
+  compliance: { ageGate: { enabled: true, minimumAge: 13, requireParentalConsent: true } },
+})
+
+// TCF — install the __tcfapi stub for ad-tech scripts (cmpId must match the backend's tcf config)
+new ConsentiSetup({
+  compliance: { tcf: { enabled: true, cmpId: 280, cmpVersion: 1 } },
 })
 ```
 
@@ -1081,7 +1270,7 @@ The following `CoreConfig` fields were **removed** in v0.1.x:
 | `core.profileId`     | Use `compliance.type` with a compliance group or local profile key |
 | `core.regulation`    | Use `compliance.type` — compliance group is derived server-side or from pre-built profiles |
 | `core.signCookies`   | Implicit: set `core.cookieSigningKey` to enable signing; no separate flag needed |
-| `core.privacyPolicyUrl` | Add a link button directly in the profile banner/modal `buttons` array with `action: 'link'` |
+| `core.privacyPolicyUrl` | Add a link button directly in the profile banner/modal `buttons` map with `action: 'link'` |
 
 ---
 

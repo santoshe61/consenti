@@ -1,22 +1,44 @@
 import type { Metadata } from 'next'
 import { CodeBlock, Terminal } from '@/components/CodeBlock'
 
-export const metadata: Metadata = { title: 'Segment Plugin' }
+export const metadata: Metadata = {
+  title: 'Segment Plugin',
+  description:
+    'Forward consent events to Segment (now Twilio Engage) as track calls, enabling downstream destinations like Amplitude and Mixpanel.',
+  alternates: { canonical: '/docs/api/plugins/segment' },
+  openGraph: {
+    title: 'Segment Plugin',
+    description:
+      'Forward consent events to Segment (now Twilio Engage) as track calls, enabling downstream destinations like Amplitude and Mixpanel.',
+    url: 'https://consenti.dev/docs/api/plugins/segment',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Segment Plugin',
+    description:
+      'Forward consent events to Segment (now Twilio Engage) as track calls, enabling downstream destinations like Amplitude and Mixpanel.',
+    images: ['/og-image.jpg'],
+  },
+}
 
 export default function SegmentPluginPage() {
   return (
     <div className="prose max-w-none">
       <h1>Segment Plugin</h1>
       <p>
-        Forward consent events to Segment (now Twilio Engage) as track calls,
-        enabling downstream destinations like Amplitude, Mixpanel, and customer data platforms.
+        Forward consent events to Segment (now Twilio Engage) as track calls, enabling downstream
+        destinations like Amplitude, Mixpanel, and customer data platforms.
       </p>
 
       <h2>Installation</h2>
       <Terminal code="npm install @segment/analytics-node" />
 
       <h2>Configuration</h2>
-      <CodeBlock lang="ts" code={`import { SegmentPlugin } from '@consenti/api/plugins'
+      <CodeBlock
+        lang="ts"
+        code={`import { SegmentPlugin } from '@consenti/api/plugins'
 
 createConsenti({
   plugins: [
@@ -24,37 +46,68 @@ createConsenti({
       writeKey: 'YOUR_SEGMENT_WRITE_KEY',
     }),
   ],
-})`} />
+})`}
+      />
 
       <h2>Events emitted</h2>
       <table>
         <thead>
-          <tr><th>Event</th><th>Fired when</th></tr>
+          <tr>
+            <th>Event</th>
+            <th>Fired when</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>Consent Given</code></td><td><code>afterConsentSave</code> (new consent)</td></tr>
-          <tr><td><code>Consent Updated</code></td><td><code>afterConsentUpdate</code> (preference change)</td></tr>
-          <tr><td><code>Consent Withdrawn</code></td><td><code>afterConsentUpdate</code> where all choices become <code>denied</code></td></tr>
+          <tr>
+            <td>
+              <code>Consent Given</code>
+            </td>
+            <td>
+              <code>afterConsentSave</code> (new consent)
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>Consent Updated</code>
+            </td>
+            <td>
+              <code>afterConsentUpdate</code> (preference change)
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>Consent Withdrawn</code>
+            </td>
+            <td>
+              <code>afterConsentUpdate</code> where all choices become <code>denied</code>
+            </td>
+          </tr>
         </tbody>
       </table>
 
       <p>Each event includes:</p>
-      <CodeBlock lang="json" code={`{
+      <CodeBlock
+        lang="json"
+        code={`{
   "anonymousId": "<visitor UUID>",
   "event": "Consent Given",
   "properties": {
     "profileId": "...",
-    "profileVersion": 3,
     "source": "banner",
     "gpcDetected": false,
     "consentJson": { "analytics": "granted", "ads": "denied" }
   }
-}`} />
-      <p>No PII is sent — the anonymous ID is the visitor UUID, which is a random UUID with no link to personal data.</p>
+}`}
+      />
+      <p>
+        No PII is sent — the anonymous ID is the visitor UUID, which is a random UUID with no link
+        to personal data.
+      </p>
 
       <h2>Building a custom Segment plugin</h2>
-      <CodeBlock lang="ts" code={`import { ConsentiPlugin } from '@consenti/api'
-import type { ConsentDbRecord } from '@consenti/types'
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiPlugin, type ConsentDbRecord } from '@consenti/api'
 import { Analytics } from '@segment/analytics-node'
 
 export class SegmentPlugin extends ConsentiPlugin {
@@ -72,7 +125,6 @@ export class SegmentPlugin extends ConsentiPlugin {
       event: 'Consent Given',
       properties: {
         profileId: record.profileId,
-        profileVersion: record.profileVersion,
         source: record.source,
         gpcDetected: record.gpcDetected ?? false,
         consentJson: record.consentJson,
@@ -97,7 +149,8 @@ export class SegmentPlugin extends ConsentiPlugin {
   override async destroy(): Promise<void> {
     await this.analytics.closeAndFlush()
   }
-}`} />
+}`}
+      />
     </div>
   )
 }

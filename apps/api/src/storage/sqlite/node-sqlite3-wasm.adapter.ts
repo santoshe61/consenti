@@ -1,23 +1,19 @@
 import type { Database as DB, Statement } from 'node-sqlite3-wasm'
 
 const MAX_PAGE_SIZE = 500
-import { randomUUID, randomProfileId } from '../../utils/crypto'
+import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { resolveStoragePaths } from '../../utils/storage-path'
-import {
-  SEED_SQL,
-  SCHEMA_SQL_SQLITE,
-  SCHEMA_SQL_SQLITE_API_KEYS,
-  SCHEMA_SQL_SQLITE_ENTERPRISE,
-  SCHEMA_SQL_SQLITE_TEMPLATES,
-} from '../seed-data'
+import { SEED_SQL, SCHEMA_SQL_SQLITE } from '../seed-data'
+import { likePrefix } from '../../utils/sql-search'
 import type {
   StorageAdapter,
   StorageConfig,
   Profile,
-  ProfileConfig,
+  StoredProfileJson,
   CreateProfileInput,
   UpdateProfileInput,
   ConsentDbRecord,
+  ConsentSummary,
   ConsentHistoryEntry,
   ConsentValue,
   CreateConsentInput,
@@ -35,6 +31,7 @@ import type {
   UpdateRoleInput,
   Permission,
   AuditLog,
+  AuditLogSummary,
   AuditFilters,
   CreateAuditLogInput,
   OverviewStats,
@@ -47,16 +44,20 @@ import type {
   CreateApiKeyInput,
   CreateTenantInput,
   UpdateTenantInput,
-  ServerCookieTemplate,
+  TenantSettings,
+  ServerConsentTemplate,
   ServerUITemplate,
-  CreateCookieTemplateInput,
-  UpdateCookieTemplateInput,
+  CreateConsentTemplateInput,
+  UpdateConsentTemplateInput,
   CreateUITemplateInput,
   UpdateUITemplateInput,
   ProfileSummary,
   OptInStats,
   OptInFilters,
   ComplianceGroupId,
+  NoticeShownRecord,
+  CreateNoticeShownInput,
+  PagedResult,
 } from '@consenti/types'
 
 interface RawProfile {
@@ -66,9 +67,15 @@ interface RawProfile {
 }
 interface RawConsent {
   id: string; tenant_id: string; visitor_id: string; profile_id: string
-  profile_version: number; locale: string; consent_json: string
+  locale: string; consent_json: string
   gpc_detected: number; source: string; created_at: string; updated_at: string
   age_verified?: number; parental_consent_token?: string | null; tcf_string?: string | null
+  signature?: string | null
+}
+interface RawConsentSummary {
+  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; gpc_detected: number; source: string
+  age_verified?: number; created_at: string; updated_at: string
 }
 interface RawConsentHistory {
   id: string; tenant_id: string; consent_record_id: string; visitor_id: string
@@ -80,6 +87,10 @@ interface RawVisitor {
   ip_hash: string | null; user_agent_hash: string | null
   first_seen: string; last_seen: string
 }
+interface RawNoticeShown {
+  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; created_at: string
+}
 interface RawUser {
   id: string; tenant_id: string; name: string; email: string
   password_hash: string; is_active: number; created_at: string; updated_at: string
@@ -87,9 +98,9 @@ interface RawUser {
   allowed_tenants?: string | null
 }
 interface RawProfileSummary {
-  id: string; name: string; default_locale: string; version: number
-  compliance_group: string | null; is_active: number
-  cookie_template_name: string | null; ui_template_name: string | null
+  id: string; name: string; default_locale: string
+  compliance_group: string | null; custom_compliance_group: string | null; is_active: number
+  consent_template_name: string | null; ui_template_name: string | null
   created_at: string; updated_at: string
 }
 interface RawRole {
@@ -103,14 +114,20 @@ interface RawAuditLog {
   resource_type: string; resource_id: string | null
   old_data: string | null; new_data: string | null; created_at: string
 }
+interface RawAuditLogSummary {
+  id: string; tenant_id: string; user_id: string | null; action: string
+  resource_type: string; resource_id: string | null; created_at: string
+}
+interface RawCount { total: number }
 interface RawTenant {
   id: string; name: string; slug: string; created_at: string; updated_at: string
 }
 interface RawApiKey {
-  id: string; tenant_id: string; key_hash: string; name: string; is_active: number; created_at: string
+  id: string; tenant_id: string; key_hash: string; name: string; is_active: number
+  created_by: string | null; expire_by: string | null; created_at: string; updated_at: string | null
 }
-interface RawCookieTemplate {
-  id: string; tenant_id: string; name: string; cookies_json: string; created_at: string; updated_at: string
+interface RawConsentTemplate {
+  id: string; tenant_id: string; name: string; cookies_json: string; categories_json: string; created_at: string; updated_at: string
 }
 interface RawUITemplate {
   id: string; tenant_id: string; name: string; settings_json: string; created_at: string; updated_at: string
@@ -160,6 +177,10 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   }
 
   async migrate(): Promise<void> {
+    // No installations predate this schema, so a fresh connect always creates the full current
+    // table set in one pass — no incremental/versioned steps needed. `PRAGMA user_version` is
+    // kept as the hook for whenever a *real* future migration is needed: add `if (ver < N)`
+    // blocks below the initial creation, the same shape as the removed historical ones.
     const row = this.stmt('PRAGMA user_version').get() as { user_version: number } | null
     const ver = row?.user_version ?? 0
     if (ver < 1) {
@@ -167,40 +188,15 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
       this.db.exec(SEED_SQL)
       this.db.exec('PRAGMA user_version = 1')
     }
-    if (ver < 2) {
-      this.db.exec(SCHEMA_SQL_SQLITE_API_KEYS)
-      this.db.exec('PRAGMA user_version = 2')
-    }
-    if (ver < 3) {
-      this.db.exec(SCHEMA_SQL_SQLITE_ENTERPRISE)
-      this.db.exec('PRAGMA user_version = 3')
-    }
-    if (ver < 4) {
-      this.db.exec('ALTER TABLE user_roles ADD COLUMN tenant_id TEXT NOT NULL DEFAULT \'default\'')
-      this.db.exec('PRAGMA user_version = 4')
-    }
-    if (ver < 5) {
-      this.db.exec(SCHEMA_SQL_SQLITE_TEMPLATES)
-      this.db.exec('PRAGMA user_version = 5')
-    }
-    if (ver < 6) {
-      this.db.exec('ALTER TABLE users ADD COLUMN allowed_tenants TEXT')
-      this.db.exec('PRAGMA user_version = 6')
-    }
 
+    // Plain-column indexes (tenant_id, created_at, visitor_id, etc.) are generated into
+    // SCHEMA_SQL_SQLITE from seed-data.ts's declarative `idx` field — see the `if` block above.
+    // Only the JSON-expression index below survives here: SQLite's json_extract() functional
+    // index has no equivalent representation across the Postgres/MySQL/Mongo dialects, so it
+    // can't live in the shared declarative system.
     this.db.exec(`
       CREATE INDEX IF NOT EXISTS idx_profiles_tenant_compliance_active
         ON profiles (tenant_id, json_extract(profile_json,'$.complianceGroup'), json_extract(profile_json,'$.isActive'));
-      CREATE INDEX IF NOT EXISTS idx_profiles_tenant
-        ON profiles (tenant_id);
-      CREATE INDEX IF NOT EXISTS idx_consents_tenant_profile_date
-        ON consent_records (tenant_id, profile_id, created_at);
-      CREATE INDEX IF NOT EXISTS idx_consents_visitor
-        ON consent_records (visitor_id);
-      CREATE INDEX IF NOT EXISTS idx_visitors_tenant
-        ON visitors (tenant_id);
-      CREATE INDEX IF NOT EXISTS idx_audit_tenant_date
-        ON audit_logs (tenant_id, created_at);
     `)
   }
 
@@ -210,7 +206,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return {
       id: row.id, tenantId: row.tenant_id, name: row.name,
       defaultLocale: row.default_locale, version: row.version,
-      profileJson: JSON.parse(row.profile_json) as ProfileConfig,
+      profileJson: JSON.parse(row.profile_json) as StoredProfileJson,
       createdAt: row.created_at, updatedAt: row.updated_at,
     }
   }
@@ -219,8 +215,8 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     const id = randomProfileId()
     const now = new Date().toISOString()
     this.stmt(
-      'INSERT INTO profiles (id,tenant_id,name,default_locale,profile_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?)'
-    ).run([id, data.tenantId, data.name, data.defaultLocale, JSON.stringify(data.profileJson), now, now])
+      'INSERT INTO profiles (id,tenant_id,name,default_locale,version,profile_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)'
+    ).run([id, data.tenantId, data.name, data.defaultLocale, 1, JSON.stringify(data.profileJson), now, now])
     const profile = await this.getProfile(id)
     if (!profile) throw new Error('Failed to create profile')
     return profile
@@ -230,11 +226,12 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     const existing = await this.getProfile(id)
     if (!existing) throw new Error(`Profile ${id} not found`)
     const now = new Date().toISOString()
-    const fields: string[] = ['updated_at = ?', 'version = version + 1']
+    const fields: string[] = ['updated_at = ?']
     const vals: Val[] = [now]
     if (data.name != null) { fields.push('name = ?'); vals.push(data.name) }
     if (data.defaultLocale != null) { fields.push('default_locale = ?'); vals.push(data.defaultLocale) }
     if (data.profileJson != null) { fields.push('profile_json = ?'); vals.push(JSON.stringify(data.profileJson)) }
+    if (data.version != null) { fields.push('version = ?'); vals.push(data.version) }
     vals.push(id)
     this.stmt(`UPDATE profiles SET ${fields.join(', ')} WHERE id = ?`).run(vals)
     const updated = await this.getProfile(id)
@@ -259,7 +256,10 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
     // Fetch all tenant profiles and filter in memory — wasm Statement.get() only accepts a single bind value
     const profiles = await this.getProfiles(tenantId)
-    return profiles.find(p => p.profileJson.complianceGroup === complianceGroup && p.profileJson.isActive) ?? null
+    return profiles.find(p =>
+      (p.profileJson.complianceGroup === complianceGroup || (p.profileJson as { customComplianceGroup?: string }).customComplianceGroup === complianceGroup) &&
+      p.profileJson.isActive
+    ) ?? null
   }
 
   // ── Consents ──────────────────────────────────────────────────────────────
@@ -267,23 +267,36 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   private mapConsent(row: RawConsent): ConsentDbRecord {
     return {
       id: row.id, tenantId: row.tenant_id, visitorId: row.visitor_id,
-      profileId: row.profile_id, profileVersion: row.profile_version,
+      profileId: row.profile_id,
       locale: row.locale, consentJson: JSON.parse(row.consent_json) as ConsentValue,
       gpcDetected: row.gpc_detected === 1,
       source: row.source as ConsentDbRecord['source'],
       ...(row.age_verified != null && row.age_verified !== 0 ? { ageVerified: true } : {}),
       ...(row.parental_consent_token != null ? { parentalConsentToken: row.parental_consent_token } : {}),
       ...(row.tcf_string != null ? { tcfString: row.tcf_string } : {}),
+      ...(row.signature != null ? { signature: row.signature } : {}),
+      createdAt: row.created_at, updatedAt: row.updated_at,
+    }
+  }
+
+  private static readonly CONSENT_SUMMARY_COLS =
+    'id, tenant_id, visitor_id, profile_id, locale, gpc_detected, source, age_verified, created_at, updated_at'
+
+  private mapConsentSummary(row: RawConsentSummary): ConsentSummary {
+    return {
+      id: row.id, tenantId: row.tenant_id, visitorId: row.visitor_id, profileId: row.profile_id,
+      locale: row.locale, gpcDetected: row.gpc_detected === 1, source: row.source as ConsentDbRecord['source'],
+      ...(row.age_verified != null && row.age_verified !== 0 ? { ageVerified: true } : {}),
       createdAt: row.created_at, updatedAt: row.updated_at,
     }
   }
 
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
-    const id = randomUUID()
+    const id = randomConsentId()
     const now = new Date().toISOString()
     this.stmt(
-      'INSERT INTO consent_records (id,tenant_id,visitor_id,profile_id,profile_version,locale,consent_json,gpc_detected,source,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)'
-    ).run([id, data.tenantId, data.visitorId, data.profileId, data.profileVersion, data.locale, JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source, now, now])
+      'INSERT INTO consent_records (id,tenant_id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,age_verified,parental_consent_token,tcf_string,signature,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).run([id, data.tenantId, data.visitorId, data.profileId, data.locale, JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source, data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.signature ?? null, now, now])
     const histId = randomUUID()
     this.stmt(
       'INSERT INTO consent_history (id,tenant_id,consent_record_id,visitor_id,old_json,new_json,action,created_at) VALUES (?,?,?,?,?,?,?,?)'
@@ -301,6 +314,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     const vals: Val[] = [now, JSON.stringify(data.consentJson)]
     if (data.locale != null) { fields.push('locale = ?'); vals.push(data.locale) }
     if (data.gpcDetected != null) { fields.push('gpc_detected = ?'); vals.push(data.gpcDetected ? 1 : 0) }
+    if (data.signature != null) { fields.push('signature = ?'); vals.push(data.signature) }
     vals.push(visitorId)
     this.stmt(`UPDATE consent_records SET ${fields.join(', ')} WHERE visitor_id = ?`).run(vals)
     const histId = randomUUID()
@@ -322,18 +336,26 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return row ? this.mapConsent(row) : null
   }
 
-  async getConsents(filters: ConsentFilters): Promise<ConsentDbRecord[]> {
+  async getConsents(filters: ConsentFilters): Promise<PagedResult<ConsentSummary>> {
     const conditions: string[] = ['tenant_id = ?']
     const vals: Val[] = [filters.tenantId]
     if (filters.profileId) { conditions.push('profile_id = ?'); vals.push(filters.profileId) }
     if (filters.from) { conditions.push('created_at >= ?'); vals.push(filters.from) }
     if (filters.to) { conditions.push('created_at <= ?'); vals.push(filters.to) }
+    if (filters.q) {
+      conditions.push("(visitor_id LIKE ? OR profile_id LIKE ? OR locale LIKE ? OR source LIKE ?) ESCAPE '\\'")
+      const like = likePrefix(filters.q)
+      vals.push(like, like, like, like)
+    }
+    const where = conditions.join(' AND ')
+    const page = filters.page ?? 1
     const limit = Math.min(filters.limit ?? 50, MAX_PAGE_SIZE)
-    const offset = ((filters.page ?? 1) - 1) * limit
+    const offset = (page - 1) * limit
     const rows = this.stmt(
-      `SELECT * FROM consent_records WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT ? OFFSET ?`
-    ).all([...vals, limit, offset]) as unknown as RawConsent[]
-    return rows.map(r => this.mapConsent(r))
+      `SELECT ${NodeSqlite3WasmAdapter.CONSENT_SUMMARY_COLS} FROM consent_records WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all([...vals, limit, offset]) as unknown as RawConsentSummary[]
+    const countRow = this.stmt(`SELECT COUNT(*) AS total FROM consent_records WHERE ${where}`).get(vals) as unknown as RawCount | null
+    return { items: rows.map(r => this.mapConsentSummary(r)), total: countRow?.total ?? 0, page, limit }
   }
 
   async *streamConsents(filters: ConsentFilters): AsyncIterable<ConsentDbRecord> {
@@ -363,6 +385,25 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     }))
   }
 
+  async createNoticeShown(data: CreateNoticeShownInput): Promise<NoticeShownRecord> {
+    const id = randomUUID()
+    const now = new Date().toISOString()
+    this.stmt(
+      'INSERT INTO notice_shown (id,tenant_id,visitor_id,profile_id,locale,created_at) VALUES (?,?,?,?,?,?)'
+    ).run([id, data.tenantId, data.visitorId, data.profileId, data.locale, now])
+    return { id, tenantId: data.tenantId, visitorId: data.visitorId, profileId: data.profileId, locale: data.locale, createdAt: now }
+  }
+
+  async getNoticeShownForVisitor(visitorId: string): Promise<NoticeShownRecord[]> {
+    const rows = this.stmt(
+      'SELECT * FROM notice_shown WHERE visitor_id = ? ORDER BY created_at DESC'
+    ).all(visitorId) as unknown as RawNoticeShown[]
+    return rows.map(r => ({
+      id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id,
+      profileId: r.profile_id, locale: r.locale, createdAt: r.created_at,
+    }))
+  }
+
   // ── Visitors ──────────────────────────────────────────────────────────────
 
   private mapVisitor(row: RawVisitor): Visitor {
@@ -378,7 +419,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   }
 
   async createVisitor(data: CreateVisitorInput): Promise<Visitor> {
-    const id = randomUUID()
+    const id = randomVisitorId()
     const now = new Date().toISOString()
     this.stmt(
       'INSERT INTO visitors (id,tenant_id,visitor_id,country,region,city,ip_hash,user_agent_hash,first_seen,last_seen) VALUES (?,?,?,?,?,?,?,?,?,?)'
@@ -411,17 +452,25 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return row ? this.mapVisitor(row) : null
   }
 
-  async getVisitors(filters: VisitorFilters): Promise<Visitor[]> {
+  async getVisitors(filters: VisitorFilters): Promise<PagedResult<Visitor>> {
     const conditions: string[] = ['tenant_id = ?']
     const vals: Val[] = [filters.tenantId]
     if (filters.from) { conditions.push('first_seen >= ?'); vals.push(filters.from) }
     if (filters.to) { conditions.push('first_seen <= ?'); vals.push(filters.to) }
+    if (filters.q) {
+      conditions.push("(visitor_id LIKE ? OR country LIKE ?) ESCAPE '\\'")
+      const like = likePrefix(filters.q)
+      vals.push(like, like)
+    }
+    const where = conditions.join(' AND ')
+    const page = filters.page ?? 1
     const limit = Math.min(filters.limit ?? 50, MAX_PAGE_SIZE)
-    const offset = ((filters.page ?? 1) - 1) * limit
+    const offset = (page - 1) * limit
     const rows = this.stmt(
-      `SELECT * FROM visitors WHERE ${conditions.join(' AND ')} ORDER BY last_seen DESC LIMIT ? OFFSET ?`
+      `SELECT * FROM visitors WHERE ${where} ORDER BY last_seen DESC LIMIT ? OFFSET ?`
     ).all([...vals, limit, offset]) as unknown as RawVisitor[]
-    return rows.map(r => this.mapVisitor(r))
+    const countRow = this.stmt(`SELECT COUNT(*) AS total FROM visitors WHERE ${where}`).get(vals) as unknown as RawCount | null
+    return { items: rows.map(r => this.mapVisitor(r)), total: countRow?.total ?? 0, page, limit }
   }
 
   // ── Users ─────────────────────────────────────────────────────────────────
@@ -596,19 +645,43 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     ])
   }
 
-  async getLogs(filters: AuditFilters): Promise<AuditLog[]> {
+  async getLogs(filters: AuditFilters): Promise<PagedResult<AuditLogSummary>> {
     const conditions: string[] = ['tenant_id = ?']
     const vals: Val[] = [filters.tenantId]
     if (filters.action) { conditions.push('action = ?'); vals.push(filters.action) }
     if (filters.resourceType) { conditions.push('resource_type = ?'); vals.push(filters.resourceType) }
     if (filters.from) { conditions.push('created_at >= ?'); vals.push(filters.from) }
     if (filters.to) { conditions.push('created_at <= ?'); vals.push(filters.to) }
+    if (filters.q) {
+      conditions.push("(action LIKE ? OR resource_type LIKE ? OR resource_id LIKE ? OR user_id LIKE ?) ESCAPE '\\'")
+      const like = likePrefix(filters.q)
+      vals.push(like, like, like, like)
+    }
+    const where = conditions.join(' AND ')
+    const page = filters.page ?? 1
     const limit = Math.min(filters.limit ?? 50, MAX_PAGE_SIZE)
-    const offset = ((filters.page ?? 1) - 1) * limit
+    const offset = (page - 1) * limit
     const rows = this.stmt(
-      `SELECT * FROM audit_logs WHERE ${conditions.join(' AND ')} ORDER BY created_at DESC LIMIT ? OFFSET ?`
-    ).all([...vals, limit, offset]) as unknown as RawAuditLog[]
-    return rows.map(r => this.mapAuditLog(r))
+      `SELECT ${NodeSqlite3WasmAdapter.AUDIT_SUMMARY_COLS} FROM audit_logs WHERE ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`
+    ).all([...vals, limit, offset]) as unknown as RawAuditLogSummary[]
+    const countRow = this.stmt(`SELECT COUNT(*) AS total FROM audit_logs WHERE ${where}`).get(vals) as unknown as RawCount | null
+    return { items: rows.map(r => this.mapAuditSummary(r)), total: countRow?.total ?? 0, page, limit }
+  }
+
+  async getAuditLogById(id: string): Promise<AuditLog | null> {
+    const row = this.stmt('SELECT * FROM audit_logs WHERE id = ?').get(id) as RawAuditLog | null
+    return row ? this.mapAuditLog(row) : null
+  }
+
+  private static readonly AUDIT_SUMMARY_COLS = 'id, tenant_id, user_id, action, resource_type, resource_id, created_at'
+
+  private mapAuditSummary(r: RawAuditLogSummary): AuditLogSummary {
+    return {
+      id: r.id, tenantId: r.tenant_id, action: r.action, resourceType: r.resource_type,
+      ...(r.user_id != null ? { userId: r.user_id } : {}),
+      ...(r.resource_id != null ? { resourceId: r.resource_id } : {}),
+      createdAt: r.created_at,
+    }
   }
 
   private mapAuditLog(r: RawAuditLog): AuditLog {
@@ -742,6 +815,28 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     this.stmt('DELETE FROM tenants WHERE id = ?').run(id)
   }
 
+  async getSettings(tenantId: string): Promise<TenantSettings> {
+    const row = this.stmt('SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed FROM tenant_settings WHERE tenant_id = ?')
+      .get(tenantId) as { allowed_origins_json: string; admin_allowed_origins_json: string; setup_completed: number } | null
+    return row
+      ? {
+        allowedOrigins: JSON.parse(row.allowed_origins_json) as string[],
+        adminAllowedOrigins: JSON.parse(row.admin_allowed_origins_json) as string[],
+        setupCompleted: !!row.setup_completed,
+      }
+      : {}
+  }
+
+  async updateSettings(tenantId: string, data: Partial<TenantSettings>): Promise<TenantSettings> {
+    const current = await this.getSettings(tenantId)
+    const merged = { ...current, ...data }
+    this.stmt(
+      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, updated_at) VALUES (?,?,?,?,?)
+       ON CONFLICT(tenant_id) DO UPDATE SET allowed_origins_json = excluded.allowed_origins_json, admin_allowed_origins_json = excluded.admin_allowed_origins_json, setup_completed = excluded.setup_completed, updated_at = excluded.updated_at`,
+    ).run([tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ? 1 : 0, new Date().toISOString()])
+    return this.getSettings(tenantId)
+  }
+
   async purgeExpiredConsents(olderThanDays: number): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
     const toDelete = this.stmt(
@@ -754,16 +849,30 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return toDelete.length
   }
 
+  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
+    const { count } = this.stmt('SELECT COUNT(*) AS count FROM audit_logs WHERE created_at < ?').get(cutoff) as { count: number }
+    this.stmt('DELETE FROM audit_logs WHERE created_at < ?').run(cutoff)
+    return count
+  }
+
   // ── API Keys ───────────────────────────────────────────────────────────────
 
   private mapApiKey(r: RawApiKey): ApiKey {
-    return { id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active === 1, createdAt: r.created_at }
+    return {
+      id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active === 1,
+      ...(r.created_by !== null ? { createdBy: r.created_by } : {}),
+      ...(r.expire_by !== null ? { expireBy: r.expire_by } : {}),
+      createdAt: r.created_at,
+      ...(r.updated_at !== null ? { updatedAt: r.updated_at } : {}),
+    }
   }
 
   async createApiKey(data: CreateApiKeyInput): Promise<ApiKey> {
     const id = randomUUID()
     const now = new Date().toISOString()
-    this.stmt('INSERT INTO api_keys (id,tenant_id,key_hash,name,created_at) VALUES (?,?,?,?,?)').run([id, data.tenantId, data.keyHash, data.name, now])
+    this.stmt('INSERT INTO api_keys (id,tenant_id,key_hash,name,created_by,expire_by,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)')
+      .run([id, data.tenantId, data.keyHash, data.name, data.createdBy ?? null, data.expireBy ?? null, now, now])
     const row = this.stmt('SELECT * FROM api_keys WHERE id = ?').get(id) as RawApiKey | null
     if (!row) throw new Error('Failed to create API key')
     return this.mapApiKey(row)
@@ -775,7 +884,18 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   }
 
   async revokeApiKey(id: string): Promise<void> {
-    this.stmt('UPDATE api_keys SET is_active = 0 WHERE id = ?').run(id)
+    this.stmt('UPDATE api_keys SET is_active = 0, updated_at = ? WHERE id = ?').run([new Date().toISOString(), id])
+  }
+
+  async reactivateApiKey(id: string): Promise<void> {
+    const now = new Date().toISOString()
+    this.stmt(
+      'UPDATE api_keys SET is_active = 1, updated_at = ?, expire_by = CASE WHEN expire_by <= ? THEN NULL ELSE expire_by END WHERE id = ?',
+    ).run([now, now, id])
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    this.stmt('DELETE FROM api_keys WHERE id = ?').run([id])
   }
 
   async getApiKeys(tenantId: string): Promise<ApiKey[]> {
@@ -783,46 +903,47 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return rows.map(r => this.mapApiKey(r))
   }
 
-  // ── Cookie Templates ───────────────────────────────────────────────────────
+  // ── Consent Templates ──────────────────────────────────────────────────────
 
-  private mapCookieTemplate(r: RawCookieTemplate): ServerCookieTemplate {
-    return { id: r.id, tenantId: r.tenant_id, name: r.name, cookies: JSON.parse(r.cookies_json), createdAt: r.created_at, updatedAt: r.updated_at }
+  private mapConsentTemplate(r: RawConsentTemplate): ServerConsentTemplate {
+    return { id: r.id, tenantId: r.tenant_id, name: r.name, cookies: JSON.parse(r.cookies_json), categories: JSON.parse(r.categories_json), createdAt: r.created_at, updatedAt: r.updated_at }
   }
 
-  async createCookieTemplate(data: CreateCookieTemplateInput): Promise<ServerCookieTemplate> {
-    const id = randomUUID()
+  async createConsentTemplate(data: CreateConsentTemplateInput): Promise<ServerConsentTemplate> {
+    const id = randomConsentTemplateId()
     const now = new Date().toISOString()
-    this.stmt('INSERT INTO cookie_templates (id,tenant_id,name,cookies_json,created_at,updated_at) VALUES (?,?,?,?,?,?)').run([id, data.tenantId, data.name, JSON.stringify(data.cookies), now, now])
-    return this.mapCookieTemplate(this.stmt('SELECT * FROM cookie_templates WHERE id = ?').get(id) as unknown as RawCookieTemplate)
+    this.stmt('INSERT INTO consent_templates (id,tenant_id,name,cookies_json,categories_json,created_at,updated_at) VALUES (?,?,?,?,?,?,?)').run([id, data.tenantId, data.name, JSON.stringify(data.cookies), JSON.stringify(data.categories), now, now])
+    return this.mapConsentTemplate(this.stmt('SELECT * FROM consent_templates WHERE id = ?').get(id) as unknown as RawConsentTemplate)
   }
 
-  async updateCookieTemplate(id: string, data: UpdateCookieTemplateInput): Promise<ServerCookieTemplate> {
+  async updateConsentTemplate(id: string, data: UpdateConsentTemplateInput): Promise<ServerConsentTemplate> {
     const now = new Date().toISOString()
-    if (data.name !== undefined) this.stmt('UPDATE cookie_templates SET name = ?, updated_at = ? WHERE id = ?').run([data.name, now, id])
-    if (data.cookies !== undefined) this.stmt('UPDATE cookie_templates SET cookies_json = ?, updated_at = ? WHERE id = ?').run([JSON.stringify(data.cookies), now, id])
-    const row = this.stmt('SELECT * FROM cookie_templates WHERE id = ?').get(id) as RawCookieTemplate | null
-    if (!row) throw new Error('Cookie template not found')
-    return this.mapCookieTemplate(row)
+    if (data.name !== undefined) this.stmt('UPDATE consent_templates SET name = ?, updated_at = ? WHERE id = ?').run([data.name, now, id])
+    if (data.cookies !== undefined) this.stmt('UPDATE consent_templates SET cookies_json = ?, updated_at = ? WHERE id = ?').run([JSON.stringify(data.cookies), now, id])
+    if (data.categories !== undefined) this.stmt('UPDATE consent_templates SET categories_json = ?, updated_at = ? WHERE id = ?').run([JSON.stringify(data.categories), now, id])
+    const row = this.stmt('SELECT * FROM consent_templates WHERE id = ?').get(id) as RawConsentTemplate | null
+    if (!row) throw new Error('Consent template not found')
+    return this.mapConsentTemplate(row)
   }
 
-  async deleteCookieTemplate(id: string): Promise<void> {
-    this.stmt('DELETE FROM cookie_templates WHERE id = ?').run(id)
+  async deleteConsentTemplate(id: string): Promise<void> {
+    this.stmt('DELETE FROM consent_templates WHERE id = ?').run(id)
   }
 
-  async getCookieTemplate(id: string): Promise<ServerCookieTemplate | null> {
-    const row = this.stmt('SELECT * FROM cookie_templates WHERE id = ?').get(id) as RawCookieTemplate | null
-    return row ? this.mapCookieTemplate(row) : null
+  async getConsentTemplate(id: string): Promise<ServerConsentTemplate | null> {
+    const row = this.stmt('SELECT * FROM consent_templates WHERE id = ?').get(id) as RawConsentTemplate | null
+    return row ? this.mapConsentTemplate(row) : null
   }
 
-  async getCookieTemplates(tenantId: string): Promise<ServerCookieTemplate[]> {
-    const rows = this.stmt('SELECT * FROM cookie_templates WHERE tenant_id = ? ORDER BY name ASC').all(tenantId) as unknown as RawCookieTemplate[]
-    return rows.map(r => this.mapCookieTemplate(r))
+  async getConsentTemplates(tenantId: string): Promise<ServerConsentTemplate[]> {
+    const rows = this.stmt('SELECT * FROM consent_templates WHERE tenant_id = ? ORDER BY name ASC').all(tenantId) as unknown as RawConsentTemplate[]
+    return rows.map(r => this.mapConsentTemplate(r))
   }
 
-  async copyCookieTemplate(id: string, newName: string): Promise<ServerCookieTemplate> {
-    const src = await this.getCookieTemplate(id)
-    if (!src) throw new Error('Cookie template not found')
-    return this.createCookieTemplate({ tenantId: src.tenantId, name: newName, cookies: src.cookies })
+  async copyConsentTemplate(id: string, newName: string): Promise<ServerConsentTemplate> {
+    const src = await this.getConsentTemplate(id)
+    if (!src) throw new Error('Consent template not found')
+    return this.createConsentTemplate({ tenantId: src.tenantId, name: newName, cookies: src.cookies, categories: src.categories })
   }
 
   // ── UI Templates ───────────────────────────────────────────────────────────
@@ -833,7 +954,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   }
 
   async createUITemplate(data: CreateUITemplateInput): Promise<ServerUITemplate> {
-    const id = randomUUID()
+    const id = randomUITemplateId()
     const now = new Date().toISOString()
     const { tenantId, name, ...settings } = data
     this.stmt('INSERT INTO ui_templates (id,tenant_id,name,settings_json,created_at,updated_at) VALUES (?,?,?,?,?,?)').run([id, tenantId, name, JSON.stringify(settings), now, now])
@@ -883,9 +1004,9 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
       name: r.name,
       defaultLocale: r.default_locale,
       complianceGroup: (r.compliance_group ?? null) as ComplianceGroupId | null,
-      version: r.version,
+      customComplianceGroup: r.custom_compliance_group ?? null,
       isActive: r.is_active === 1,
-      cookieTemplateName: r.cookie_template_name,
+      consentTemplateName: r.consent_template_name,
       uiTemplateName: r.ui_template_name,
       createdAt: r.created_at,
       updatedAt: r.updated_at,
@@ -894,15 +1015,16 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
 
   private readonly PROFILE_SUMMARY_SQL = `
     SELECT
-      p.id, p.name, p.default_locale, p.version, p.created_at, p.updated_at,
+      p.id, p.name, p.default_locale, p.created_at, p.updated_at,
       json_extract(p.profile_json, '$.complianceGroup') AS compliance_group,
+      json_extract(p.profile_json, '$.customComplianceGroup') AS custom_compliance_group,
       json_extract(p.profile_json, '$.isActive')        AS is_active,
-      json_extract(p.profile_json, '$.cookieTemplateId') AS cookie_template_id,
+      json_extract(p.profile_json, '$.consentTemplateId') AS consent_template_id,
       json_extract(p.profile_json, '$.uiTemplateId')     AS ui_template_id,
-      ct.name AS cookie_template_name,
+      ct.name AS consent_template_name,
       ut.name AS ui_template_name
     FROM profiles p
-    LEFT JOIN cookie_templates ct ON ct.id = json_extract(p.profile_json, '$.cookieTemplateId')
+    LEFT JOIN consent_templates ct ON ct.id = json_extract(p.profile_json, '$.consentTemplateId')
     LEFT JOIN ui_templates ut ON ut.id = json_extract(p.profile_json, '$.uiTemplateId')
   `
 
@@ -913,9 +1035,9 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return rows.map(r => this.mapProfileSummary(r))
   }
 
-  async findProfilesUsingCookieTemplate(templateId: string): Promise<ProfileSummary[]> {
+  async findProfilesUsingConsentTemplate(templateId: string): Promise<ProfileSummary[]> {
     const rows = this.stmt(
-      `${this.PROFILE_SUMMARY_SQL} WHERE json_extract(p.profile_json, '$.cookieTemplateId') = ? ORDER BY p.name ASC`
+      `${this.PROFILE_SUMMARY_SQL} WHERE json_extract(p.profile_json, '$.consentTemplateId') = ? ORDER BY p.name ASC`
     ).all(templateId) as unknown as RawProfileSummary[]
     return rows.map(r => this.mapProfileSummary(r))
   }

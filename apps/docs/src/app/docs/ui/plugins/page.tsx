@@ -2,7 +2,27 @@ import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'UI Widget Plugins' }
+export const metadata: Metadata = {
+  title: 'UI Widget Plugins',
+  description:
+    'Extend the Consenti UI widget with plugins that receive the full typed ConsentiWidgetAPI in initialize().',
+  alternates: { canonical: '/docs/ui/plugins' },
+  openGraph: {
+    title: 'UI Widget Plugins',
+    description:
+      'Extend the Consenti UI widget with plugins that receive the full typed ConsentiWidgetAPI in initialize().',
+    url: 'https://consenti.dev/docs/ui/plugins',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'UI Widget Plugins',
+    description:
+      'Extend the Consenti UI widget with plugins that receive the full typed ConsentiWidgetAPI in initialize().',
+    images: ['/og-image.jpg'],
+  },
+}
 
 export default function UIPluginsPage() {
   return (
@@ -21,7 +41,9 @@ export default function UIPluginsPage() {
       </Callout>
 
       <h2>Minimal plugin</h2>
-      <CodeBlock lang="ts" code={`import { ConsentiPlugin, ConsentiSetup } from '@consenti/ui'
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiPlugin, ConsentiSetup } from '@consenti/ui'
 import type { ConsentiWidgetAPI } from '@consenti/ui'
 
 class MyPlugin extends ConsentiPlugin {
@@ -38,7 +60,8 @@ class MyPlugin extends ConsentiPlugin {
 const widget = new ConsentiSetup({
   core: { profileId: 0 },
   plugins: [new MyPlugin()],
-})`} />
+})`}
+      />
 
       <h2>ConsentiWidgetAPI reference</h2>
       <p>
@@ -49,69 +72,247 @@ const widget = new ConsentiSetup({
       <h3>State inspection</h3>
       <table>
         <thead>
-          <tr><th>Method</th><th>Returns</th><th>Description</th></tr>
+          <tr>
+            <th>Method</th>
+            <th>Returns</th>
+            <th>Description</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>hasConsent()</code></td><td><code>boolean</code></td><td>True if a valid consent record exists</td></tr>
-          <tr><td><code>getConsent()</code></td><td><code>ConsentValue | null</code></td><td>The stored consent map keyed by cookie ID</td></tr>
-          <tr><td><code>getConsentDate()</code></td><td><code>Date | false</code></td><td>Date of the most recent consent submission</td></tr>
-          <tr><td><code>getGTMConsent()</code></td><td><code>Record&lt;string,string&gt; | null</code></td><td>Consent in Google Consent Mode v2 format</td></tr>
-          <tr><td><code>bannerVisibility()</code></td><td><code>&apos;main&apos; | &apos;gpc&apos; | false</code></td><td>Which banner variant is currently visible</td></tr>
-          <tr><td><code>modalVisibility()</code></td><td><code>&apos;preference&apos; | false</code></td><td>Whether the preference modal is open</td></tr>
-          <tr><td><code>getProfile()</code></td><td><code>ResolvedProfile | null</code></td><td>The resolved profile: cookies, banners, modal config, version</td></tr>
+          <tr>
+            <td>
+              <code>hasConsent()</code>
+            </td>
+            <td>
+              <code>boolean</code>
+            </td>
+            <td>True if a valid consent record exists</td>
+          </tr>
+          <tr>
+            <td>
+              <code>getConsent()</code>
+            </td>
+            <td>
+              <code>ConsentValue | null</code>
+            </td>
+            <td>The stored consent map keyed by cookie ID</td>
+          </tr>
+          <tr>
+            <td>
+              <code>getConsentDate()</code>
+            </td>
+            <td>
+              <code>Date | false</code>
+            </td>
+            <td>Date of the most recent consent submission</td>
+          </tr>
+          <tr>
+            <td>
+              <code>getGTMConsent()</code>
+            </td>
+            <td>
+              <code>Record&lt;string,string&gt; | null</code>
+            </td>
+            <td>Consent in Google Consent Mode v2 format</td>
+          </tr>
+          <tr>
+            <td>
+              <code>bannerVisibility()</code>
+            </td>
+            <td>
+              <code>&apos;main&apos; | &apos;gpc&apos; | false</code>
+            </td>
+            <td>Which banner variant is currently visible</td>
+          </tr>
+          <tr>
+            <td>
+              <code>modalVisibility()</code>
+            </td>
+            <td>
+              <code>&apos;preference&apos; | false</code>
+            </td>
+            <td>Whether the preference modal is open</td>
+          </tr>
+          <tr>
+            <td>
+              <code>getProfile()</code>
+            </td>
+            <td>
+              <code>ResolvedProfile | null</code>
+            </td>
+            <td>The resolved profile: cookies, banners, modal config, version</td>
+          </tr>
         </tbody>
       </table>
 
       <h3>UI control</h3>
       <table>
         <thead>
-          <tr><th>Method</th><th>Description</th></tr>
+          <tr>
+            <th>Method</th>
+            <th>Description</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>showBanner(gpc?)</code></td><td>Show the main or GPC banner</td></tr>
-          <tr><td><code>hideBanner()</code></td><td>Hide the banner</td></tr>
-          <tr><td><code>showModal(triggerEl?)</code></td><td>Open the preference modal</td></tr>
-          <tr><td><code>hideModal()</code></td><td>Close the preference modal</td></tr>
-          <tr><td><code>submitConsent(consent)</code></td><td>Submit consent programmatically</td></tr>
-          <tr><td><code>deleteConsent()</code></td><td>Delete the consent record</td></tr>
-          <tr><td><code>reConsent()</code></td><td>Delete consent and re-open the banner</td></tr>
+          <tr>
+            <td>
+              <code>showBanner(gpc?)</code>
+            </td>
+            <td>Show the main or GPC banner</td>
+          </tr>
+          <tr>
+            <td>
+              <code>hideBanner()</code>
+            </td>
+            <td>Hide the banner</td>
+          </tr>
+          <tr>
+            <td>
+              <code>showModal(triggerEl?)</code>
+            </td>
+            <td>Open the preference modal</td>
+          </tr>
+          <tr>
+            <td>
+              <code>hideModal()</code>
+            </td>
+            <td>Close the preference modal</td>
+          </tr>
+          <tr>
+            <td>
+              <code>submitConsent(consent)</code>
+            </td>
+            <td>Submit consent programmatically</td>
+          </tr>
+          <tr>
+            <td>
+              <code>deleteConsent()</code>
+            </td>
+            <td>Delete the consent record</td>
+          </tr>
+          <tr>
+            <td>
+              <code>reConsent()</code>
+            </td>
+            <td>Delete consent and re-open the banner</td>
+          </tr>
         </tbody>
       </table>
 
       <h3>DOM access</h3>
       <table>
         <thead>
-          <tr><th>Method</th><th>Returns</th><th>Description</th></tr>
+          <tr>
+            <th>Method</th>
+            <th>Returns</th>
+            <th>Description</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>getRootElement()</code></td><td><code>HTMLElement | null</code></td><td><code>#consenti-root</code> — the container for all widget DOM</td></tr>
-          <tr><td><code>getBannerElement()</code></td><td><code>HTMLElement | null</code></td><td><code>#consenti-banner</code> — the banner element (may be hidden)</td></tr>
-          <tr><td><code>getModalElement()</code></td><td><code>HTMLElement | null</code></td><td><code>#consenti-modal</code> — the preference modal element</td></tr>
+          <tr>
+            <td>
+              <code>getRootElement()</code>
+            </td>
+            <td>
+              <code>HTMLElement | null</code>
+            </td>
+            <td>
+              <code>#consenti-root</code> — the container for all widget DOM
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>getBannerElement()</code>
+            </td>
+            <td>
+              <code>HTMLElement | null</code>
+            </td>
+            <td>
+              <code>#consenti-banner</code> — the banner element (may be hidden)
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>getModalElement()</code>
+            </td>
+            <td>
+              <code>HTMLElement | null</code>
+            </td>
+            <td>
+              <code>#consenti-modal</code> — the preference modal element
+            </td>
+          </tr>
         </tbody>
       </table>
 
       <h3>Lifecycle hooks (optional)</h3>
       <p>
-        Override these methods to react to consent events. All hooks are optional — only define the ones you need.
+        Override these methods to react to consent events. All hooks are optional — only define the
+        ones you need.
       </p>
       <table>
         <thead>
-          <tr><th>Hook</th><th>When it fires</th></tr>
+          <tr>
+            <th>Hook</th>
+            <th>When it fires</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>initialize(widget)</code></td><td><strong>Required.</strong> After <code>ConsentiSetup.init()</code> completes. May be async.</td></tr>
-          <tr><td><code>destroy()</code></td><td><strong>Required.</strong> When <code>widget.destroy()</code> is called.</td></tr>
-          <tr><td><code>onConsentSubmit(consent)</code></td><td>After consent is saved to storage and POSTed to the API</td></tr>
-          <tr><td><code>onBannerShow()</code></td><td>After the banner becomes visible</td></tr>
-          <tr><td><code>onBannerHide()</code></td><td>After the banner is hidden</td></tr>
-          <tr><td><code>onModalShow()</code></td><td>After the preference modal opens</td></tr>
-          <tr><td><code>onModalHide()</code></td><td>After the preference modal closes</td></tr>
+          <tr>
+            <td>
+              <code>initialize(widget)</code>
+            </td>
+            <td>
+              <strong>Required.</strong> After <code>ConsentiSetup.init()</code> completes. May be
+              async.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>destroy()</code>
+            </td>
+            <td>
+              <strong>Required.</strong> When <code>widget.destroy()</code> is called.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>onConsentSubmit(consent)</code>
+            </td>
+            <td>After consent is saved to storage and POSTed to the API</td>
+          </tr>
+          <tr>
+            <td>
+              <code>onBannerShow()</code>
+            </td>
+            <td>After the banner becomes visible</td>
+          </tr>
+          <tr>
+            <td>
+              <code>onBannerHide()</code>
+            </td>
+            <td>After the banner is hidden</td>
+          </tr>
+          <tr>
+            <td>
+              <code>onModalShow()</code>
+            </td>
+            <td>After the preference modal opens</td>
+          </tr>
+          <tr>
+            <td>
+              <code>onModalHide()</code>
+            </td>
+            <td>After the preference modal closes</td>
+          </tr>
         </tbody>
       </table>
 
       <h2>Example: Analytics plugin</h2>
       <p>Track consent events with your analytics provider:</p>
-      <CodeBlock lang="ts" code={`import { ConsentiPlugin } from '@consenti/ui'
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiPlugin } from '@consenti/ui'
 import type { ConsentiWidgetAPI, ConsentValue } from '@consenti/ui'
 
 class AnalyticsPlugin extends ConsentiPlugin {
@@ -126,8 +327,7 @@ class AnalyticsPlugin extends ConsentiPlugin {
   onConsentSubmit(consent: ConsentValue): void {
     const profile = this.widget.getProfile()
     myAnalytics.track('consent_saved', {
-      profileId: profile?.id,
-      profileVersion: profile?.version,
+      profileId: profile?.id, // a new id is minted on every profile edit — doubles as a change indicator
       ...consent,
     })
   }
@@ -135,11 +335,14 @@ class AnalyticsPlugin extends ConsentiPlugin {
   onBannerShow(): void {
     myAnalytics.track('consent_banner_shown')
   }
-}`} />
+}`}
+      />
 
       <h2>Example: DOM extension plugin</h2>
       <p>Add custom content or styles to the banner without touching Consenti source:</p>
-      <CodeBlock lang="ts" code={`import { ConsentiPlugin } from '@consenti/ui'
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiPlugin } from '@consenti/ui'
 import type { ConsentiWidgetAPI } from '@consenti/ui'
 
 class BrandingPlugin extends ConsentiPlugin {
@@ -174,11 +377,16 @@ class BrandingPlugin extends ConsentiPlugin {
     this.logoEl?.remove()
     this.logoEl = null
   }
-}`} />
+}`}
+      />
 
       <h2>Example: Profile inspection plugin</h2>
-      <p>Use <code>getProfile()</code> to read cookie definitions and make runtime decisions:</p>
-      <CodeBlock lang="ts" code={`import { ConsentiPlugin } from '@consenti/ui'
+      <p>
+        Use <code>getProfile()</code> to read cookie definitions and make runtime decisions:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiPlugin } from '@consenti/ui'
 import type { ConsentiWidgetAPI } from '@consenti/ui'
 
 class ConditionalLoadPlugin extends ConsentiPlugin {
@@ -210,11 +418,17 @@ class ConditionalLoadPlugin extends ConsentiPlugin {
   }
 
   destroy(): void {}
-}`} />
+}`}
+      />
 
       <h2>Example: Async plugin</h2>
-      <p><code>initialize()</code> can be async — the widget awaits it before resolving <code>widget.ready</code>:</p>
-      <CodeBlock lang="ts" code={`import { ConsentiPlugin } from '@consenti/ui'
+      <p>
+        <code>initialize()</code> can be async — the widget awaits it before resolving{' '}
+        <code>widget.ready</code>:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiPlugin } from '@consenti/ui'
 import type { ConsentiWidgetAPI } from '@consenti/ui'
 
 class RemoteConfigPlugin extends ConsentiPlugin {
@@ -229,10 +443,13 @@ class RemoteConfigPlugin extends ConsentiPlugin {
   }
 
   destroy(): void {}
-}`} />
+}`}
+      />
 
       <h2>Registering plugins</h2>
-      <CodeBlock lang="ts" code={`import { ConsentiSetup } from '@consenti/ui'
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiSetup } from '@consenti/ui'
 import { AnalyticsPlugin } from './plugins/analytics'
 import { BrandingPlugin } from './plugins/branding'
 
@@ -242,27 +459,31 @@ const widget = new ConsentiSetup({
     new AnalyticsPlugin(),
     new BrandingPlugin(),
   ],
-})`} />
+})`}
+      />
 
       <Callout type="warning">
-        Plugins run in the order they are listed. If an async <code>initialize()</code> is
-        slow, it delays the rest of widget startup. Keep remote calls in plugins fast,
-        or fire them without <code>await</code> if they are non-blocking.
+        Plugins run in the order they are listed. If an async <code>initialize()</code> is slow, it
+        delays the rest of widget startup. Keep remote calls in plugins fast, or fire them without{' '}
+        <code>await</code> if they are non-blocking.
       </Callout>
 
       <h2>TypeScript tip</h2>
       <p>
-        Import <code>ConsentiWidgetAPI</code> as a type-only import to keep your plugin
-        decoupled from the <code>ConsentiSetup</code> class:
+        Import <code>ConsentiWidgetAPI</code> as a type-only import to keep your plugin decoupled
+        from the <code>ConsentiSetup</code> class:
       </p>
-      <CodeBlock lang="ts" code={`import { ConsentiPlugin } from '@consenti/ui'
+      <CodeBlock
+        lang="ts"
+        code={`import { ConsentiPlugin } from '@consenti/ui'
 import type { ConsentiWidgetAPI } from '@consenti/ui'
 //           ^^^^ type-only import — no runtime dependency on ConsentiSetup
 
 class MyPlugin extends ConsentiPlugin {
   initialize(widget: ConsentiWidgetAPI) { /* ... */ }
   destroy() {}
-}`} />
+}`}
+      />
     </div>
   )
 }

@@ -1,5 +1,9 @@
 import { defineConfig } from 'tsup'
 
+// `dist/` is cleaned once in the `build` npm script before tsup runs, not via a per-entry
+// `clean: true` here — tsup builds every entry in this array concurrently, so a `clean: true`
+// on one of them races the others' writes and can delete freshly-built output (`react.js`,
+// `vue.js`, etc.) out from under them nondeterministically.
 const PACKAGE_VERSION = process.env.npm_package_version ?? '0.0.0'
 const versionDefine = { __CONSENTI_VERSION__: JSON.stringify(PACKAGE_VERSION) }
 
@@ -11,7 +15,6 @@ export default defineConfig([
     dts: { resolve: true },
     sourcemap: true,
     minify: true,
-    clean: true,
     target: 'es2020',
     platform: 'browser',
     define: versionDefine,

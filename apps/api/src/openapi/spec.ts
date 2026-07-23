@@ -5,7 +5,6 @@ const SHARED_SCHEMAS = {
       id: { type: 'string' },
       visitorId: { type: 'string' },
       profileId: { type: 'string' },
-      profileVersion: { type: 'integer' },
       locale: { type: 'string' },
       consentJson: { type: 'object', additionalProperties: { type: 'string', enum: ['granted', 'denied', 'objected'] } },
       gpcDetected: { type: 'boolean' },
@@ -122,6 +121,33 @@ export const OPENAPI_PUBLIC_SPEC = {
         responses: { '200': { description: 'Verification result' } },
       },
     },
+    '/v1/notice-shown': {
+      post: {
+        tags: ['Consent'],
+        summary: 'Record proof that the consent banner was shown',
+        description: 'Lightweight, fire-and-forget ping recording that the banner was rendered to a visitor, independent of whether they ever interact with it. Called automatically by `@consenti/ui` on banner mount when `api.enabled` is configured.',
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['visitorId', 'profileId', 'locale'],
+                properties: {
+                  visitorId: { type: 'string' },
+                  profileId: { type: 'string' },
+                  locale: { type: 'string' },
+                },
+              },
+            },
+          },
+        },
+        responses: {
+          '201': { description: 'Recorded' },
+          '400': { description: 'Validation error' },
+        },
+      },
+    },
   },
   components: {
     schemas: SHARED_SCHEMAS,
@@ -163,6 +189,18 @@ export const OPENAPI_ADMIN_SPEC = {
         summary: 'Invalidate session',
         security: [{ BearerAuth: [] }],
         responses: { '200': { description: 'Logged out' } },
+      },
+    },
+    '/auth/refresh': {
+      post: {
+        tags: ['Auth'],
+        summary: 'Reissue a fresh token from the current one, extending the session',
+        description: 'Used by the dashboard on user activity to implement a sliding inactivity timeout instead of a flat expiry from login.',
+        security: [{ BearerAuth: [] }],
+        responses: {
+          '200': { description: 'New JWT token' },
+          '401': { description: 'Current token is missing, invalid, or already expired' },
+        },
       },
     },
     '/auth/oidc/authorize': {
@@ -224,6 +262,79 @@ export const OPENAPI_ADMIN_SPEC = {
         responses: { '201': { description: 'Created profile' } },
       },
     },
+    // ── Consent Templates ─────────────────────────────────────────────────
+    '/consent-templates': {
+      get: {
+        tags: ['Consent Templates'],
+        summary: 'List consent templates',
+        description: 'A Consent Template groups parameters (`cookies`, keyed by id) with the categories that own their legal basis (`categories`, keyed by id).',
+        security: [{ BearerAuth: [] }],
+        responses: { '200': { description: 'Array of consent templates' } },
+      },
+      post: {
+        tags: ['Consent Templates'],
+        summary: 'Create consent template',
+        security: [{ BearerAuth: [] }],
+        requestBody: {
+          required: true,
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['name', 'cookies', 'categories'],
+                properties: {
+                  name: { type: 'string' },
+                  cookies: { type: 'object', description: 'Keyed by parameter id.' },
+                  categories: { type: 'object', description: 'Keyed by category id. Every parameter id must appear in exactly one category.' },
+                },
+              },
+            },
+          },
+        },
+        responses: { '201': { description: 'Created consent template' }, '400': { description: 'Validation error' } },
+      },
+    },
+    '/consent-templates/{id}': {
+      get: {
+        tags: ['Consent Templates'],
+        summary: 'Get consent template',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Consent template' }, '404': { description: 'Not found' } },
+      },
+      put: {
+        tags: ['Consent Templates'],
+        summary: 'Update consent template',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Updated consent template' }, '422': { description: 'Change would break compliance for profiles using this template' } },
+      },
+      delete: {
+        tags: ['Consent Templates'],
+        summary: 'Delete consent template',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Deleted' }, '422': { description: 'Template is still used by profiles' } },
+      },
+    },
+    '/consent-templates/{id}/copy': {
+      post: {
+        tags: ['Consent Templates'],
+        summary: 'Duplicate a consent template',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '201': { description: 'Copied consent template' } },
+      },
+    },
+    '/consent-templates/{id}/profile-usage': {
+      get: {
+        tags: ['Consent Templates'],
+        summary: 'List profiles using this consent template',
+        security: [{ BearerAuth: [] }],
+        parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+        responses: { '200': { description: 'Array of profile summaries' } },
+      },
+    },
     // ── Consents ──────────────────────────────────────────────────────────
     '/consents': {
       get: {
@@ -235,6 +346,7 @@ export const OPENAPI_ADMIN_SPEC = {
           { name: 'profileId', in: 'query', schema: { type: 'string' } },
           { name: 'from', in: 'query', schema: { type: 'string', format: 'date' } },
           { name: 'to', in: 'query', schema: { type: 'string', format: 'date' } },
+          { name: 'q', in: 'query', schema: { type: 'string' }, description: 'Free-text search across visitorId, profileId, locale, source' },
         ],
         responses: { '200': { description: 'Paginated consent records' } },
       },
@@ -317,6 +429,60 @@ export const OPENAPI_ADMIN_SPEC = {
         security: [{ BearerAuth: [] }],
         parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
         responses: { '200': { description: 'Deleted' } },
+      },
+    },
+    // ── Setup Wizard ──────────────────────────────────────────────────────
+    // One-time first-run flow, gated by tenant_settings.setup_completed — see
+    // plans/PENDING-api-setup-wizard.md. Never reset from the dashboard once complete.
+    '/setup/status': {
+      get: {
+        tags: ['Setup'],
+        summary: 'Whether the first-run setup wizard has been completed for this tenant',
+        security: [{ BearerAuth: [] }],
+        responses: { '200': { description: '{ completed: boolean }' } },
+      },
+    },
+    '/setup/config': {
+      get: {
+        tags: ['Setup'],
+        summary: 'Resolved server config (secrets redacted) plus production-readiness flags',
+        description: 'The same merged `DEFAULT_CONFIG` + user config `createConsenti` computes at boot. `auth.adminPassword`, `auth.jwtSecret`, `consentSigningKey`, storage credentials, and OIDC/SAML secrets are replaced with a redaction marker.',
+        security: [{ BearerAuth: [] }],
+        responses: { '200': { description: '{ config: object, usingJsonStorage: boolean, usingDefaultCredentials: boolean }' } },
+      },
+    },
+    '/setup/compliance-groups': {
+      get: {
+        tags: ['Setup'],
+        summary: 'The 8 built-in compliance groups with label/description/regulation metadata',
+        security: [{ BearerAuth: [] }],
+        responses: { '200': { description: 'Array of compliance group descriptors' } },
+      },
+    },
+    '/setup/seed-profiles': {
+      post: {
+        tags: ['Setup'],
+        summary: 'Seed default profiles for the selected compliance groups',
+        description: 'Idempotent — skips any group that already has an active profile. `groups` must be a subset of the 8 built-in compliance group ids.',
+        security: [{ BearerAuth: [] }],
+        requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { groups: { type: 'array', items: { type: 'string' } } }, required: ['groups'] } } } },
+        responses: {
+          '200': { description: '{ seeded: string[] }' },
+          '400': { description: 'groups is missing, not an array of strings, or contains an unknown compliance group id' },
+          '409': { description: 'Setup has already been completed for this tenant' },
+        },
+      },
+    },
+    '/setup/complete': {
+      post: {
+        tags: ['Setup'],
+        summary: 'Mark the first-run setup wizard as complete for this tenant',
+        description: 'Called on both wizard finish and skip. Never reset from the dashboard once true.',
+        security: [{ BearerAuth: [] }],
+        responses: {
+          '200': { description: 'Updated tenant settings' },
+          '409': { description: 'Setup has already been completed for this tenant' },
+        },
       },
     },
   },

@@ -1,0 +1,132 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "consenti.fullname" . }}
+  labels:
+    {{- include "consenti.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.persistence.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- else }}
+  replicas: 1 # SQLite/JSON persistence via a single RWO volume — do not scale beyond 1 replica
+             # unless dbDriver is postgresql/mysql/mongodb (a real shared database).
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "consenti.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "consenti.selectorLabels" . | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: consenti
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- with .Values.securityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "3000"
+            - name: CONSENTI_BASE_PATH
+              value: {{ .Values.config.basePath | quote }}
+            - name: CONSENTI_ADMIN_EMAIL
+              value: {{ .Values.config.adminEmail | quote }}
+            - name: CONSENTI_DB_DRIVER
+              value: {{ .Values.config.dbDriver | quote }}
+            {{- if .Values.config.dbPath }}
+            - name: CONSENTI_DB_PATH
+              value: {{ .Values.config.dbPath | quote }}
+            {{- end }}
+            {{- if .Values.config.dbHost }}
+            - name: CONSENTI_DB_HOST
+              value: {{ .Values.config.dbHost | quote }}
+            {{- end }}
+            {{- if .Values.config.dbPort }}
+            - name: CONSENTI_DB_PORT
+              value: {{ .Values.config.dbPort | quote }}
+            {{- end }}
+            {{- if .Values.config.dbDatabase }}
+            - name: CONSENTI_DB_DATABASE
+              value: {{ .Values.config.dbDatabase | quote }}
+            {{- end }}
+            {{- if .Values.config.dbUri }}
+            - name: CONSENTI_DB_URI
+              value: {{ .Values.config.dbUri | quote }}
+            {{- end }}
+            {{- if not .Values.existingSecret }}
+            {{- fail "existingSecret is required — create it first, see deploy/README.md. Refusing to boot with demo/default admin credentials." }}
+            {{- end }}
+            - name: CONSENTI_ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: admin-password
+            - name: CONSENTI_ADMIN_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: admin-jwt-secret
+            - name: CONSENTI_DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: db-user
+                  optional: true
+            - name: CONSENTI_DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.existingSecret }}
+                  key: db-password
+                  optional: true
+          {{- if .Values.persistence.enabled }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          readinessProbe:
+            httpGet:
+              path: /robots.txt
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /robots.txt
+              port: http
+            initialDelaySeconds: 15
+            periodSeconds: 20
+      {{- if .Values.persistence.enabled }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "consenti.fullname" . }}-data
+      {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

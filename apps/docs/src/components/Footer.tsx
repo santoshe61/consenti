@@ -20,6 +20,7 @@ const UI_LINKS = [
   { href: '/docs/ui/installation/', label: 'Installation' },
   { href: '/docs/ui/profiles/', label: 'Consent Profiles' },
   { href: '/docs/ui/configuration/', label: 'Configuration' },
+  { href: '/docs/ui/advanced-configuration/', label: 'Advanced Configuration' },
   { href: '/docs/ui/events/', label: 'Events' },
   { href: '/docs/ui/methods/', label: 'API Methods' },
   { href: '/docs/ui/themes/', label: 'Themes & CSS' },
@@ -31,6 +32,7 @@ const API_LINKS = [
   { href: '/docs/api/', label: 'Overview' },
   { href: '/docs/api/installation/', label: 'Installation' },
   { href: '/docs/api/configuration/', label: 'Configuration' },
+  { href: '/docs/api/advanced-configuration/', label: 'Advanced Configuration' },
   { href: '/docs/api/routes/public/', label: 'Public Routes' },
   { href: '/docs/api/routes/admin/', label: 'Admin Routes' },
   { href: '/docs/api/dashboard/', label: 'Admin Dashboard' },
@@ -38,6 +40,7 @@ const API_LINKS = [
 ]
 
 const COMPLIANCE_LINKS = [
+  { href: '/docs/compliance/jurisdiction-coverage-map/', label: 'Jurisdiction Coverage Map' },
   { href: '/docs/compliance/gdpr/', label: 'GDPR (EU / EEA)' },
   { href: '/docs/compliance/uk-gdpr/', label: 'UK GDPR' },
   { href: '/docs/compliance/ccpa/', label: 'CCPA / US States' },
@@ -113,19 +116,25 @@ export function Footer() {
         </div>
 
         {/* Bottom bar */}
-        <div className="border-t border-slate-800 pt-6 flex flex-wrap gap-3 justify-between items-center text-xs text-slate-600">
+        <div className="border-t border-slate-800 pt-6 flex flex-wrap gap-x-4 gap-y-2 justify-between items-center text-xs text-slate-600">
           <span>
             © {new Date().getFullYear()}{' '}
             <a href="https://santosh.top" target="_blank" rel="noopener noreferrer" className="hover:text-slate-400 no-underline transition-colors">
               Santosh Ojha
             </a>
-            {' '}· Apache 2.0 License
+            {' '}·{' '}
+            <Link href="/license/" className="hover:text-slate-400 no-underline transition-colors">
+              Apache 2.0 License
+            </Link>
+          </span>
+          <span className="flex flex-wrap gap-x-4">
+            <Link href="/privacy/" className="hover:text-slate-400 no-underline transition-colors">Privacy Policy</Link>
+            <Link href="/terms/" className="hover:text-slate-400 no-underline transition-colors">Terms of Use</Link>
+            <Link href="/license/" className="hover:text-slate-400 no-underline transition-colors">License</Link>
+            <Link href="/llms-full.txt" className="hover:text-slate-400 no-underline transition-colors">LLM Context</Link>
           </span>
           <span className="text-slate-700">
             TypeScript Strict · Zero Runtime Deps · Self-hosted · Node 20+
-          </span>
-          <span className="text-slate-700">
-            GDPR · CCPA · PIPL · LGPD · Open-Source CMP
           </span>
         </div>
       </div>

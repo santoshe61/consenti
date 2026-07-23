@@ -1,31 +1,40 @@
 import type { MongoClient, Db } from 'mongodb'
-import { randomUUID } from '../../utils/crypto'
-import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS } from '../seed-data'
+import { randomUUID, randomProfileId, randomVisitorId, randomConsentId } from '../../utils/crypto'
+import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, ALL_INDEXES } from '../seed-data'
 import type {
-  StorageAdapter, StorageConfig, Profile, ProfileConfig,
+  StorageAdapter, StorageConfig, Profile, StoredProfileJson,
   CreateProfileInput, UpdateProfileInput,
-  ConsentDbRecord, ConsentHistoryEntry, ConsentValue, ConsentFilters,
+  ConsentDbRecord, ConsentSummary, ConsentHistoryEntry, ConsentValue, ConsentFilters,
   CreateConsentInput, UpdateConsentInput,
   Visitor, VisitorFilters, CreateVisitorInput, UpdateVisitorInput,
   AdminUser, CreateUserInput, UpdateUserInput,
   Role, CreateRoleInput, UpdateRoleInput,
-  Permission, AuditLog, AuditFilters, CreateAuditLogInput,
+  Permission, AuditLog, AuditLogSummary, AuditFilters, CreateAuditLogInput,
   OverviewStats, CategoryStats, TimelineEntry,
   CountryStat, GpcStats, Tenant, ApiKey, CreateApiKeyInput,
-  CreateTenantInput, UpdateTenantInput,
+  CreateTenantInput, UpdateTenantInput, TenantSettings,
+  NoticeShownRecord, CreateNoticeShownInput, PagedResult,
 } from '@consenti/types'
 
 // ── Raw document shapes ────────────────────────────────────────────────────────
 
 interface DocProfile {
   _id: string; tenant_id: string; name: string; default_locale: string
-  version: number; profile_json: ProfileConfig
+  version: number; profile_json: StoredProfileJson
   created_at: string; updated_at: string
 }
 interface DocConsent {
   _id: string; tenant_id: string; visitor_id: string; profile_id: string
-  profile_version: number; locale: string; consent_json: ConsentValue
+  locale: string; consent_json: ConsentValue
   gpc_detected: boolean; source: string; created_at: string; updated_at: string
+  age_verified?: boolean; parental_consent_token?: string; tcf_string?: string
+  signature?: string
+}
+interface DocConsentSummary {
+  _id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; gpc_detected: boolean; source: string
+  created_at: string; updated_at: string
+  age_verified?: boolean
 }
 interface DocConsentHistory {
   _id: string; tenant_id: string; consent_record_id: string; visitor_id: string
@@ -36,6 +45,10 @@ interface DocVisitor {
   country?: string; region?: string; city?: string
   ip_hash?: string; user_agent_hash?: string
   first_seen: string; last_seen: string
+}
+interface DocNoticeShown {
+  _id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; created_at: string
 }
 interface DocUser {
   _id: string; tenant_id: string; name: string; email: string
@@ -50,8 +63,13 @@ interface DocAuditLog {
   resource_type: string; resource_id?: string
   old_data?: unknown; new_data?: unknown; created_at: string
 }
+interface DocAuditLogSummary {
+  _id: string; tenant_id: string; user_id?: string; action: string
+  resource_type: string; resource_id?: string; created_at: string
+}
 interface DocApiKey {
-  _id: string; tenant_id: string; key_hash: string; name: string; is_active: boolean; created_at: string
+  _id: string; tenant_id: string; key_hash: string; name: string; is_active: boolean
+  created_by?: string; expire_by?: string; created_at: string; updated_at?: string
 }
 
 // ── Mapper helpers ─────────────────────────────────────────────────────────────
@@ -62,6 +80,10 @@ function cast<T extends object>(doc: object | null): T | null {
 
 function castArr<T extends object>(docs: object[]): T[] {
   return docs as T[]
+}
+
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 }
 
 function mapProfile(d: DocProfile): Profile {
@@ -75,9 +97,24 @@ function mapProfile(d: DocProfile): Profile {
 function mapConsent(d: DocConsent): ConsentDbRecord {
   return {
     id: d._id, tenantId: d.tenant_id, visitorId: d.visitor_id, profileId: d.profile_id,
-    profileVersion: d.profile_version, locale: d.locale, consentJson: d.consent_json,
+    locale: d.locale, consentJson: d.consent_json,
     gpcDetected: d.gpc_detected, source: d.source as ConsentDbRecord['source'],
     createdAt: d.created_at, updatedAt: d.updated_at,
+    ...(d.age_verified != null ? { ageVerified: d.age_verified } : {}),
+    ...(d.parental_consent_token != null ? { parentalConsentToken: d.parental_consent_token } : {}),
+    ...(d.tcf_string != null ? { tcfString: d.tcf_string } : {}),
+    ...(d.signature != null ? { signature: d.signature } : {}),
+  }
+}
+
+const CONSENT_SUMMARY_PROJECTION = { tenant_id: 1, visitor_id: 1, profile_id: 1, locale: 1, gpc_detected: 1, source: 1, age_verified: 1, created_at: 1, updated_at: 1 }
+
+function mapConsentSummary(d: DocConsentSummary): ConsentSummary {
+  return {
+    id: d._id, tenantId: d.tenant_id, visitorId: d.visitor_id, profileId: d.profile_id,
+    locale: d.locale, gpcDetected: d.gpc_detected, source: d.source as ConsentDbRecord['source'],
+    createdAt: d.created_at, updatedAt: d.updated_at,
+    ...(d.age_verified != null ? { ageVerified: d.age_verified } : {}),
   }
 }
 
@@ -134,6 +171,17 @@ function mapAuditLog(d: DocAuditLog): AuditLog {
   }
 }
 
+const AUDIT_SUMMARY_PROJECTION = { tenant_id: 1, user_id: 1, action: 1, resource_type: 1, resource_id: 1, created_at: 1 }
+
+function mapAuditSummary(d: DocAuditLogSummary): AuditLogSummary {
+  return {
+    id: d._id, tenantId: d.tenant_id, action: d.action, resourceType: d.resource_type,
+    ...(d.user_id != null ? { userId: d.user_id } : {}),
+    ...(d.resource_id != null ? { resourceId: d.resource_id } : {}),
+    createdAt: d.created_at,
+  }
+}
+
 // ── Adapter ────────────────────────────────────────────────────────────────────
 
 // Custom thin wrappers so MongoDB's ObjectId generics don't interfere with our string _id.
@@ -148,7 +196,7 @@ interface DocCollection {
   insertOne(doc: object): Promise<object>
   findOne(filter: object): Promise<object | null>
   findOneAndUpdate(filter: object, update: object, options?: object): Promise<object | null>
-  find(filter: object): DocCursor
+  find(filter: object, options?: { projection: object }): DocCursor
   updateOne(filter: object, update: object, options?: object): Promise<object>
   deleteOne(filter: object): Promise<object>
   deleteMany(filter: object): Promise<object>
@@ -188,15 +236,14 @@ export class MongoDBAdapter implements StorageAdapter {
   }
 
   private async createIndexes(): Promise<void> {
-    await this.col('consent_records').createIndex({ visitor_id: 1, profile_id: 1 }, { unique: true })
-    await this.col('consent_records').createIndex({ tenant_id: 1 })
-    await this.col('consent_records').createIndex({ created_at: 1 })
-    await this.col('visitors').createIndex({ visitor_id: 1 }, { unique: true })
-    await this.col('visitors').createIndex({ tenant_id: 1 })
-    await this.col('users').createIndex({ email: 1 }, { unique: true })
-    await this.col('audit_logs').createIndex({ tenant_id: 1, created_at: 1 })
-    await this.col('user_roles').createIndex({ user_id: 1 })
-    await this.col('role_permissions').createIndex({ role_id: 1 })
+    // Single source of truth: apps/api/src/storage/seed-data.ts's `ALL_INDEXES`, generated from
+    // the same TableDef list that drives CREATE INDEX for SQLite/Postgres/MySQL. createIndex() is
+    // idempotent (a no-op when an identical index already exists), and this only runs once per
+    // process at connect() time — not per request.
+    for (const { table, cols, unique } of ALL_INDEXES) {
+      const spec = Object.fromEntries(cols.map(c => [c, 1]))
+      await this.col(table).createIndex(spec, unique ? { unique: true } : undefined)
+    }
   }
 
   private async seed(): Promise<void> {
@@ -226,8 +273,9 @@ export class MongoDBAdapter implements StorageAdapter {
 
   async createProfile(data: CreateProfileInput): Promise<Profile> {
     const now = new Date().toISOString()
+    const id = randomProfileId()
     const doc: DocProfile = {
-      _id: randomUUID(), tenant_id: data.tenantId, name: data.name,
+      _id: id, tenant_id: data.tenantId, name: data.name,
       default_locale: data.defaultLocale, version: 1,
       profile_json: data.profileJson,
       created_at: now, updated_at: now,
@@ -242,8 +290,9 @@ export class MongoDBAdapter implements StorageAdapter {
     if (data.name != null) set['name'] = data.name
     if (data.defaultLocale != null) set['default_locale'] = data.defaultLocale
     if (data.profileJson != null) set['profile_json'] = data.profileJson
+    if (data.version != null) set['version'] = data.version
     const res = cast<DocProfile>(await this.col('profiles').findOneAndUpdate(
-      { _id: id }, { $set: set, $inc: { version: 1 } }, { returnDocument: 'after' },
+      { _id: id }, { $set: set }, { returnDocument: 'after' },
     ))
     if (!res) throw new Error(`Profile ${id} not found`)
     return mapProfile(res)
@@ -265,7 +314,10 @@ export class MongoDBAdapter implements StorageAdapter {
 
   async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
     const profiles = await this.getProfiles(tenantId)
-    return profiles.find(p => p.profileJson.complianceGroup === complianceGroup && p.profileJson.isActive) ?? null
+    return profiles.find(p =>
+      (p.profileJson.complianceGroup === complianceGroup || (p.profileJson as { customComplianceGroup?: string }).customComplianceGroup === complianceGroup) &&
+      p.profileJson.isActive
+    ) ?? null
   }
 
   // ── Consents ─────────────────────────────────────────────────────────────────
@@ -273,11 +325,15 @@ export class MongoDBAdapter implements StorageAdapter {
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
     const now = new Date().toISOString()
     const doc: DocConsent = {
-      _id: randomUUID(), tenant_id: data.tenantId, visitor_id: data.visitorId,
-      profile_id: data.profileId, profile_version: data.profileVersion,
+      _id: randomConsentId(), tenant_id: data.tenantId, visitor_id: data.visitorId,
+      profile_id: data.profileId,
       locale: data.locale, consent_json: data.consentJson,
       gpc_detected: data.gpcDetected, source: data.source,
       created_at: now, updated_at: now,
+      ...(data.ageVerified != null ? { age_verified: data.ageVerified } : {}),
+      ...(data.parentalConsentToken != null ? { parental_consent_token: data.parentalConsentToken } : {}),
+      ...(data.tcfString != null ? { tcf_string: data.tcfString } : {}),
+      ...(data.signature != null ? { signature: data.signature } : {}),
     }
     await this.col('consent_records').insertOne(doc)
     await this.writeHistory(doc._id, data.tenantId, data.visitorId, null, data.consentJson, 'created')
@@ -291,6 +347,7 @@ export class MongoDBAdapter implements StorageAdapter {
     const set: Record<string, unknown> = { updated_at: now, consent_json: data.consentJson }
     if (data.locale != null) set['locale'] = data.locale
     if (data.gpcDetected != null) set['gpc_detected'] = data.gpcDetected
+    if (data.signature != null) set['signature'] = data.signature
     const res = cast<DocConsent>(await this.col('consent_records').findOneAndUpdate(
       { visitor_id: visitorId }, { $set: set }, { returnDocument: 'after' },
     ))
@@ -309,14 +366,16 @@ export class MongoDBAdapter implements StorageAdapter {
     return doc ? mapConsent(doc) : null
   }
 
-  async getConsents(filters: ConsentFilters): Promise<ConsentDbRecord[]> {
+  async getConsents(filters: ConsentFilters): Promise<PagedResult<ConsentSummary>> {
     const q = this.buildConsentFilter(filters)
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const docs = castArr<DocConsent>(
-      await this.col('consent_records').find(q).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
-    )
-    return docs.map(mapConsent)
+    const [docsRaw, total] = await Promise.all([
+      this.col('consent_records').find(q, { projection: CONSENT_SUMMARY_PROJECTION })
+        .sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+      this.col('consent_records').countDocuments(q),
+    ])
+    return { items: castArr<DocConsentSummary>(docsRaw).map(mapConsentSummary), total, page, limit }
   }
 
   async *streamConsents(filters: ConsentFilters): AsyncIterable<ConsentDbRecord> {
@@ -333,6 +392,13 @@ export class MongoDBAdapter implements StorageAdapter {
       if (f.from != null) range['$gte'] = f.from
       if (f.to != null) range['$lte'] = f.to
       q['created_at'] = range
+    }
+    if (f.q) {
+      // Anchored prefix match (not a mid-string wildcard) — the only regex shape that can use a
+      // b-tree index on any dialect, matching how visitor/profile IDs and codes are actually
+      // searched (pasted or typed from the start, never a remembered middle fragment).
+      const re = { $regex: '^' + escapeRegex(f.q), $options: 'i' }
+      q['$or'] = [{ visitor_id: re }, { profile_id: re }, { locale: re }, { source: re }]
     }
     return q
   }
@@ -356,12 +422,34 @@ export class MongoDBAdapter implements StorageAdapter {
     return docs.map(mapHistory)
   }
 
+  async createNoticeShown(data: CreateNoticeShownInput): Promise<NoticeShownRecord> {
+    const doc: DocNoticeShown = {
+      _id: randomUUID(), tenant_id: data.tenantId, visitor_id: data.visitorId,
+      profile_id: data.profileId, locale: data.locale, created_at: new Date().toISOString(),
+    }
+    await this.col('notice_shown').insertOne(doc)
+    return {
+      id: doc._id, tenantId: doc.tenant_id, visitorId: doc.visitor_id,
+      profileId: doc.profile_id, locale: doc.locale, createdAt: doc.created_at,
+    }
+  }
+
+  async getNoticeShownForVisitor(visitorId: string): Promise<NoticeShownRecord[]> {
+    const docs = castArr<DocNoticeShown>(
+      await this.col('notice_shown').find({ visitor_id: visitorId }).sort({ created_at: -1 }).toArray(),
+    )
+    return docs.map(d => ({
+      id: d._id, tenantId: d.tenant_id, visitorId: d.visitor_id,
+      profileId: d.profile_id, locale: d.locale, createdAt: d.created_at,
+    }))
+  }
+
   // ── Visitors ─────────────────────────────────────────────────────────────────
 
   async createVisitor(data: CreateVisitorInput): Promise<Visitor> {
     const now = new Date().toISOString()
     const doc: DocVisitor = {
-      _id: randomUUID(), tenant_id: data.tenantId, visitor_id: data.visitorId,
+      _id: randomVisitorId(), tenant_id: data.tenantId, visitor_id: data.visitorId,
       first_seen: now, last_seen: now,
       ...(data.country != null ? { country: data.country } : {}),
       ...(data.region != null ? { region: data.region } : {}),
@@ -394,7 +482,7 @@ export class MongoDBAdapter implements StorageAdapter {
     return doc ? mapVisitor(doc) : null
   }
 
-  async getVisitors(filters: VisitorFilters): Promise<Visitor[]> {
+  async getVisitors(filters: VisitorFilters): Promise<PagedResult<Visitor>> {
     const q: Record<string, unknown> = { tenant_id: filters.tenantId }
     if (filters.from != null || filters.to != null) {
       const r: Record<string, string> = {}
@@ -402,12 +490,17 @@ export class MongoDBAdapter implements StorageAdapter {
       if (filters.to != null) r['$lte'] = filters.to
       q['first_seen'] = r
     }
+    if (filters.q) {
+      const re = { $regex: '^' + escapeRegex(filters.q), $options: 'i' }
+      q['$or'] = [{ visitor_id: re }, { country: re }]
+    }
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const docs = castArr<DocVisitor>(
-      await this.col('visitors').find(q).sort({ first_seen: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
-    )
-    return docs.map(mapVisitor)
+    const [docsRaw, total] = await Promise.all([
+      this.col('visitors').find(q).sort({ first_seen: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+      this.col('visitors').countDocuments(q),
+    ])
+    return { items: castArr<DocVisitor>(docsRaw).map(mapVisitor), total, page, limit }
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -627,14 +720,21 @@ export class MongoDBAdapter implements StorageAdapter {
     await this.col('audit_logs').insertOne(doc)
   }
 
-  async getLogs(filters: AuditFilters): Promise<AuditLog[]> {
+  async getLogs(filters: AuditFilters): Promise<PagedResult<AuditLogSummary>> {
     const q = this.buildAuditFilter(filters)
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const docs = castArr<DocAuditLog>(
-      await this.col('audit_logs').find(q).sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
-    )
-    return docs.map(mapAuditLog)
+    const [docsRaw, total] = await Promise.all([
+      this.col('audit_logs').find(q, { projection: AUDIT_SUMMARY_PROJECTION })
+        .sort({ created_at: -1 }).skip((page - 1) * limit).limit(limit).toArray(),
+      this.col('audit_logs').countDocuments(q),
+    ])
+    return { items: castArr<DocAuditLogSummary>(docsRaw).map(mapAuditSummary), total, page, limit }
+  }
+
+  async getAuditLogById(id: string): Promise<AuditLog | null> {
+    const doc = cast<DocAuditLog>(await this.col('audit_logs').findOne({ _id: id }))
+    return doc ? mapAuditLog(doc) : null
   }
 
   async *streamAuditLogs(filters: AuditFilters): AsyncIterable<AuditLog> {
@@ -652,6 +752,10 @@ export class MongoDBAdapter implements StorageAdapter {
       if (f.from != null) r['$gte'] = f.from
       if (f.to != null) r['$lte'] = f.to
       q['created_at'] = r
+    }
+    if (f.q) {
+      const re = { $regex: '^' + escapeRegex(f.q), $options: 'i' }
+      q['$or'] = [{ action: re }, { resource_type: re }, { resource_id: re }, { user_id: re }]
     }
     return q
   }
@@ -689,28 +793,58 @@ export class MongoDBAdapter implements StorageAdapter {
 
   // ── API Keys ──────────────────────────────────────────────────────────────────
 
+  private mapApiKey(d: DocApiKey): ApiKey {
+    return {
+      id: d._id, tenantId: d.tenant_id, keyHash: d.key_hash, name: d.name, isActive: d.is_active,
+      ...(d.created_by !== undefined ? { createdBy: d.created_by } : {}),
+      ...(d.expire_by !== undefined ? { expireBy: d.expire_by } : {}),
+      createdAt: d.created_at,
+      ...(d.updated_at !== undefined ? { updatedAt: d.updated_at } : {}),
+    }
+  }
+
   async createApiKey(data: CreateApiKeyInput): Promise<ApiKey> {
+    const now = new Date().toISOString()
     const doc: DocApiKey = {
       _id: randomUUID(), tenant_id: data.tenantId, key_hash: data.keyHash,
-      name: data.name, is_active: true, created_at: new Date().toISOString(),
+      name: data.name, is_active: true,
+      ...(data.createdBy !== undefined ? { created_by: data.createdBy } : {}),
+      ...(data.expireBy !== undefined ? { expire_by: data.expireBy } : {}),
+      created_at: now, updated_at: now,
     }
     await this.col('api_keys').insertOne(doc)
-    return { id: doc._id, tenantId: doc.tenant_id, keyHash: doc.key_hash, name: doc.name, isActive: doc.is_active, createdAt: doc.created_at }
+    return this.mapApiKey(doc)
   }
 
   async getApiKeyByHash(keyHash: string): Promise<ApiKey | null> {
     const doc = cast<DocApiKey>(await this.col('api_keys').findOne({ key_hash: keyHash, is_active: true }))
-    if (!doc) return null
-    return { id: doc._id, tenantId: doc.tenant_id, keyHash: doc.key_hash, name: doc.name, isActive: doc.is_active, createdAt: doc.created_at }
+    return doc ? this.mapApiKey(doc) : null
   }
 
   async revokeApiKey(id: string): Promise<void> {
-    await this.col('api_keys').updateOne({ _id: id }, { $set: { is_active: false } })
+    await this.col('api_keys').updateOne({ _id: id }, { $set: { is_active: false, updated_at: new Date().toISOString() } })
+  }
+
+  async reactivateApiKey(id: string): Promise<void> {
+    const doc = cast<DocApiKey>(await this.col('api_keys').findOne({ _id: id }))
+    if (!doc) return
+    const expired = doc.expire_by && new Date(doc.expire_by) <= new Date()
+    await this.col('api_keys').updateOne(
+      { _id: id },
+      {
+        $set: { is_active: true, updated_at: new Date().toISOString() },
+        ...(expired ? { $unset: { expire_by: '' } } : {}),
+      },
+    )
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    await this.col('api_keys').deleteOne({ _id: id })
   }
 
   async getApiKeys(tenantId: string): Promise<ApiKey[]> {
     const docs = castArr<DocApiKey>(await this.col('api_keys').find({ tenant_id: tenantId }).sort({ created_at: -1 }).toArray())
-    return docs.map(d => ({ id: d._id, tenantId: d.tenant_id, keyHash: d.key_hash, name: d.name, isActive: d.is_active, createdAt: d.created_at }))
+    return docs.map(d => this.mapApiKey(d))
   }
 
   async createTenant(data: CreateTenantInput): Promise<Tenant> {
@@ -738,6 +872,26 @@ export class MongoDBAdapter implements StorageAdapter {
     await this.col('tenants').deleteOne({ _id: id })
   }
 
+  async getSettings(tenantId: string): Promise<TenantSettings> {
+    const doc = cast<{ _id: string; allowed_origins?: string[]; admin_allowed_origins?: string[]; setup_completed?: boolean }>(
+      await this.col('tenant_settings').findOne({ _id: tenantId })
+    )
+    return {
+      ...(doc?.allowed_origins !== undefined ? { allowedOrigins: doc.allowed_origins } : {}),
+      ...(doc?.admin_allowed_origins !== undefined ? { adminAllowedOrigins: doc.admin_allowed_origins } : {}),
+      ...(doc?.setup_completed !== undefined ? { setupCompleted: doc.setup_completed } : {}),
+    }
+  }
+
+  async updateSettings(tenantId: string, data: Partial<TenantSettings>): Promise<TenantSettings> {
+    const update: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (data.allowedOrigins !== undefined) update['allowed_origins'] = data.allowedOrigins
+    if (data.adminAllowedOrigins !== undefined) update['admin_allowed_origins'] = data.adminAllowedOrigins
+    if (data.setupCompleted !== undefined) update['setup_completed'] = data.setupCompleted
+    await this.col('tenant_settings').updateOne({ _id: tenantId }, { $set: update }, { upsert: true })
+    return this.getSettings(tenantId)
+  }
+
   async purgeExpiredConsents(olderThanDays: number): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
     const docs = castArr<{ visitor_id: string }>(
@@ -750,13 +904,21 @@ export class MongoDBAdapter implements StorageAdapter {
     return docs.length
   }
 
+  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
+    const filter = { created_at: { $lt: cutoff } }
+    const count = await this.col('audit_logs').countDocuments(filter)
+    await this.col('audit_logs').deleteMany(filter)
+    return count
+  }
+
   // Template methods — not yet implemented for MongoDB adapter
-  async createCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async updateCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async deleteCookieTemplate(): Promise<void> { throw new Error('Not implemented') }
-  async getCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async getCookieTemplates(): Promise<never> { throw new Error('Not implemented') }
-  async copyCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async createConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async updateConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async deleteConsentTemplate(): Promise<void> { throw new Error('Not implemented') }
+  async getConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async getConsentTemplates(): Promise<never> { throw new Error('Not implemented') }
+  async copyConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
   async createUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async updateUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async deleteUITemplate(): Promise<void> { throw new Error('Not implemented') }
@@ -766,7 +928,7 @@ export class MongoDBAdapter implements StorageAdapter {
 
   // Profile summary / analytics — not yet implemented for MongoDB adapter
   async listProfilesSummary(): Promise<never[]> { return [] }
-  async findProfilesUsingCookieTemplate(): Promise<never[]> { return [] }
+  async findProfilesUsingConsentTemplate(): Promise<never[]> { return [] }
   async findProfilesUsingUITemplate(): Promise<never[]> { return [] }
   async getOptInStats(): Promise<never> { throw new Error('Not implemented') }
 }

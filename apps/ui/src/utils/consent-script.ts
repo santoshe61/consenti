@@ -27,7 +27,7 @@
 
 import type { ConsentiSetup } from '../core/consenti-setup'
 import { isClient } from './ssr'
-import { logger } from './console'
+import { injectScript, revokeScript } from './script-injector'
 
 /** Options for constructing a {@link ConsentScript} instance. */
 export interface ConsentScriptOptions {
@@ -102,35 +102,19 @@ export class ConsentScript {
   }
 
   private inject(): void {
-    const script = document.createElement('script')
-    if (this.options.src) {
-      // Reject javascript: URLs — only allow http(s)/protocol-relative/relative paths.
-      const src = this.options.src.trim()
-      if (/^javascript:/i.test(src)) {
-        logger.warn('ConsentScript: rejected src with javascript: protocol')
-        return
-      }
-      script.src = src
-    }
-    // unsafeInnerHTML is an intentional escape hatch for inline scripts (e.g. GTM snippet).
-    // The content is the caller's responsibility — only pass trusted, static strings.
-    if (this.options.unsafeInnerHTML) script.innerHTML = this.options.unsafeInnerHTML
-    for (const [key, value] of Object.entries(this.options.attributes ?? {})) {
-      // Strip inline event handler attributes (on*) — they bypass CSP and are never
-      // a legitimate need here since the caller can use onLoad/onRevoke callbacks.
-      if (/^on/i.test(key)) {
-        logger.warn(`ConsentScript: rejected attribute "${key}" (inline event handlers are not allowed)`)
-        continue
-      }
-      script.setAttribute(key, value)
-    }
-    document.head.appendChild(script)
+    const script = injectScript({
+      ...(this.options.src !== undefined ? { src: this.options.src } : {}),
+      ...(this.options.unsafeInnerHTML !== undefined ? { unsafeInnerHTML: this.options.unsafeInnerHTML } : {}),
+      ...(this.options.attributes !== undefined ? { attributes: this.options.attributes } : {}),
+      warnPrefix: 'ConsentScript',
+    })
+    if (!script) return
     this.scriptEl = script
     this.options.onLoad?.()
   }
 
   private revoke(): void {
-    this.scriptEl?.remove()
+    revokeScript(this.scriptEl)
     this.scriptEl = null
     this.options.onRevoke?.()
   }

@@ -1,18 +1,20 @@
 import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
-import { randomUUID } from '../../utils/crypto'
+import { randomUUID, randomProfileId, randomVisitorId, randomConsentId } from '../../utils/crypto'
 import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_MYSQL } from '../seed-data'
+import { likePrefix } from '../../utils/sql-search'
 import type {
-  StorageAdapter, StorageConfig, Profile, ProfileConfig,
+  StorageAdapter, StorageConfig, Profile, StoredProfileJson,
   CreateProfileInput, UpdateProfileInput,
-  ConsentDbRecord, ConsentHistoryEntry, ConsentValue, ConsentFilters,
+  ConsentDbRecord, ConsentSummary, ConsentHistoryEntry, ConsentValue, ConsentFilters,
   CreateConsentInput, UpdateConsentInput,
   Visitor, VisitorFilters, CreateVisitorInput, UpdateVisitorInput,
   AdminUser, CreateUserInput, UpdateUserInput,
   Role, CreateRoleInput, UpdateRoleInput,
-  Permission, AuditLog, AuditFilters, CreateAuditLogInput,
+  Permission, AuditLog, AuditLogSummary, AuditFilters, CreateAuditLogInput,
   OverviewStats, CategoryStats, TimelineEntry,
   CountryStat, GpcStats, Tenant, ApiKey, CreateApiKeyInput,
-  CreateTenantInput, UpdateTenantInput,
+  CreateTenantInput, UpdateTenantInput, TenantSettings,
+  NoticeShownRecord, CreateNoticeShownInput, PagedResult,
 } from '@consenti/types'
 
 // ── Raw row shapes ─────────────────────────────────────────────────────────────
@@ -24,9 +26,15 @@ interface RowProfile extends RowDataPacket {
 }
 interface RowConsent extends RowDataPacket {
   id: string; tenant_id: string; visitor_id: string; profile_id: string
-  profile_version: number; locale: string; consent_json: string
+  locale: string; consent_json: string
   gpc_detected: number; source: string; created_at: string; updated_at: string
   age_verified?: number; parental_consent_token?: string | null; tcf_string?: string | null
+  signature?: string | null
+}
+interface RowConsentSummary extends RowDataPacket {
+  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; gpc_detected: number; source: string
+  age_verified?: number; created_at: string; updated_at: string
 }
 interface RowConsentHistory extends RowDataPacket {
   id: string; tenant_id: string; consent_record_id: string; visitor_id: string
@@ -37,6 +45,10 @@ interface RowVisitor extends RowDataPacket {
   country: string | null; region: string | null; city: string | null
   ip_hash: string | null; user_agent_hash: string | null
   first_seen: string; last_seen: string
+}
+interface RowNoticeShown extends RowDataPacket {
+  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; created_at: string
 }
 interface RowUser extends RowDataPacket {
   id: string; tenant_id: string; name: string; email: string
@@ -54,15 +66,21 @@ interface RowAuditLog extends RowDataPacket {
   resource_type: string; resource_id: string | null
   old_data: string | null; new_data: string | null; created_at: string
 }
+interface RowAuditLogSummary extends RowDataPacket {
+  id: string; tenant_id: string; user_id: string | null; action: string
+  resource_type: string; resource_id: string | null; created_at: string
+}
 interface RowCount extends RowDataPacket { total: number }
 interface RowStatus extends RowDataPacket { status: string; count: number }
 interface RowDateCount extends RowDataPacket { date: string; count: number }
 interface RowCookieStatus extends RowDataPacket { cookie_id: string; status: string; count: number }
 interface RowCountry extends RowDataPacket { country: string; count: number }
 interface RowApiKey extends RowDataPacket {
-  id: string; tenant_id: string; key_hash: string; name: string; is_active: number; created_at: string
+  id: string; tenant_id: string; key_hash: string; name: string; is_active: number
+  created_by: string | null; expire_by: string | null; created_at: string; updated_at: string | null
 }
 interface RowTenant extends RowDataPacket { id: string; name: string; slug: string; created_at: string; updated_at: string }
+interface RowTenantSettings extends RowDataPacket { allowed_origins_json: string; admin_allowed_origins_json: string; setup_completed: number }
 
 // ── Mappers ────────────────────────────────────────────────────────────────────
 
@@ -70,7 +88,7 @@ function mapProfile(r: RowProfile): Profile {
   return {
     id: r.id, tenantId: r.tenant_id, name: r.name,
     defaultLocale: r.default_locale, version: r.version,
-    profileJson: JSON.parse(r.profile_json) as ProfileConfig,
+    profileJson: JSON.parse(r.profile_json) as StoredProfileJson,
     createdAt: r.created_at, updatedAt: r.updated_at,
   }
 }
@@ -78,13 +96,25 @@ function mapProfile(r: RowProfile): Profile {
 function mapConsent(r: RowConsent): ConsentDbRecord {
   return {
     id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id,
-    profileVersion: r.profile_version, locale: r.locale,
+    locale: r.locale,
     consentJson: JSON.parse(r.consent_json) as ConsentValue,
     gpcDetected: r.gpc_detected === 1, source: r.source as ConsentDbRecord['source'],
     createdAt: r.created_at, updatedAt: r.updated_at,
     ...(r.age_verified != null ? { ageVerified: r.age_verified === 1 } : {}),
     ...(r.parental_consent_token != null ? { parentalConsentToken: r.parental_consent_token } : {}),
     ...(r.tcf_string != null ? { tcfString: r.tcf_string } : {}),
+    ...(r.signature != null ? { signature: r.signature } : {}),
+  }
+}
+
+const CONSENT_SUMMARY_COLS = 'id, tenant_id, visitor_id, profile_id, locale, gpc_detected, source, age_verified, created_at, updated_at'
+
+function mapConsentSummary(r: RowConsentSummary): ConsentSummary {
+  return {
+    id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id,
+    locale: r.locale, gpcDetected: r.gpc_detected === 1, source: r.source as ConsentDbRecord['source'],
+    createdAt: r.created_at, updatedAt: r.updated_at,
+    ...(r.age_verified != null ? { ageVerified: r.age_verified === 1 } : {}),
   }
 }
 
@@ -145,6 +175,17 @@ function mapAuditLog(r: RowAuditLog): AuditLog {
   }
 }
 
+const AUDIT_SUMMARY_COLS = 'id, tenant_id, user_id, action, resource_type, resource_id, created_at'
+
+function mapAuditSummary(r: RowAuditLogSummary): AuditLogSummary {
+  return {
+    id: r.id, tenantId: r.tenant_id, action: r.action, resourceType: r.resource_type,
+    ...(r.user_id != null ? { userId: r.user_id } : {}),
+    ...(r.resource_id != null ? { resourceId: r.resource_id } : {}),
+    createdAt: r.created_at,
+  }
+}
+
 // ── Adapter ────────────────────────────────────────────────────────────────────
 
 export class MySQLAdapter implements StorageAdapter {
@@ -153,29 +194,36 @@ export class MySQLAdapter implements StorageAdapter {
   constructor(private config: StorageConfig) { }
 
   private async q<T extends RowDataPacket>(sql: string, params: (string | number | boolean | null)[] = []): Promise<T[]> {
-    const [rows] = await this.pool.query<T[]>(sql, params)
+    const timeout = this.config.statementTimeoutMs
+    const [rows] = timeout
+      ? await this.pool.query<T[]>({ sql, timeout }, params)
+      : await this.pool.query<T[]>(sql, params)
     return rows
   }
 
   private async exec(sql: string, params: (string | number | boolean | null)[] = []): Promise<ResultSetHeader> {
-    const [result] = await this.pool.query<ResultSetHeader>(sql, params)
+    const timeout = this.config.statementTimeoutMs
+    const [result] = timeout
+      ? await this.pool.query<ResultSetHeader>({ sql, timeout }, params)
+      : await this.pool.query<ResultSetHeader>(sql, params)
     return result
   }
 
   async connect(): Promise<void> {
     const mysql = (await import('mysql2/promise')) as { createPool: typeof import('mysql2/promise').createPool }
     const cfg = this.config
-    if (cfg.uri) {
-      this.pool = mysql.createPool(cfg.uri)
-    } else {
-      this.pool = mysql.createPool({
+    // Bounded by default (10, matching mysql2's own default — made explicit/tunable). mysql2 has
+    // no pool-wide statement timeout; `statementTimeoutMs` is instead applied per-query in q()/exec().
+    this.pool = mysql.createPool({
+      ...(cfg.uri ? { uri: cfg.uri } : {
         host: cfg.host ?? 'localhost',
         port: cfg.port ?? 3306,
         user: cfg.user ?? 'root',
         password: cfg.password ?? '',
         database: cfg.database ?? 'consenti',
-      })
-    }
+      }),
+      connectionLimit: cfg.poolMax ?? 10,
+    })
     await this.migrate()
   }
 
@@ -184,6 +232,10 @@ export class MySQLAdapter implements StorageAdapter {
   }
 
   async migrate(): Promise<void> {
+    // No installations predate this schema, so a fresh connect always creates the full current
+    // table set in one pass — no incremental/versioned steps needed. `schema_version` is kept
+    // as the hook for whenever a *real* future migration is needed: add `if (version < N)`
+    // blocks below the initial creation, the same shape as the removed historical ones.
     const conn: PoolConnection = await this.pool.getConnection()
     try {
       const [tables] = await conn.query<RowDataPacket[]>('SHOW TABLES LIKE ?', ['schema_version'])
@@ -192,25 +244,7 @@ export class MySQLAdapter implements StorageAdapter {
           await conn.query(stmt)
         }
         await this.seed(conn)
-        await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (2)')
-        return
-      }
-      const [vrows] = await conn.query<RowDataPacket[]>('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1')
-      const version = (vrows[0] as { version?: number } | undefined)?.version ?? 0
-      if (version < 2) {
-        const alters = [
-          'ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS age_verified TINYINT(1) NOT NULL DEFAULT 0',
-          'ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS parental_consent_token TEXT',
-          'ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS tcf_string TEXT',
-          'ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT',
-          'ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled TINYINT(1) NOT NULL DEFAULT 0',
-        ]
-        for (const stmt of alters) await conn.query(stmt)
-        await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (2)')
-      }
-      if (version < 3) {
-        await conn.query('ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS tenant_id VARCHAR(36) NOT NULL DEFAULT \'default\'')
-        await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (3)')
+        await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (1)')
       }
     } finally {
       conn.release()
@@ -233,10 +267,10 @@ export class MySQLAdapter implements StorageAdapter {
   // ── Profiles ─────────────────────────────────────────────────────────────────
 
   async createProfile(data: CreateProfileInput): Promise<Profile> {
-    const id = randomUUID()
+    const id = randomProfileId()
     await this.exec(
-      'INSERT INTO profiles (id, tenant_id, name, default_locale, profile_json) VALUES (?,?,?,?,?)',
-      [id, data.tenantId, data.name, data.defaultLocale, JSON.stringify(data.profileJson)],
+      'INSERT INTO profiles (id, tenant_id, name, default_locale, version, profile_json) VALUES (?,?,?,?,?,?)',
+      [id, data.tenantId, data.name, data.defaultLocale, 1, JSON.stringify(data.profileJson)],
     )
     const rows = await this.q<RowProfile>('SELECT * FROM profiles WHERE id=?', [id])
     const row = rows[0]
@@ -245,13 +279,16 @@ export class MySQLAdapter implements StorageAdapter {
   }
 
   async updateProfile(id: string, data: UpdateProfileInput): Promise<Profile> {
-    const sets: string[] = ['version = version + 1']
+    const sets: string[] = []
     const vals: (string | number | boolean | null)[] = []
     if (data.name != null) { sets.push('name=?'); vals.push(data.name) }
     if (data.defaultLocale != null) { sets.push('default_locale=?'); vals.push(data.defaultLocale) }
     if (data.profileJson != null) { sets.push('profile_json=?'); vals.push(JSON.stringify(data.profileJson)) }
-    vals.push(id)
-    await this.exec(`UPDATE profiles SET ${sets.join(',')} WHERE id=?`, vals)
+    if (data.version != null) { sets.push('version=?'); vals.push(data.version) }
+    if (sets.length > 0) {
+      vals.push(id)
+      await this.exec(`UPDATE profiles SET ${sets.join(',')} WHERE id=?`, vals)
+    }
     const rows = await this.q<RowProfile>('SELECT * FROM profiles WHERE id=?', [id])
     const row = rows[0]
     if (!row) throw new Error(`Profile ${id} not found`)
@@ -274,17 +311,21 @@ export class MySQLAdapter implements StorageAdapter {
 
   async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
     const profiles = await this.getProfiles(tenantId)
-    return profiles.find(p => p.profileJson.complianceGroup === complianceGroup && p.profileJson.isActive) ?? null
+    return profiles.find(p =>
+      (p.profileJson.complianceGroup === complianceGroup || (p.profileJson as { customComplianceGroup?: string }).customComplianceGroup === complianceGroup) &&
+      p.profileJson.isActive
+    ) ?? null
   }
 
   // ── Consents ─────────────────────────────────────────────────────────────────
 
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
-    const id = randomUUID()
+    const id = randomConsentId()
     await this.exec(
-      'INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, profile_version, locale, consent_json, gpc_detected, source) VALUES (?,?,?,?,?,?,?,?,?)',
-      [id, data.tenantId, data.visitorId, data.profileId, data.profileVersion, data.locale,
-        JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source],
+      'INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, signature) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      [id, data.tenantId, data.visitorId, data.profileId, data.locale,
+        JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source,
+        data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.signature ?? null],
     )
     const rows = await this.q<RowConsent>('SELECT * FROM consent_records WHERE id=?', [id])
     const row = rows[0]
@@ -300,6 +341,7 @@ export class MySQLAdapter implements StorageAdapter {
     const vals: (string | number | boolean | null)[] = [JSON.stringify(data.consentJson)]
     if (data.locale != null) { sets.push('locale=?'); vals.push(data.locale) }
     if (data.gpcDetected != null) { sets.push('gpc_detected=?'); vals.push(data.gpcDetected ? 1 : 0) }
+    if (data.signature != null) { sets.push('signature=?'); vals.push(data.signature) }
     vals.push(visitorId)
     await this.exec(`UPDATE consent_records SET ${sets.join(',')} WHERE visitor_id=?`, vals)
     const rows = await this.q<RowConsent>('SELECT * FROM consent_records WHERE visitor_id=?', [visitorId])
@@ -319,27 +361,38 @@ export class MySQLAdapter implements StorageAdapter {
     return rows[0] ? mapConsent(rows[0]) : null
   }
 
-  async getConsents(filters: ConsentFilters): Promise<ConsentDbRecord[]> {
-    const { sql, params } = this.buildConsentQuery(filters)
+  async getConsents(filters: ConsentFilters): Promise<PagedResult<ConsentSummary>> {
+    const { where, params } = this.buildConsentWhere(filters)
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const rows = await this.q<RowConsent>(`${sql} ORDER BY created_at DESC LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit])
-    return rows.map(mapConsent)
+    const [rows, countRows] = await Promise.all([
+      this.q<RowConsentSummary>(
+        `SELECT ${CONSENT_SUMMARY_COLS} ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limit, (page - 1) * limit],
+      ),
+      this.q<RowCount>(`SELECT COUNT(*) AS total ${where}`, params),
+    ])
+    return { items: rows.map(mapConsentSummary), total: countRows[0]?.total ?? 0, page, limit }
   }
 
   async *streamConsents(filters: ConsentFilters): AsyncIterable<ConsentDbRecord> {
-    const { sql, params } = this.buildConsentQuery(filters)
-    const rows = await this.q<RowConsent>(`${sql} ORDER BY created_at ASC`, params)
+    const { where, params } = this.buildConsentWhere(filters)
+    const rows = await this.q<RowConsent>(`SELECT * ${where} ORDER BY created_at ASC`, params)
     for (const r of rows) yield mapConsent(r)
   }
 
-  private buildConsentQuery(f: ConsentFilters): { sql: string; params: (string | number | boolean | null)[] } {
-    let sql = 'SELECT * FROM consent_records WHERE tenant_id=?'
+  private buildConsentWhere(f: ConsentFilters): { where: string; params: (string | number | boolean | null)[] } {
+    let where = 'FROM consent_records WHERE tenant_id=?'
     const params: (string | number | boolean | null)[] = [f.tenantId]
-    if (f.profileId != null) { sql += ' AND profile_id=?'; params.push(f.profileId) }
-    if (f.from != null) { sql += ' AND created_at>=?'; params.push(f.from) }
-    if (f.to != null) { sql += ' AND created_at<=?'; params.push(f.to) }
-    return { sql, params }
+    if (f.profileId != null) { where += ' AND profile_id=?'; params.push(f.profileId) }
+    if (f.from != null) { where += ' AND created_at>=?'; params.push(f.from) }
+    if (f.to != null) { where += ' AND created_at<=?'; params.push(f.to) }
+    if (f.q) {
+      where += " AND (visitor_id LIKE ? OR profile_id LIKE ? OR locale LIKE ? OR source LIKE ?) ESCAPE '\\\\'"
+      const like = likePrefix(f.q)
+      params.push(like, like, like, like)
+    }
+    return { where, params }
   }
 
   private async writeHistory(
@@ -358,10 +411,29 @@ export class MySQLAdapter implements StorageAdapter {
     return rows.map(mapHistory)
   }
 
+  async createNoticeShown(data: CreateNoticeShownInput): Promise<NoticeShownRecord> {
+    const id = randomUUID()
+    await this.exec(
+      'INSERT INTO notice_shown (id, tenant_id, visitor_id, profile_id, locale) VALUES (?,?,?,?,?)',
+      [id, data.tenantId, data.visitorId, data.profileId, data.locale],
+    )
+    const rows = await this.q<RowNoticeShown>('SELECT * FROM notice_shown WHERE id=?', [id])
+    const r = rows[0]!
+    return { id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id, locale: r.locale, createdAt: r.created_at }
+  }
+
+  async getNoticeShownForVisitor(visitorId: string): Promise<NoticeShownRecord[]> {
+    const rows = await this.q<RowNoticeShown>('SELECT * FROM notice_shown WHERE visitor_id=? ORDER BY created_at DESC', [visitorId])
+    return rows.map(r => ({
+      id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id,
+      profileId: r.profile_id, locale: r.locale, createdAt: r.created_at,
+    }))
+  }
+
   // ── Visitors ─────────────────────────────────────────────────────────────────
 
   async createVisitor(data: CreateVisitorInput): Promise<Visitor> {
-    const id = randomUUID()
+    const id = randomVisitorId()
     await this.exec(
       'INSERT INTO visitors (id, tenant_id, visitor_id, country, region, city, ip_hash, user_agent_hash) VALUES (?,?,?,?,?,?,?,?)',
       [id, data.tenantId, data.visitorId,
@@ -397,15 +469,23 @@ export class MySQLAdapter implements StorageAdapter {
     return rows[0] ? mapVisitor(rows[0]) : null
   }
 
-  async getVisitors(filters: VisitorFilters): Promise<Visitor[]> {
-    let sql = 'SELECT * FROM visitors WHERE tenant_id=?'
+  async getVisitors(filters: VisitorFilters): Promise<PagedResult<Visitor>> {
+    let where = 'FROM visitors WHERE tenant_id=?'
     const params: (string | number | boolean | null)[] = [filters.tenantId]
-    if (filters.from != null) { sql += ' AND first_seen>=?'; params.push(filters.from) }
-    if (filters.to != null) { sql += ' AND first_seen<=?'; params.push(filters.to) }
+    if (filters.from != null) { where += ' AND first_seen>=?'; params.push(filters.from) }
+    if (filters.to != null) { where += ' AND first_seen<=?'; params.push(filters.to) }
+    if (filters.q) {
+      where += " AND (visitor_id LIKE ? OR country LIKE ?) ESCAPE '\\\\'"
+      const like = likePrefix(filters.q)
+      params.push(like, like)
+    }
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const rows = await this.q<RowVisitor>(`${sql} ORDER BY first_seen DESC LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit])
-    return rows.map(mapVisitor)
+    const [rows, countRows] = await Promise.all([
+      this.q<RowVisitor>(`SELECT * ${where} ORDER BY first_seen DESC LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit]),
+      this.q<RowCount>(`SELECT COUNT(*) AS total ${where}`, params),
+    ])
+    return { items: rows.map(mapVisitor), total: countRows[0]?.total ?? 0, page, limit }
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -629,28 +709,44 @@ export class MySQLAdapter implements StorageAdapter {
     )
   }
 
-  async getLogs(filters: AuditFilters): Promise<AuditLog[]> {
-    const { sql, params } = this.buildAuditQuery(filters)
+  async getLogs(filters: AuditFilters): Promise<PagedResult<AuditLogSummary>> {
+    const { where, params } = this.buildAuditWhere(filters)
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const rows = await this.q<RowAuditLog>(`${sql} ORDER BY created_at DESC LIMIT ? OFFSET ?`, [...params, limit, (page - 1) * limit])
-    return rows.map(mapAuditLog)
+    const [rows, countRows] = await Promise.all([
+      this.q<RowAuditLogSummary>(
+        `SELECT ${AUDIT_SUMMARY_COLS} ${where} ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+        [...params, limit, (page - 1) * limit],
+      ),
+      this.q<RowCount>(`SELECT COUNT(*) AS total ${where}`, params),
+    ])
+    return { items: rows.map(mapAuditSummary), total: countRows[0]?.total ?? 0, page, limit }
+  }
+
+  async getAuditLogById(id: string): Promise<AuditLog | null> {
+    const rows = await this.q<RowAuditLog>('SELECT * FROM audit_logs WHERE id=?', [id])
+    return rows[0] ? mapAuditLog(rows[0]) : null
   }
 
   async *streamAuditLogs(filters: AuditFilters): AsyncIterable<AuditLog> {
-    const { sql, params } = this.buildAuditQuery(filters)
-    const rows = await this.q<RowAuditLog>(`${sql} ORDER BY created_at ASC`, params)
+    const { where, params } = this.buildAuditWhere(filters)
+    const rows = await this.q<RowAuditLog>(`SELECT * ${where} ORDER BY created_at ASC`, params)
     for (const r of rows) yield mapAuditLog(r)
   }
 
-  private buildAuditQuery(f: AuditFilters): { sql: string; params: (string | number | boolean | null)[] } {
-    let sql = 'SELECT * FROM audit_logs WHERE tenant_id=?'
+  private buildAuditWhere(f: AuditFilters): { where: string; params: (string | number | boolean | null)[] } {
+    let where = 'FROM audit_logs WHERE tenant_id=?'
     const params: (string | number | boolean | null)[] = [f.tenantId]
-    if (f.action != null) { sql += ' AND action=?'; params.push(f.action) }
-    if (f.resourceType != null) { sql += ' AND resource_type=?'; params.push(f.resourceType) }
-    if (f.from != null) { sql += ' AND created_at>=?'; params.push(f.from) }
-    if (f.to != null) { sql += ' AND created_at<=?'; params.push(f.to) }
-    return { sql, params }
+    if (f.action != null) { where += ' AND action=?'; params.push(f.action) }
+    if (f.resourceType != null) { where += ' AND resource_type=?'; params.push(f.resourceType) }
+    if (f.from != null) { where += ' AND created_at>=?'; params.push(f.from) }
+    if (f.to != null) { where += ' AND created_at<=?'; params.push(f.to) }
+    if (f.q) {
+      where += " AND (action LIKE ? OR resource_type LIKE ? OR resource_id LIKE ? OR user_id LIKE ?) ESCAPE '\\\\'"
+      const like = likePrefix(f.q)
+      params.push(like, like, like, like)
+    }
+    return { where, params }
   }
 
   // ── Stats extensions ───────────────────────────────────────────────────────────
@@ -683,32 +779,52 @@ export class MySQLAdapter implements StorageAdapter {
 
   // ── API Keys ──────────────────────────────────────────────────────────────────
 
+  private mapApiKey(r: RowApiKey): ApiKey {
+    return {
+      id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active === 1,
+      ...(r.created_by !== null ? { createdBy: r.created_by } : {}),
+      ...(r.expire_by !== null ? { expireBy: r.expire_by } : {}),
+      createdAt: r.created_at,
+      ...(r.updated_at !== null ? { updatedAt: r.updated_at } : {}),
+    }
+  }
+
   async createApiKey(data: CreateApiKeyInput): Promise<ApiKey> {
     const id = randomUUID()
     await this.exec(
-      'INSERT INTO api_keys (id, tenant_id, key_hash, name) VALUES (?,?,?,?)',
-      [id, data.tenantId, data.keyHash, data.name],
+      'INSERT INTO api_keys (id, tenant_id, key_hash, name, created_by, expire_by) VALUES (?,?,?,?,?,?)',
+      [id, data.tenantId, data.keyHash, data.name, data.createdBy ?? null, data.expireBy ?? null],
     )
     const rows = await this.q<RowApiKey>('SELECT * FROM api_keys WHERE id=?', [id])
     const r = rows[0]
     if (!r) throw new Error('Failed to create API key')
-    return { id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active === 1, createdAt: r.created_at }
+    return this.mapApiKey(r)
   }
 
   async getApiKeyByHash(keyHash: string): Promise<ApiKey | null> {
     const rows = await this.q<RowApiKey>('SELECT * FROM api_keys WHERE key_hash=? AND is_active=1', [keyHash])
     const r = rows[0]
-    if (!r) return null
-    return { id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active === 1, createdAt: r.created_at }
+    return r ? this.mapApiKey(r) : null
   }
 
   async revokeApiKey(id: string): Promise<void> {
-    await this.exec('UPDATE api_keys SET is_active=0 WHERE id=?', [id])
+    await this.exec('UPDATE api_keys SET is_active=0, updated_at=NOW() WHERE id=?', [id])
+  }
+
+  async reactivateApiKey(id: string): Promise<void> {
+    await this.exec(
+      'UPDATE api_keys SET is_active=1, updated_at=NOW(), expire_by=CASE WHEN expire_by <= NOW() THEN NULL ELSE expire_by END WHERE id=?',
+      [id],
+    )
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    await this.exec('DELETE FROM api_keys WHERE id=?', [id])
   }
 
   async getApiKeys(tenantId: string): Promise<ApiKey[]> {
     const rows = await this.q<RowApiKey>('SELECT * FROM api_keys WHERE tenant_id=? ORDER BY created_at DESC', [tenantId])
-    return rows.map(r => ({ id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active === 1, createdAt: r.created_at }))
+    return rows.map(r => this.mapApiKey(r))
   }
 
   async createTenant(data: CreateTenantInput): Promise<Tenant> {
@@ -735,6 +851,31 @@ export class MySQLAdapter implements StorageAdapter {
     return { id: r.id, name: r.name, slug: r.slug, createdAt: r.created_at, updatedAt: r.updated_at }
   }
 
+  async getSettings(tenantId: string): Promise<TenantSettings> {
+    const rows = await this.q<RowTenantSettings>(
+      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed FROM tenant_settings WHERE tenant_id=?', [tenantId],
+    )
+    const r = rows[0]
+    return r
+      ? {
+        allowedOrigins: JSON.parse(r.allowed_origins_json) as string[],
+        adminAllowedOrigins: JSON.parse(r.admin_allowed_origins_json) as string[],
+        setupCompleted: !!r.setup_completed,
+      }
+      : {}
+  }
+
+  async updateSettings(tenantId: string, data: Partial<TenantSettings>): Promise<TenantSettings> {
+    const current = await this.getSettings(tenantId)
+    const merged = { ...current, ...data }
+    await this.exec(
+      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, updated_at) VALUES (?,?,?,?,NOW())
+       ON DUPLICATE KEY UPDATE allowed_origins_json=VALUES(allowed_origins_json), admin_allowed_origins_json=VALUES(admin_allowed_origins_json), setup_completed=VALUES(setup_completed), updated_at=NOW()`,
+      [tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ? 1 : 0],
+    )
+    return this.getSettings(tenantId)
+  }
+
   async deleteTenant(id: string): Promise<void> {
     await this.exec('DELETE FROM tenants WHERE id=?', [id])
   }
@@ -752,13 +893,20 @@ export class MySQLAdapter implements StorageAdapter {
     return ids.length
   }
 
+  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
+    const rows = await this.q<RowCount>('SELECT COUNT(*) AS total FROM audit_logs WHERE created_at < ?', [cutoff])
+    await this.exec('DELETE FROM audit_logs WHERE created_at < ?', [cutoff])
+    return rows[0]?.total ?? 0
+  }
+
   // Template methods — not yet implemented for MySQL adapter
-  async createCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async updateCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async deleteCookieTemplate(): Promise<void> { throw new Error('Not implemented') }
-  async getCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async getCookieTemplates(): Promise<never> { throw new Error('Not implemented') }
-  async copyCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async createConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async updateConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async deleteConsentTemplate(): Promise<void> { throw new Error('Not implemented') }
+  async getConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async getConsentTemplates(): Promise<never> { throw new Error('Not implemented') }
+  async copyConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
   async createUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async updateUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async deleteUITemplate(): Promise<void> { throw new Error('Not implemented') }
@@ -768,7 +916,7 @@ export class MySQLAdapter implements StorageAdapter {
 
   // Profile summary / analytics — not yet implemented for MySQL adapter
   async listProfilesSummary(): Promise<never[]> { return [] }
-  async findProfilesUsingCookieTemplate(): Promise<never[]> { return [] }
+  async findProfilesUsingConsentTemplate(): Promise<never[]> { return [] }
   async findProfilesUsingUITemplate(): Promise<never[]> { return [] }
   async getOptInStats(): Promise<never> { throw new Error('Not implemented') }
 }

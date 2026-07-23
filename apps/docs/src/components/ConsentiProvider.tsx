@@ -3,8 +3,13 @@
 import { useEffect, useRef } from 'react'
 import { usePathname } from 'next/navigation'
 import { useTheme } from '@/contexts/theme-context'
-import { ConsentiSetup, ConsentiPlugin, type ConsentiWidgetAPI as WidgetAPI, type ConsentValue } from "@consenti/ui"
-import { setConsentiWidget } from "@consenti/ui/react"
+import {
+  ConsentiSetup,
+  ConsentiPlugin,
+  type ConsentiWidgetAPI as WidgetAPI,
+  type ConsentValue,
+} from '@consenti/ui'
+import { setConsentiWidget } from '@consenti/ui/react'
 // import '@consenti/ui/style'
 
 interface WidgetHandle {
@@ -15,32 +20,42 @@ interface WidgetHandle {
 
 declare global {
   interface Window {
-    consentiWidget?: WidgetAPI;
+    consentiWidget?: WidgetAPI
   }
 }
 
 async function createWidget(dark: boolean): Promise<WidgetHandle> {
-
   class DemoAnalyticsPlugin extends ConsentiPlugin {
     initialize(widget: WidgetAPI): void {
       console.log(
-        '[DemoPlugin] Widget ready — profile v' + (widget.getProfile()?.version ?? '?'),
-        '| has consent:', widget.hasConsent(),
+        '[DemoPlugin] Widget ready — profile ' + (widget.getProfile()?.id ?? '?'),
+        '| has consent:',
+        widget.hasConsent()
       )
     }
-    destroy(): void { console.log('[DemoPlugin] Destroyed.') }
+    destroy(): void {
+      console.log('[DemoPlugin] Destroyed.')
+    }
     onConsentSubmit(consent: ConsentValue): void {
       console.log('[DemoPlugin] Consent saved:', consent)
     }
-    onBannerShow(): void { console.log('[DemoPlugin] Banner shown.') }
-    onBannerHide(): void { console.log('[DemoPlugin] Banner hidden.') }
-    onModalShow(): void { console.log('[DemoPlugin] Modal opened.') }
-    onModalHide(): void { console.log('[DemoPlugin] Modal closed.') }
+    onBannerShow(): void {
+      console.log('[DemoPlugin] Banner shown.')
+    }
+    onBannerHide(): void {
+      console.log('[DemoPlugin] Banner hidden.')
+    }
+    onModalShow(): void {
+      console.log('[DemoPlugin] Modal opened.')
+    }
+    onModalHide(): void {
+      console.log('[DemoPlugin] Modal closed.')
+    }
   }
 
   const widget = new ConsentiSetup({
     darkMode: dark,
-    compliance: { type: 'opt-in' },
+    compliance: { type: 'auto' },
     core: {
       locale: 'en',
       storage: 'cookie',
@@ -48,10 +63,29 @@ async function createWidget(dark: boolean): Promise<WidgetHandle> {
       // disableCssTemplate: true,
     },
     api: {
-      enabled: true,
-      baseUrl: process.env.NEXT_PUBLIC_API_URL!
+      enabled: false,
+      baseUrl: process.env.NEXT_PUBLIC_API_URL!,
     },
     plugins: [new DemoAnalyticsPlugin()],
+    profileOverride: {
+      mainBanner: {
+        buttons: {
+          'privacy-policy': {
+            text: 'Privacy Policy',
+            style: 'text',
+            action: 'link',
+            url: '/privacy',
+          },
+          'terms-of-use': { text: 'Terms of Use', style: 'text', action: 'link', url: '/terms' },
+        },
+      },
+      preferenceModal: {
+        categories: {
+          marketing: null,
+          functional: null,
+        },
+      },
+    },
   })
 
   setConsentiWidget(widget as unknown as Parameters<typeof setConsentiWidget>[0])
@@ -72,7 +106,10 @@ export function ConsentiProvider() {
     let cancelled = false
 
     createWidget(isDark).then(w => {
-      if (cancelled) { w.destroy(); return }
+      if (cancelled) {
+        w.destroy()
+        return
+      }
       widgetRef.current = w
     })
 

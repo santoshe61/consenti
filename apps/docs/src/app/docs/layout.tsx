@@ -23,7 +23,7 @@ export default function DocsLayout({ children }: { children: React.ReactNode }) 
       </div>
 
       {/* Main content */}
-      <main className="flex-1 min-w-0 px-6 py-10 lg:px-10 max-w-4xl">
+      <main className="flex-1 min-w-0 px-6 py-10 lg:px-10 max-w-7xl">
         {/* Mobile sidebar toggle — only visible below lg */}
         <button
           onClick={toggle}

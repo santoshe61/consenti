@@ -18,6 +18,7 @@ export function Navbar() {
   const isHomeActive = pathname === '/'
   const isDemoActive = pathname?.startsWith('/demo-playground')
   const isDocsActive = pathname?.startsWith('/docs')
+  const isGuidesActive = pathname?.startsWith('/guides')
   const isSupportActive = pathname === '/support'
 
   // Close mobile menu on route change
@@ -48,7 +49,7 @@ export function Navbar() {
         </button>
 
         <Link href="/" className="flex items-center gap-2.5 no-underline shrink-0 relative">
-          <Image src="/logo-dark.svg" alt="Consenti" width={160} height={44} className="rounded-lg sm:w-40 md:w-48 w-32" unoptimized />
+          <Image src="/logo-dark.svg" alt="Consenti" width={160} height={44} className="rounded-lg w-32 sm:w-36 md:w-40" unoptimized />
           <div className="hidden sm:block absolute bottom-[-4px] right-[24px]">
             <div className="text-[10px] text-white/60 mt-0.5">Open Source CMP</div>
           </div>
@@ -70,11 +71,19 @@ export function Navbar() {
           </Link>
 
           <Link
+            href="/guides/"
+            className={`hidden lg:block text-sm px-3 py-1.5 rounded-md no-underline transition-colors ${isGuidesActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
+          >
+            Guides
+          </Link>
+
+          <Link
             href="/docs/getting-started/"
             className={`hidden lg:block text-sm px-3 py-1.5 rounded-md no-underline transition-colors ${isDocsActive ? 'text-white bg-white/15' : 'text-white/70 hover:text-white hover:bg-white/10'}`}
           >
             Docs
           </Link>
+
 
           {/* Demo & Playground dropdown */}
           <div className="hidden lg:block relative group">
@@ -159,7 +168,14 @@ export function Navbar() {
               onClick={closeMobile}
               className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md no-underline transition-colors ${isDocsActive ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
             >
-              Docs
+              Documentation
+            </Link>
+            <Link
+              href="/guides/"
+              onClick={closeMobile}
+              className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md no-underline transition-colors ${isGuidesActive ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+            >
+              How to use Guide
             </Link>
 
             <div className="px-3 pt-3 pb-1 text-[11px] font-semibold text-white/40 uppercase tracking-wide">Demo & Playground</div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { useT } from '../context/locale'
 import { apiFetch } from '../api/client'
 import { debounce } from '../../../utils/debounce'
@@ -35,6 +35,7 @@ function setPageInHash(page: number): void {
 
 export function VendorList({ current }: { current: string }) {
   const t = useT()
+  usePageTitle(t('vendors.title'))
   const [vendors, setVendors] = useState<Vendor[]>([])
   const [total, setTotal] = useState(0)
   const [version, setVersion] = useState(0)
@@ -82,7 +83,7 @@ export function VendorList({ current }: { current: string }) {
   }
 
   return (
-    <Layout title={t('vendors.title')} current={current}>
+    <>
       <div class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900 space-y-2">
         <p class="font-semibold">{t('vendors.info.title')}</p>
         <p>
@@ -148,7 +149,7 @@ export function VendorList({ current }: { current: string }) {
               </thead>
               <tbody>
                 {vendors.map(v => (
-                  <tr key={v.id} class="border-t border-gray-100 hover:bg-gray-50">
+                  <tr key={v.id} class="border-t border-gray-100 dark:hover:bg-gray-800 hover:bg-gray-50">
                     <td class="px-3 py-2 font-mono text-gray-500">{v.id}</td>
                     <td class="px-3 py-2 font-medium text-gray-800">{v.name}</td>
                     <td class="px-3 py-2 text-gray-600">{(v.purposes ?? []).join(', ') || '—'}</td>
@@ -197,6 +198,6 @@ export function VendorList({ current }: { current: string }) {
           </nav>
         </>
       )}
-    </Layout>
+    </>
   )
 }

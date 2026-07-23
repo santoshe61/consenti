@@ -21,7 +21,7 @@ export function ButtonsEditor({ buttons, onChange, cookieOptions }: ButtonsEdito
       ))}
       <button
         type="button"
-        onClick={() => onChange([...buttons, { text: '', type: 'primary', action: 'custom', cookies: '*' }])}
+        onClick={() => onChange([...buttons, { id: '', type: 'primary', action: 'custom', cookies: '*' }])}
         class="text-xs text-blue-600 hover:underline"
       >+ Add Button</button>
     </div>

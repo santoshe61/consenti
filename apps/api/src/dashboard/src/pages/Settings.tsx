@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { useAuth } from '../context/auth'
 import { useT } from '../context/locale'
 import { apiDownload } from '../api/client'
@@ -7,12 +7,13 @@ import { apiDownload } from '../api/client'
 export function Settings({ current }: { current: string }) {
   const { user } = useAuth()
   const t = useT()
+  usePageTitle(t('settings.title'))
   const [_ready] = useState(true)
 
   useEffect(() => {}, [])
 
   return (
-    <Layout title={t('settings.title')} current={current}>
+    <>
       <div class="max-w-2xl space-y-4">
 
         <div class="bg-white rounded-lg border border-gray-200 p-5">
@@ -60,6 +61,6 @@ export function Settings({ current }: { current: string }) {
         </div>
 
       </div>
-    </Layout>
+    </>
   )
 }

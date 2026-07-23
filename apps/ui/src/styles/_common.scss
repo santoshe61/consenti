@@ -1,0 +1,17 @@
+.consenti {
+    &__powered-by {
+        position: absolute;
+        inset-inline-end: var(--consenti-spacing-md);
+        opacity: 0.3;
+        color: var(--consenti-color-primary);
+        font-size: 70%;
+    }
+}
+
+.consenti-transition-1_2x {
+    transition: transform 300ms ease-in-out;
+
+    &:hover {
+        transform: scale(1.2);
+    }
+}

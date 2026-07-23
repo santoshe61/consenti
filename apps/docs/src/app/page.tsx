@@ -49,8 +49,8 @@ const features = [
   },
   {
     icon: Globe,
-    title: 'GDPR, CCPA & TCF Ready',
-    desc: 'Opt-in (GDPR) and opt-out (CCPA) modes. GPC signal detection. IAB TCF v2.2 support. COPPA age gates. Legitimate interest handling per GDPR Art. 6(1)(f).',
+    title: '8 Consent Models, 195+ Countries',
+    desc: 'GDPR, CCPA/CPRA, DPDPA (India), PIPL (China), LGPD (Brazil), POPIA, KVKK, TCF v2.2, and general-privacy-consent — every country pre-mapped to the right model. GPC auto-honour and COPPA age gates included.',
     tag: 'Compliance',
   },
   {
@@ -114,7 +114,7 @@ const whyReasons = [
   {
     icon: TrendingDown,
     title: 'No SaaS fees — ever',
-    desc: 'Cookiebot starts at €9/month. OneTrust costs thousands. Consenti is Apache 2.0 — free to run on your own infra, forever.',
+    desc: 'Most paid CMPs charge a monthly fee, and enterprise tiers can run into the thousands. Consenti is Apache 2.0 — free to run on your own infra, forever.',
   },
   {
     icon: Server,
@@ -124,12 +124,22 @@ const whyReasons = [
   {
     icon: Database,
     title: 'More complete than other open-source CMPs',
-    desc: 'Klaro and orestbida/cookie-consent are UI-only widgets. Consenti ships a full stack: banner widget + backend + admin dashboard + audit log — all zero dependencies.',
+    desc: 'Most other open-source cookie consent widgets are UI-only. Consenti ships a full stack: banner widget + backend + admin dashboard + audit log — all zero dependencies.',
   },
   {
     icon: Shield,
     title: 'Privacy by design, not by checkbox',
     desc: 'IPs stored as SHA-256 hashes. Passwords via scrypt. JWT via native HMAC. Signed consent cookies. Consent receipts on demand. Built in, not bolted on.',
+  },
+  {
+    icon: Globe,
+    title: '195+ jurisdictions, out of the box',
+    desc: 'An embedded map of every country and territory routes visitors to the right consent model automatically — see the full breakdown on the Jurisdiction Coverage Map.',
+  },
+  {
+    icon: Plug,
+    title: 'Extend it without forking it',
+    desc: 'A plugin system with lifecycle hooks and official BigQuery, Segment, and Snowflake integrations. Add your own webhook or data pipeline in a few lines.',
   },
 ]
 
@@ -143,19 +153,136 @@ const comparisonRows: Array<{
   orestbida: boolean | string
   consentstack: boolean | string
 }> = [
-    { label: 'Open source', consenti: true, cookiebot: false, onetrust: false, cassie: false, klaro: true, orestbida: true, consentstack: true },
-    { label: 'Self-hosted', consenti: true, cookiebot: false, onetrust: 'paid', cassie: 'paid', klaro: true, orestbida: true, consentstack: true },
-    { label: 'Zero runtime deps', consenti: true, cookiebot: false, onetrust: false, cassie: false, klaro: false, orestbida: true, consentstack: false },
-    { label: 'Built-in backend + audit log', consenti: true, cookiebot: false, onetrust: 'paid', cassie: true, klaro: false, orestbida: false, consentstack: false },
-    { label: 'Admin dashboard', consenti: true, cookiebot: true, onetrust: true, cassie: true, klaro: false, orestbida: false, consentstack: false },
-    { label: 'GDPR + CCPA + TCF v2.2', consenti: true, cookiebot: true, onetrust: true, cassie: true, klaro: 'partial', orestbida: 'partial', consentstack: 'partial' },
-    { label: 'GPC auto-honour', consenti: true, cookiebot: false, onetrust: 'paid', cassie: false, klaro: false, orestbida: false, consentstack: false },
-    { label: 'TypeScript strict', consenti: true, cookiebot: false, onetrust: false, cassie: false, klaro: false, orestbida: 'partial', consentstack: false },
-    { label: 'Framework hooks (React / Vue / Ng)', consenti: true, cookiebot: false, onetrust: false, cassie: false, klaro: false, orestbida: false, consentstack: false },
-    { label: 'WCAG AAA accessible', consenti: true, cookiebot: false, onetrust: false, cassie: false, klaro: false, orestbida: false, consentstack: false },
-    { label: 'No cross-origin script', consenti: true, cookiebot: false, onetrust: false, cassie: false, klaro: true, orestbida: true, consentstack: true },
-    { label: 'Data sovereignty', consenti: true, cookiebot: false, onetrust: 'paid', cassie: 'paid', klaro: true, orestbida: true, consentstack: true },
-    { label: 'Free to use', consenti: true, cookiebot: 'limited', onetrust: false, cassie: false, klaro: true, orestbida: true, consentstack: true },
+    {
+      label: 'Open source',
+      consenti: true,
+      cookiebot: false,
+      onetrust: false,
+      cassie: false,
+      klaro: true,
+      orestbida: true,
+      consentstack: true,
+    },
+    {
+      label: 'Self-hosted',
+      consenti: true,
+      cookiebot: false,
+      onetrust: 'paid',
+      cassie: 'paid',
+      klaro: true,
+      orestbida: true,
+      consentstack: true,
+    },
+    {
+      label: 'Zero runtime deps',
+      consenti: true,
+      cookiebot: false,
+      onetrust: false,
+      cassie: false,
+      klaro: false,
+      orestbida: true,
+      consentstack: false,
+    },
+    {
+      label: 'Built-in backend + audit log',
+      consenti: true,
+      cookiebot: false,
+      onetrust: 'paid',
+      cassie: true,
+      klaro: false,
+      orestbida: false,
+      consentstack: false,
+    },
+    {
+      label: 'Admin dashboard',
+      consenti: true,
+      cookiebot: true,
+      onetrust: true,
+      cassie: true,
+      klaro: false,
+      orestbida: false,
+      consentstack: false,
+    },
+    {
+      label: 'GDPR + CCPA + TCF v2.2',
+      consenti: true,
+      cookiebot: true,
+      onetrust: true,
+      cassie: true,
+      klaro: 'partial',
+      orestbida: 'partial',
+      consentstack: 'partial',
+    },
+    {
+      label: 'GPC auto-honour',
+      consenti: true,
+      cookiebot: false,
+      onetrust: 'paid',
+      cassie: false,
+      klaro: false,
+      orestbida: false,
+      consentstack: false,
+    },
+    {
+      label: 'TypeScript strict',
+      consenti: true,
+      cookiebot: false,
+      onetrust: false,
+      cassie: false,
+      klaro: false,
+      orestbida: 'partial',
+      consentstack: false,
+    },
+    {
+      label: 'Framework hooks (React / Vue / Ng)',
+      consenti: true,
+      cookiebot: false,
+      onetrust: false,
+      cassie: false,
+      klaro: false,
+      orestbida: false,
+      consentstack: false,
+    },
+    {
+      label: 'WCAG AAA accessible',
+      consenti: true,
+      cookiebot: false,
+      onetrust: false,
+      cassie: false,
+      klaro: false,
+      orestbida: false,
+      consentstack: false,
+    },
+    {
+      label: 'No cross-origin script',
+      consenti: true,
+      cookiebot: false,
+      onetrust: false,
+      cassie: false,
+      klaro: 'frontend only',
+      orestbida: 'frontend only',
+      consentstack: 'frontend only',
+    },
+    {
+      label: 'Data sovereignty',
+      consenti: true,
+      cookiebot: false,
+      onetrust: 'paid',
+      cassie: 'paid',
+      klaro: 'frontend only',
+      orestbida: 'frontend only',
+      consentstack: 'frontend only',
+    },
+    {
+      label: 'Free to use',
+      consenti: true,
+      cookiebot: 'limited',
+      onetrust: false,
+      cassie: false,
+      klaro: 'frontend only',
+      orestbida: 'frontend only',
+      consentstack: 'frontend only',
+    },
   ]
 
 const compliance = [
@@ -316,13 +443,9 @@ function ComparisonCell({ value }: { value: boolean | string }) {
   )
 }
 
-interface LandingPageProps {
-  searchParams: Promise<{ tab?: string }>
-}
-
-export default function LandingPage({ searchParams }: LandingPageProps) {
+export default function LandingPage() {
   return (
-    <div className="bg-white dark:bg-gray-950">
+    <main className="bg-white dark:bg-gray-950">
       {/* Hero */}
       <section className="hero-section text-white text-center py-24 px-6 relative overflow-hidden">
         <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
@@ -333,15 +456,17 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
             Apache 2.0 · Zero runtime dependencies · TypeScript strict
           </div>
           <h1 className="text-5xl sm:text-6xl font-bold mb-6 tracking-[-0.03em] leading-[1.1]">
-            Open-Source Cookie Consent<br />
-            <span className="text-green-300">Zero Dependencies</span>
+            The Cookie Consent Platform
+            <br />
+            <span className="text-green-300">You Actually Own</span>
           </h1>
           <p className="text-lg text-white/60 max-w-2xl mx-auto mb-10 leading-relaxed">
-            Drop in one import. GDPR, CCPA, TCF, and GPC compliant.
-            Works with any stack. Admin dashboard included. Backend optional.
+            8 consent models covering 195+ countries — GDPR, CCPA/CPRA, DPDPA, LGPD, PIPL, TCF v2.2,
+            GPC, and more. Admin dashboard, immutable audit log, and every consent record stays on
+            your own infrastructure. Open source, no monthly fee.
           </p>
           {/* Install command */}
-          <div className="flex items-center justify-center mb-10">
+          <div className="flex items-center justify-center mb-6">
             <div className="inline-flex items-center gap-3 bg-white/[0.04] border border-white/10 rounded-lg px-5 py-3 font-mono text-sm text-white/70">
               <span className="text-green-400 select-none">$</span>
               <span>npm install @consenti/ui</span>
@@ -352,17 +477,38 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
           </div>
 
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link href="/docs/getting-started/quick-start/" className="inline-flex items-center gap-2 bg-white dark:!bg-white text-brand-700 font-semibold px-6 py-3 rounded-lg no-underline hover:bg-blue-50 transition-colors text-sm">
-              Quick Start →
+            <Link
+              href="/demo-playground/frontend"
+              className="inline-flex items-center gap-2 bg-white dark:!bg-white text-brand-700 font-semibold px-6 py-3 rounded-lg no-underline hover:bg-blue-50 transition-colors text-sm"
+            >
+              Live Demo →
             </Link>
-            <Link href="/demo-playground/frontend" className="inline-flex items-center gap-2 bg-transparent border border-white/20 text-white/80 font-medium px-6 py-3 rounded-lg no-underline hover:border-white/40 hover:text-white transition-colors text-sm">
-              Live Demo
+            <Link
+              href="/docs/compliance/jurisdiction-coverage-map/"
+              className="inline-flex items-center gap-2 bg-transparent border border-white/20 text-white/80 font-medium px-6 py-3 rounded-lg no-underline hover:border-white/40 hover:text-white transition-colors text-sm"
+            >
+              See Compliance Coverage
             </Link>
-            <a href="https://github.com/bestwebs/consenti" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 bg-transparent border border-white/10 text-white/50 font-medium px-5 py-3 rounded-lg no-underline hover:border-white/20 hover:text-white/70 transition-colors text-sm">
+            <a
+              href="https://github.com/bestwebs/consenti"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 bg-transparent border border-white/10 text-white/50 font-medium px-5 py-3 rounded-lg no-underline hover:border-white/20 hover:text-white/70 transition-colors text-sm"
+            >
               <FaGithub size={16} />
               GitHub
             </a>
           </div>
+
+          <p className="mt-6 text-sm text-white/40">
+            Building it yourself?{' '}
+            <Link
+              href="/guides"
+              className="text-white/70 hover:text-white underline underline-offset-2"
+            >
+              Jump to the developer guides →
+            </Link>
+          </p>
 
           <div className="mt-10 flex flex-wrap items-center justify-center gap-6 font-mono text-[11px] text-white/25 tracking-wide">
             <span>Apache 2.0</span>
@@ -377,23 +523,37 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
       {/* Features */}
       <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-12">
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">Everything you need. Nothing you don't.</h2>
-          <p className="text-slate-500 dark:text-gray-400 max-w-3xl mx-auto text-[15px]">Start with just the UI widget — no backend required. Add the backend module only if you need server-side records or an admin dashboard. Both ship zero runtime dependencies.</p>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">
+            Everything you need. Nothing you don't.
+          </h2>
+          <p className="text-slate-500 dark:text-gray-400 max-w-3xl mx-auto text-[15px]">
+            Start with just the UI widget — no backend required. Add the backend module only if you
+            need server-side records or an admin dashboard. Both ship zero runtime dependencies.
+          </p>
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {features.map((f) => {
+          {features.map(f => {
             const Icon = f.icon
             return (
-              <div key={f.title} className="group flex gap-4 p-5 rounded-lg border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-brand-100 dark:hover:border-brand-900 transition-colors">
+              <div
+                key={f.title}
+                className="group flex gap-4 p-5 rounded-lg border border-slate-100 dark:border-gray-800 bg-white dark:bg-gray-900 hover:border-brand-100 dark:hover:border-brand-900 transition-colors"
+              >
                 <div className="shrink-0 w-8 h-8 rounded-md bg-brand-50 dark:bg-brand-900/40 flex items-center justify-center mt-0.5">
                   <Icon size={16} className="text-brand-500 dark:text-brand-400" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start gap-2 mb-1.5 flex-wrap">
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-gray-100 leading-tight">{f.title}</h3>
-                    <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-gray-600 shrink-0">{f.tag}</span>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-gray-100 leading-tight">
+                      {f.title}
+                    </h3>
+                    <span className="text-[10px] font-mono font-medium text-slate-400 dark:text-gray-600 shrink-0">
+                      {f.tag}
+                    </span>
                   </div>
-                  <p className="text-[13px] text-slate-500 dark:text-gray-400 leading-relaxed">{f.desc}</p>
+                  <p className="text-[13px] text-slate-500 dark:text-gray-400 leading-relaxed">
+                    {f.desc}
+                  </p>
                 </div>
               </div>
             )
@@ -406,32 +566,45 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <span className="inline-flex items-center gap-2 font-mono text-xs text-brand-400 dark:text-brand-300 mb-4">
-              <span className="w-5 h-px bg-brand-300 dark:bg-brand-600 inline-block" aria-hidden="true" />
+              <span
+                className="w-5 h-px bg-brand-300 dark:bg-brand-600 inline-block"
+                aria-hidden="true"
+              />
               Why Consenti
-              <span className="w-5 h-px bg-brand-300 dark:bg-brand-600 inline-block" aria-hidden="true" />
+              <span
+                className="w-5 h-px bg-brand-300 dark:bg-brand-600 inline-block"
+                aria-hidden="true"
+              />
             </span>
             <h2 className="text-3xl font-bold text-slate-900 dark:text-gray-100 mb-4 tracking-tight">
               Built different from every other CMP
             </h2>
             <p className="text-slate-500 dark:text-gray-400 max-w-2xl mx-auto text-[15px]">
-              SaaS CMPs like Cookiebot, OneTrust, and Cassie own your consent data and charge monthly.
-              Other open-source alternatives like Klaro, orestbida, and ConsentStack are UI-only — no backend, no audit log.
-              Consenti is the only open-source CMP with a full stack included.
+              Most hosted SaaS CMPs own your consent data and charge monthly. Most open-source
+              alternatives are UI-only — no backend, no audit log. Consenti is the only open-source
+              CMP with a full stack included.
             </p>
           </div>
 
           {/* Reason cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-16">
-            {whyReasons.map((r) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-16">
+            {whyReasons.map(r => {
               const Icon = r.icon
               return (
-                <div key={r.title} className="flex gap-4 p-5 rounded-lg border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900">
+                <div
+                  key={r.title}
+                  className="flex gap-4 p-5 rounded-lg border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900"
+                >
                   <div className="shrink-0 w-8 h-8 rounded-md bg-green-50 dark:bg-green-900/20 flex items-center justify-center mt-0.5">
                     <Icon size={16} className="text-green-600 dark:text-green-400" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-semibold text-slate-900 dark:text-gray-100 mb-1.5 leading-tight">{r.title}</h3>
-                    <p className="text-[13px] text-slate-500 dark:text-gray-400 leading-relaxed">{r.desc}</p>
+                    <h3 className="text-sm font-semibold text-slate-900 dark:text-gray-100 mb-1.5 leading-tight">
+                      {r.title}
+                    </h3>
+                    <p className="text-[13px] text-slate-500 dark:text-gray-400 leading-relaxed">
+                      {r.desc}
+                    </p>
                   </div>
                 </div>
               )
@@ -446,66 +619,116 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
                 <tr className="border-b border-slate-100 dark:border-gray-700 bg-slate-50/70 dark:bg-gray-700/40">
                   <th className="text-left py-2 px-5 font-medium text-slate-400 text-xs" />
                   <th className="py-2 px-4 text-center bg-brand-50 border-x border-brand-100" />
-                  <th colSpan={3} className="py-2 px-4 text-center text-[11px] font-semibold text-slate-400 tracking-wide uppercase border-r border-slate-100">
+                  <th
+                    colSpan={3}
+                    className="py-2 px-4 text-center text-[11px] font-semibold text-slate-400 tracking-wide uppercase border-r border-slate-100"
+                  >
                     SaaS / Hosted
                   </th>
-                  <th colSpan={3} className="py-2 px-4 text-center text-[11px] font-semibold text-slate-400 tracking-wide uppercase">
+                  <th
+                    colSpan={3}
+                    className="py-2 px-4 text-center text-[11px] font-semibold text-slate-400 tracking-wide uppercase"
+                  >
                     Open Source
                   </th>
                 </tr>
                 {/* Name row */}
                 <tr className="border-b border-slate-100 dark:border-gray-700">
-                  <th className="text-left py-4 px-5 font-semibold text-slate-500 dark:text-gray-400">Feature</th>
+                  <th className="text-left py-4 px-5 font-semibold text-slate-500 dark:text-gray-400">
+                    Feature
+                  </th>
                   <th className="py-4 px-4 font-extrabold text-brand-600 text-center bg-brand-50 border-x border-brand-100">
                     <div className="flex flex-col items-center gap-0.5">
                       <span>Consenti</span>
-                      <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">Open Source</span>
+                      <span className="text-[10px] font-semibold text-green-600 bg-green-50 px-2 py-0.5 rounded-full">
+                        Open Source
+                      </span>
                     </div>
                   </th>
                   <th className="py-4 px-4 font-semibold text-slate-500 text-center">Cookiebot</th>
                   <th className="py-4 px-4 font-semibold text-slate-500 text-center">OneTrust</th>
-                  <th className="py-4 px-4 font-semibold text-slate-500 text-center border-r border-slate-100">Cassie</th>
+                  <th className="py-4 px-4 font-semibold text-slate-500 text-center border-r border-slate-100">
+                    Cassie
+                  </th>
                   <th className="py-4 px-4 font-semibold text-slate-500 text-center">Klaro</th>
                   <th className="py-4 px-4 font-semibold text-slate-500 text-center">orestbida</th>
-                  <th className="py-4 px-4 font-semibold text-slate-500 text-center">ConsentStack</th>
+                  <th className="py-4 px-4 font-semibold text-slate-500 text-center">
+                    ConsentStack
+                  </th>
                 </tr>
               </thead>
               <tbody>
                 {comparisonRows.map((row, idx) => (
-                  <tr key={row.label} className={idx % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-slate-50/50 dark:bg-gray-700/30'}>
-                    <td className="py-3 px-5 text-slate-700 dark:text-gray-300 font-medium">{row.label}</td>
+                  <tr
+                    key={row.label}
+                    className={
+                      idx % 2 === 0
+                        ? 'bg-white dark:bg-gray-800'
+                        : 'bg-slate-50/50 dark:bg-gray-700/30'
+                    }
+                  >
+                    <td className="py-3 px-5 text-slate-700 dark:text-gray-300 font-medium">
+                      {row.label}
+                    </td>
                     <td className="py-3 px-4 text-center bg-brand-50/40 border-x border-brand-100">
                       <ComparisonCell value={row.consenti} />
                     </td>
-                    <td className="py-3 px-4 text-center"><ComparisonCell value={row.cookiebot} /></td>
-                    <td className="py-3 px-4 text-center"><ComparisonCell value={row.onetrust} /></td>
-                    <td className="py-3 px-4 text-center border-r border-slate-100"><ComparisonCell value={row.cassie} /></td>
-                    <td className="py-3 px-4 text-center"><ComparisonCell value={row.klaro} /></td>
-                    <td className="py-3 px-4 text-center"><ComparisonCell value={row.orestbida} /></td>
-                    <td className="py-3 px-4 text-center"><ComparisonCell value={row.consentstack} /></td>
+                    <td className="py-3 px-4 text-center">
+                      <ComparisonCell value={row.cookiebot} />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <ComparisonCell value={row.onetrust} />
+                    </td>
+                    <td className="py-3 px-4 text-center border-r border-slate-100">
+                      <ComparisonCell value={row.cassie} />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <ComparisonCell value={row.klaro} />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <ComparisonCell value={row.orestbida} />
+                    </td>
+                    <td className="py-3 px-4 text-center">
+                      <ComparisonCell value={row.consentstack} />
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
             <div className="px-5 py-3 bg-slate-50 dark:bg-gray-700/40 border-t border-slate-100 dark:border-gray-700 text-xs text-slate-400 dark:text-gray-500">
-              Based on public documentation as of June 2026. "Paid" = available on paid tiers only. "Limited" = free tier with domain/pageview caps. "Partial" = basic support, not full spec coverage.
+              Based on public documentation as of June 2026. "Paid" = available on paid tiers only.
+              "Limited" = free tier with domain/pageview caps. "Partial" = basic support, not full
+              spec coverage. Cookiebot, OneTrust, Cassie, Klaro, orestbida/cookie-consent, and
+              ConsentStack are trademarks of their respective owners. Consenti is not affiliated
+              with, endorsed by, or sponsored by any of them; see{' '}
+              <Link href="/terms/" className="underline">
+                Terms of Use
+              </Link>
+              .
             </div>
           </div>
         </div>
       </section>
 
       {/* Quick start */}
-      <QuickStartTabs searchParams={searchParams} />
+      <QuickStartTabs />
 
       {/* Compliance table */}
       <section className="max-w-7xl mx-auto px-6 py-20">
         <div className="text-center mb-10">
-          <h2 className="text-3xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">Compliance Coverage</h2>
-          <p className="text-slate-500 dark:text-gray-400 max-w-3xl mx-auto text-[15px]">Built to meet the most stringent global privacy regulations out of the box.</p>
+          <h2 className="text-3xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">
+            Compliance Coverage
+          </h2>
+          <p className="text-slate-500 dark:text-gray-400 max-w-3xl mx-auto text-[15px]">
+            Built to meet the most stringent global privacy regulations out of the box.
+          </p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-          {compliance.map((row) => (
-            <div key={row.law} className="flex items-start gap-3 bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 rounded-lg px-4 py-3 hover:border-slate-200 dark:hover:border-gray-700 transition-colors group">
+          {compliance.map(row => (
+            <div
+              key={row.law}
+              className="flex items-start gap-3 bg-white dark:bg-gray-900 border border-slate-100 dark:border-gray-800 rounded-lg px-4 py-3 hover:border-slate-200 dark:hover:border-gray-700 transition-colors group"
+            >
               {/* Flag */}
               <span className="text-xl leading-none mt-0.5 shrink-0">{row.flag}</span>
               {/* Body */}
@@ -523,22 +746,35 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
                   )}
                   <span className="text-xs text-slate-400">{row.region}</span>
                 </div>
-                <p className="text-xs text-slate-400 leading-relaxed mt-0.5 line-clamp-2">{row.note}</p>
+                <p className="text-xs text-slate-400 leading-relaxed mt-0.5 line-clamp-2">
+                  {row.note}
+                </p>
               </div>
               {/* Status badge */}
               <div className="shrink-0">
                 {row.status === 'Full' ? (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-green-50 text-green-700 border border-green-200">
-                    <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
-                      <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path
+                        d="M2 6l3 3 5-5"
+                        stroke="currentColor"
+                        strokeWidth="1.8"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                      />
                     </svg>
                     Full
                   </span>
                 ) : (
                   <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 border border-amber-200">
-                    <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none">
+                    <svg className="w-2.5 h-2.5" viewBox="0 0 12 12" fill="none" aria-hidden="true">
                       <circle cx="6" cy="6" r="4.5" stroke="currentColor" strokeWidth="1.5" />
-                      <path d="M6 4v3M6 8.5v.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      <path
+                        d="M6 4v3M6 8.5v.5"
+                        stroke="currentColor"
+                        strokeWidth="1.5"
+                        strokeLinecap="round"
+                      />
                     </svg>
                     Partial
                   </span>
@@ -548,8 +784,17 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
           ))}
         </div>
         <p className="text-xs text-slate-400 dark:text-gray-500 text-center mt-4">
-          Partial = infrastructure provided; your legal team configures jurisdiction-specific specifics.
+          Partial = infrastructure provided; your legal team configures jurisdiction-specific
+          specifics.
         </p>
+        <div className="text-center mt-8">
+          <Link
+            href="/docs/compliance/jurisdiction-coverage-map/"
+            className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700 no-underline"
+          >
+            This is a sample — see the full Jurisdiction Coverage Map (195+ countries) →
+          </Link>
+        </div>
       </section>
 
       {/* Integrations */}
@@ -559,11 +804,15 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
         </div>
         <div className="max-w-6xl mx-auto relative">
           <div className="text-center mb-12">
-            <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">Works with your stack</h2>
-            <p className="text-white/50 text-[15px]">No migration required. Consenti adapts to whatever you're already running.</p>
+            <h2 className="text-2xl font-bold text-white mb-3 tracking-tight">
+              Works with your stack
+            </h2>
+            <p className="text-white/50 text-[15px]">
+              No migration required. Consenti adapts to whatever you're already running.
+            </p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
-            {integrations.map((i) => (
+            {integrations.map(i => (
               <div
                 key={i.name}
                 className="group flex flex-col items-center gap-2.5 bg-white/[0.04] hover:bg-white/[0.07] border border-white/[0.08] hover:border-white/[0.15] rounded-lg p-5 cursor-default transition-colors"
@@ -582,26 +831,6 @@ export default function LandingPage({ searchParams }: LandingPageProps) {
           </div>
         </div>
       </section>
-
-      {/* CTA */}
-      <section className="py-20 px-6 bg-[#04111f] border-t border-white/5">
-        <div className="max-w-3xl mx-auto text-center text-white">
-          <h2 className="text-3xl font-bold mb-3 tracking-tight">Ready to add Consenti?</h2>
-          <p className="text-white/50 text-[15px] mb-5 leading-relaxed">One import. Full GDPR compliance. No external dependencies.</p>
-          <div className="inline-flex items-center gap-2 bg-white/[0.04] border border-white/10 rounded px-4 py-2 font-mono text-sm text-white/60 mb-8">
-            <span className="text-green-400 select-none">$</span>
-            <span>npm install @consenti/ui</span>
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link href="/docs/getting-started/quick-start/" className="inline-flex items-center gap-2 bg-white dark:!bg-white text-brand-700 font-semibold px-6 py-3 rounded-lg no-underline hover:bg-blue-50 transition-colors text-sm">
-              Quick Start →
-            </Link>
-            <Link href="/demo-playground/frontend" className="inline-flex items-center gap-2 border border-white/20 text-white/80 font-medium px-6 py-3 rounded-lg no-underline hover:border-white/40 hover:text-white transition-colors text-sm">
-              Try Live Demo
-            </Link>
-          </div>
-        </div>
-      </section>
-    </div>
+    </main>
   )
 }

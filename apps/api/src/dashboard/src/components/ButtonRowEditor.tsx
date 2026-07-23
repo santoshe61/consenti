@@ -29,21 +29,23 @@ interface ButtonRowEditorProps {
 export function ButtonRowEditor({ btn, onChange, onRemove, extraCookies }: ButtonRowEditorProps) {
   const set = <K extends keyof TemplateButton>(k: K, v: TemplateButton[K]) =>
     onChange({ ...btn, [k]: v })
-  const textEmpty = !btn.text.trim()
+  const idEmpty = !btn.id.trim()
   const urlEmpty = btn.action === 'link' && !btn.url?.trim()
 
   return (
     <div class="border border-gray-100 rounded p-2.5 bg-gray-50 space-y-2">
       <div class="grid grid-cols-[1fr_1fr_1fr_2fr_auto] gap-2 items-start">
         <div>
-          <label class="block text-xs text-gray-500 mb-0.5">Label <span class="text-red-500">*</span></label>
+          <label class="block text-xs text-gray-500 mb-0.5">Button ID <span class="text-red-500">*</span></label>
           <input
-            class={`w-full border rounded px-2 py-1 text-xs ${textEmpty ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
-            value={btn.text}
-            onInput={e => set('text', (e.target as HTMLInputElement).value)}
-            placeholder="Button text"
+            class={`w-full border rounded px-2 py-1 text-xs font-mono ${idEmpty ? 'border-red-300 bg-red-50' : 'border-gray-300'}`}
+            value={btn.id}
+            onInput={e => set('id', (e.target as HTMLInputElement).value)}
+            placeholder="accept-all"
           />
-          {textEmpty && <p class="text-xs text-red-500 mt-0.5">Required</p>}
+          {idEmpty
+            ? <p class="text-xs text-red-500 mt-0.5">Required</p>
+            : <p class="text-xs text-gray-400 mt-0.5">Machine id, not display text — text is authored per-locale in the profile.</p>}
         </div>
         <div>
           <label class="block text-xs text-gray-500 mb-0.5">Style</label>
