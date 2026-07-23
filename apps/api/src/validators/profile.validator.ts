@@ -1,4 +1,4 @@
-import type { CreateProfileInput, UpdateProfileInput, ProfileConfig } from '@consenti/types'
+import type { CreateProfileInput, UpdateProfileInput } from '@consenti/types'
 
 export interface ValidationResult {
   valid: boolean
@@ -12,8 +12,8 @@ export function validateCreateProfile(body: unknown): ValidationResult {
   if (typeof b['defaultLocale'] !== 'string' || !b['defaultLocale']) return { valid: false, error: 'defaultLocale is required' }
   if (!b['profileJson'] || typeof b['profileJson'] !== 'object') return { valid: false, error: 'profileJson is required' }
   const pj = b['profileJson'] as Record<string, unknown>
-  if (typeof pj['cookieTemplateId'] !== 'string' || !pj['cookieTemplateId']) {
-    return { valid: false, error: 'profileJson.cookieTemplateId is required' }
+  if (typeof pj['consentTemplateId'] !== 'string' || !pj['consentTemplateId']) {
+    return { valid: false, error: 'profileJson.consentTemplateId is required' }
   }
   if (typeof pj['uiTemplateId'] !== 'string' || !pj['uiTemplateId']) {
     return { valid: false, error: 'profileJson.uiTemplateId is required' }
@@ -32,6 +32,7 @@ export function castCreateProfile(body: Record<string, unknown>, tenantId: strin
     name: body['name'] as string,
     defaultLocale: body['defaultLocale'] as string,
     profileJson: body['profileJson'] as CreateProfileInput['profileJson'],
+    ...(body['localeContent'] != null ? { localeContent: body['localeContent'] as NonNullable<CreateProfileInput['localeContent']> } : {}),
   }
 }
 
@@ -39,6 +40,7 @@ export function castUpdateProfile(body: Record<string, unknown>): UpdateProfileI
   const result: UpdateProfileInput = {}
   if (typeof body['name'] === 'string') result.name = body['name']
   if (typeof body['defaultLocale'] === 'string') result.defaultLocale = body['defaultLocale']
-  if (body['profileJson'] != null) result.profileJson = body['profileJson'] as ProfileConfig
+  if (body['profileJson'] != null) result.profileJson = body['profileJson'] as NonNullable<UpdateProfileInput['profileJson']>
+  if (body['localeContent'] != null) result.localeContent = body['localeContent'] as NonNullable<UpdateProfileInput['localeContent']>
   return result
 }

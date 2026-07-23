@@ -1,4 +1,6 @@
-import type { AuditLog, AuditFilters, CreateAuditLogInput, StorageAdapter } from '@consenti/types'
+import type {
+  AuditLogSummary, AuditFilters, CreateAuditLogInput, StorageAdapter, PagedResult,
+} from '@consenti/types'
 
 export class AuditEngine {
   constructor(
@@ -10,7 +12,7 @@ export class AuditEngine {
     return this.storage.createLog({ ...data, tenantId: this.tenantId })
   }
 
-  list(filters: Omit<AuditFilters, 'tenantId'>): Promise<AuditLog[]> {
+  list(filters: Omit<AuditFilters, 'tenantId'>): Promise<PagedResult<AuditLogSummary>> {
     return this.storage.getLogs({ ...filters, tenantId: this.tenantId })
   }
 }

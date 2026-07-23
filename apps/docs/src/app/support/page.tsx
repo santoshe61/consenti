@@ -2,14 +2,35 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 import { Check, Coffee, CreditCard, ExternalLink, Heart, Code2 } from 'lucide-react'
 import { FaGithub } from 'react-icons/fa'
+import { ContactEmail } from '@/components/ContactEmail'
 
-export const metadata: Metadata = { title: 'Support Consenti' }
+export const metadata: Metadata = {
+  title: 'Support Consenti',
+  description:
+    'Consenti is free, open-source, and Apache 2.0 licensed — support development if it saved you time or helped you ship something.',
+  alternates: { canonical: '/support' },
+  openGraph: {
+    title: 'Support Consenti',
+    description:
+      'Consenti is free, open-source, and Apache 2.0 licensed — support development if it saved you time or helped you ship something.',
+    url: 'https://consenti.dev/support',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Support Consenti',
+    description:
+      'Consenti is free, open-source, and Apache 2.0 licensed — support development if it saved you time or helped you ship something.',
+    images: ['/og-image.jpg'],
+  },
+}
 
 const tiers = [
   {
     label: 'Razorpay',
     desc: 'Pay via UPI, cards, or net banking (India)',
-    url: 'https://pages.razorpay.com/bestwebs',
+    url: 'https://rzp.io/rzp/consenti',
     Icon: CreditCard,
     // color: 'bg-green-700 hover:bg-green-800',
   },
@@ -45,8 +66,8 @@ export default function SupportPage() {
         </div>
         <h1 className="text-3xl font-extrabold text-slate-900 mb-4">Support Consenti</h1>
         <p className="text-slate-500 text-lg leading-relaxed">
-          Consenti is free, open-source, and Apache 2.0 licensed.
-          If it saved you time or helped you ship something, consider buying me a coffee.
+          Consenti is free, open-source, and Apache 2.0 licensed. If it saved you time or helped you
+          ship something, consider buying me a coffee.
         </p>
       </div>
 
@@ -65,7 +86,7 @@ export default function SupportPage() {
 
       {/* Donation options */}
       <div className="mb-12 grid md:grid-cols-3 gap-4">
-        {tiers.map((t) => (
+        {tiers.map(t => (
           <a
             key={t.label}
             href={t.url}
@@ -100,6 +121,15 @@ export default function SupportPage() {
         </a>
       </div>
 
+      {/* Contact */}
+      <div className="mt-8 border border-slate-200 dark:border-gray-800 rounded-2xl p-6 text-center">
+        <h2 className="font-bold text-slate-900 dark:text-gray-100 mb-2">Need to get in touch?</h2>
+        <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">
+          Questions, bug reports, or enterprise inquiries — reach out directly.
+        </p>
+        <ContactEmail className="text-base" />
+      </div>
+
       {/* Built by */}
       <div className="mt-10 pt-8 border-t border-slate-100 dark:border-gray-800 flex items-center justify-center gap-2 text-sm text-slate-400 dark:text-gray-500">
         <Code2 size={14} className="shrink-0" />
@@ -115,7 +145,10 @@ export default function SupportPage() {
       </div>
 
       <div className="text-center mt-6">
-        <Link href="/docs/getting-started/" className="text-brand-500 hover:text-brand-600 text-sm font-medium no-underline">
+        <Link
+          href="/docs/getting-started/"
+          className="text-brand-500 hover:text-brand-600 text-sm font-medium no-underline"
+        >
           ← Back to documentation
         </Link>
       </div>

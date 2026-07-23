@@ -2,7 +2,24 @@ import type { Metadata } from 'next'
 import { CodeTabs } from '@/components/CodeTabs'
 import { Callout } from '@/components/Callout'
 
-export const metadata: Metadata = { title: 'Public API Routes' }
+export const metadata: Metadata = {
+  title: 'Public API Routes',
+  description: 'Public API routes at /consenti/api/v1 — no authentication required.',
+  alternates: { canonical: '/docs/api/routes/public' },
+  openGraph: {
+    title: 'Public API Routes',
+    description: 'Public API routes at /consenti/api/v1 — no authentication required.',
+    url: 'https://consenti.dev/docs/api/routes/public',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Public API Routes',
+    description: 'Public API routes at /consenti/api/v1 — no authentication required.',
+    images: ['/og-image.jpg'],
+  },
+}
 
 function Method({ m }: { m: 'GET' | 'POST' | 'PUT' | 'DELETE' }) {
   const colors = {
@@ -29,7 +46,10 @@ export default function PublicRoutesPage() {
 
       <Callout type="tip">
         Explore and test all routes interactively in the{' '}
-        <a href="/consenti/api/docs" target="_blank" rel="noopener noreferrer">Swagger UI</a>.
+        <a href="/consenti/api/docs" target="_blank" rel="noopener noreferrer">
+          Swagger UI
+        </a>
+        .
       </Callout>
 
       <div className="not-prose overflow-x-auto my-6">
@@ -43,20 +63,46 @@ export default function PublicRoutesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100">
             {[
-              { m: 'GET', p: '/profiles/:tenantId/:complianceGroup/:locale', d: 'Hot-serve — serve locale JSON directly from disk (zero DB)' },
-              { m: 'GET', p: '/profiles/:tenantId/:profileId/:version/:locale', d: 'Serve a specific version locale JSON (dashboard preview)' },
-              { m: 'GET', p: '/resolve-profile', d: 'Geo-resolve compliance group, return file path + locale' },
+              {
+                m: 'GET',
+                p: '/profiles/:tenantId/:complianceGroup/:locale',
+                d: 'Hot-serve — serve locale JSON directly from disk (zero DB)',
+              },
+              {
+                m: 'GET',
+                p: '/profiles/:tenantId/:profileId/:entryId/:locale',
+                d: "Serve a specific archived edit's locale JSON (dashboard preview)",
+              },
+              {
+                m: 'GET',
+                p: '/resolve-profile',
+                d: 'Geo-resolve compliance group, return file path + locale',
+              },
               { m: 'GET', p: '/profiles/:id', d: 'Get profile by ID (DB-backed, default locale)' },
-              { m: 'GET', p: '/profiles/:id/:locale', d: 'Get profile by ID and locale (DB-backed)' },
-              { m: 'GET', p: '/profiles/auto/:locale', d: 'Legacy: geo-resolve and return matching active profile' },
+              {
+                m: 'GET',
+                p: '/profiles/:id/:locale',
+                d: 'Get profile by ID and locale (DB-backed)',
+              },
+              {
+                m: 'GET',
+                p: '/profiles/auto/:locale',
+                d: 'Legacy: geo-resolve and return matching active profile',
+              },
               { m: 'POST', p: '/consent', d: 'Submit a consent record' },
               { m: 'GET', p: '/consent/:visitorId', d: 'Get current consent for a visitor' },
               { m: 'PUT', p: '/consent/:visitorId', d: 'Update consent for a visitor' },
-              { m: 'DELETE', p: '/consent/:visitorId', d: 'GDPR erasure — delete all data for visitor' },
+              {
+                m: 'DELETE',
+                p: '/consent/:visitorId',
+                d: 'GDPR erasure — delete all data for visitor',
+              },
               { m: 'GET', p: '/consent/:visitorId/verify', d: 'Verify consent is still valid' },
             ].map(({ m, p, d }) => (
               <tr key={p + m} className="hover:bg-slate-50">
-                <td className="px-3 py-2"><Method m={m as 'GET' | 'POST' | 'PUT' | 'DELETE'} /></td>
+                <td className="px-3 py-2">
+                  <Method m={m as 'GET' | 'POST' | 'PUT' | 'DELETE'} />
+                </td>
                 <td className="px-3 py-2 font-mono text-xs text-slate-800">{p}</td>
                 <td className="px-3 py-2 text-slate-600">{d}</td>
               </tr>
@@ -70,8 +116,8 @@ export default function PublicRoutesPage() {
       <h2>Static profile file serving (hot path)</h2>
       <p>
         The primary way to serve profiles at scale. Locale JSON files are written to disk when a
-        profile is <strong>activated</strong> in the dashboard. These routes serve them directly from
-        the filesystem — no DB query on the hot path.
+        profile is <strong>activated</strong> in the dashboard. These routes serve them directly
+        from the filesystem — no DB query on the hot path.
       </p>
 
       <h3>
@@ -80,13 +126,13 @@ export default function PublicRoutesPage() {
       <p>
         Serves the active locale JSON for a compliance group from{' '}
         <code>{`\${storage.path}/profiles/\${tenantId}/\${complianceGroup}/\${locale}.json`}</code>.
-        Returns <code>Cache-Control: public, max-age=3600, stale-while-revalidate=60</code> —
-        safe for CDN caching.
+        Returns <code>Cache-Control: public, max-age=3600, stale-while-revalidate=60</code> — safe
+        for CDN caching.
       </p>
       <p>
-        If the requested locale file does not exist, responds with{' '}
-        <code>303 See Other</code> to <code>.../default</code>, which serves <code>default.json</code>{' '}
-        (the <code>defaultLocale</code> content).
+        If the requested locale file does not exist, responds with <code>303 See Other</code> to{' '}
+        <code>.../default</code>, which serves <code>default.json</code> (the{' '}
+        <code>defaultLocale</code> content).
       </p>
       <CodeTabs
         tabs={[
@@ -103,10 +149,9 @@ export default function PublicRoutesPage() {
 
 {
   "id": "my-gdpr-profile",
-  "version": 3,
   "defaultLocale": "en",
   "complianceGroup": "opt-in",
-  "cookies": [...],
+  "cookies": {...},
   "mainBanner": { ... },
   "preferenceModal": { ... }
 }`,
@@ -122,23 +167,25 @@ export default function PublicRoutesPage() {
       />
 
       <h3>
-        <Method m="GET" /> <code>/profiles/:tenantId/:profileId/:version/:locale</code>
+        <Method m="GET" /> <code>/profiles/:tenantId/:profileId/:entryId/:locale</code>
       </h3>
       <p>
-        Serves a specific immutable version of a profile locale JSON — used by the dashboard
-        version history viewer. These files are written once and never modified.
+        Serves the locale JSON for one version snapshot — used by the dashboard edit-history viewer.
+        These files are written once and never modified. <code>:profileId</code> is the
+        profile&apos;s stable id; <code>:entryId</code> is the version number (from{' '}
+        <code>GET /admin/profiles/:id/versions</code>).
       </p>
       <CodeTabs
         tabs={[
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/api/v1/profiles/default/my-profile-uuid/2/fr-FR HTTP/1.1`,
+            code: `// GET /consenti/api/v1/profiles/default/prof-a1b2c3/2/fr-FR HTTP/1.1`,
           },
           {
             label: 'Response 200',
             lang: 'json',
-            code: `// Serves: \${storage.path}/profiles/default/my-profile-uuid/2/fr-FR.json`,
+            code: `// Serves: \${storage.path}/profiles/default/prof-a1b2c3/2/fr-FR.json`,
           },
         ]}
       />
@@ -151,73 +198,122 @@ export default function PublicRoutesPage() {
         <Method m="GET" /> <code>/resolve-profile</code>
       </h3>
       <p>
-        Used by widgets configured with <code>{'compliance.type: \'auto\''}</code>. Call this once on
-        page load to discover which compliance group and locale file the visitor should receive.
-        The widget then fetches that file directly — zero subsequent DB queries.
+        Used by widgets configured with <code>{"compliance.type: 'auto'"}</code>. Call this once on
+        page load to discover which compliance group and locale file the visitor should receive. The
+        widget then fetches that file directly — zero subsequent DB queries.
       </p>
       <p>
         Geo resolution uses the <code>geoDataProvider</code> configured in{' '}
-        <code>createConsenti()</code>. When S3 sync is enabled, the returned <code>path</code> is an S3 URL.
+        <code>createConsenti()</code>. The returned <code>path</code> is always a path on this
+        server (<code>/consenti/api/v1/profiles/...</code>), even when S3 sync is enabled — see the{' '}
+        <code>s3Api</code> config docs if you want an external CDN or edge function to serve
+        straight from S3 instead.
       </p>
       <table>
         <thead>
-          <tr><th>Query param</th><th>Description</th></tr>
+          <tr>
+            <th>Query param</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>tz</code></td><td>IANA timezone string (e.g. <code>Europe/Paris</code>).</td></tr>
-          <tr><td><code>lang</code></td><td>Accept-Language value (e.g. <code>fr-FR,fr;q=0.9</code>).</td></tr>
-          <tr><td><code>locale</code></td><td>Preferred BCP 47 locale (e.g. <code>fr-FR</code>).</td></tr>
+          <tr>
+            <td>
+              <code>data</code>
+            </td>
+            <td>Preferred</td>
+            <td>
+              Base64-encoded JSON with keys <code>timezone</code>, <code>languages</code>,{' '}
+              <code>language</code>, <code>locale</code>. Sent automatically by the widget via{' '}
+              <code>encodeGeoHints()</code>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>tz</code>
+            </td>
+            <td>Legacy</td>
+            <td>
+              IANA timezone string (e.g. <code>Europe/Paris</code>). Used when <code>data</code> is
+              absent.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>lang</code>
+            </td>
+            <td>Legacy</td>
+            <td>
+              Accept-Language value (e.g. <code>fr-FR,fr;q=0.9</code>).
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>locale</code>
+            </td>
+            <td>Legacy</td>
+            <td>
+              Preferred BCP 47 locale (e.g. <code>fr-FR</code>).
+            </td>
+          </tr>
         </tbody>
       </table>
       <CodeTabs
         tabs={[
           {
-            label: 'Request — Europe/Paris',
+            label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/api/v1/resolve-profile?tz=Europe/Paris&lang=fr-FR&locale=fr-FR HTTP/1.1`,
+            code: `// Widget encodes automatically — equivalent manual call:
+const data = btoa(JSON.stringify({
+  timezone: 'Europe/Paris',
+  languages: ['fr-FR', 'fr'],
+  language: 'fr-FR',
+  locale: 'fr-FR',
+}))
+fetch(\`/consenti/api/v1/resolve-profile?data=\${encodeURIComponent(data)}\`)`,
           },
           {
-            label: 'Response 200',
+            label: 'Response 200 — found',
             lang: 'json',
             code: `{
   "path": "/consenti/api/v1/profiles/default/opt-in/fr-FR",
-  "resolvedLocale": "fr-FR",
-  "resolvedComplianceGroup": "opt-in",
-  "profileId": "my-gdpr-profile-uuid",
-  "version": 3
+  "complianceGroup": "opt-in",
+  "locale": "fr-FR",
+  "found": true
 }`,
           },
           {
-            label: 'Response — locale missing',
+            label: 'Response 200 — not found',
             lang: 'json',
             code: `{
-  "path": "/consenti/api/v1/profiles/default/opt-in/default",
-  "resolvedLocale": "en",
-  "resolvedComplianceGroup": "opt-in",
-  "profileId": "my-gdpr-profile-uuid",
-  "version": 3,
-  "warning": "locale_not_found"
+  "path": null,
+  "complianceGroup": "opt-in",
+  "locale": "fr-FR",
+  "found": false
 }`,
           },
         ]}
       />
       <Callout type="info">
-        The <code>warning: &apos;locale_not_found&apos;</code> field is present only when the requested locale
-        was unavailable and the path was redirected to <code>default.json</code>.
+        When <code>found</code> is <code>false</code>, <code>path</code> is <code>null</code> — the
+        tenant has no active profile for this compliance group yet. The widget automatically falls
+        back to the embedded profile for the resolved <code>complianceGroup</code>, so no 404 is
+        shown to the visitor.
       </Callout>
 
       {/* ── DB-backed profile routes ──────────────────────────────── */}
 
       <h2>DB-backed profile routes</h2>
       <p>
-        These routes query the database on each request. Use them for server-side rendering or
-        when you need a fully resolved profile object including the translations map. For
-        high-traffic public-facing widget use, prefer the static file serving routes above.
+        These routes query the database on each request. Use them for server-side rendering or when
+        you need a fully resolved profile object including the translations map. For high-traffic
+        public-facing widget use, prefer the static file serving routes above.
       </p>
 
       <Callout type="info">
-        There is no public list endpoint — clients must know the profile ID (copy it from the
-        admin dashboard or pass it from your backend).
+        There is no public list endpoint — clients must know the profile ID (copy it from the admin
+        dashboard or pass it from your backend).
       </Callout>
 
       <p>
@@ -244,16 +340,48 @@ export default function PublicRoutesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
             {[
-              { f: 'id', t: 'string', d: 'Profile UUID' },
-              { f: 'version', t: 'number', d: 'Schema version — bump triggers re-consent' },
-              { f: 'defaultLocale', t: 'string', d: 'BCP 47 locale used as the translation fallback' },
-              { f: 'currentLocale', t: 'string', d: 'Locale whose content is present in this response' },
+              {
+                f: 'id',
+                t: 'string',
+                d: 'Profile UUID — changes on every edit, so it alone signals a stale consent (no separate version field)',
+              },
+              {
+                f: 'expiryDays?',
+                t: 'number',
+                d: 'Days until consent expires and the visitor is asked again. Default: 365',
+              },
+              {
+                f: 'defaultLocale',
+                t: 'string',
+                d: 'BCP 47 locale used as the translation fallback',
+              },
+              {
+                f: 'currentLocale',
+                t: 'string',
+                d: 'Locale whose content is present in this response',
+              },
               { f: 'locales', t: 'string[]', d: 'All locale keys defined on the profile' },
-              { f: 'cookies', t: 'Cookie[]', d: 'Cookies/purposes managed by this profile' },
+              {
+                f: 'cookies',
+                t: 'CookieMap',
+                d: 'Parameters managed by this profile, keyed by id',
+              },
               { f: 'mainBanner', t: 'MainBanner', d: 'Banner config resolved for currentLocale' },
-              { f: 'preferenceModal', t: 'PreferenceModal', d: 'Modal config resolved for currentLocale' },
-              { f: 'gpcBanner?', t: 'GpcBanner', d: 'GPC-specific banner variant (omitted if not configured)' },
-              { f: 'resolvedComplianceGroup?', t: 'ComplianceGroupId', d: 'Present only on /profiles/auto/:locale — the geo-resolved compliance group' },
+              {
+                f: 'preferenceModal',
+                t: 'PreferenceModal',
+                d: 'Modal config resolved for currentLocale',
+              },
+              {
+                f: 'gpcBanner?',
+                t: 'GpcBanner',
+                d: 'GPC-specific banner variant (omitted if not configured)',
+              },
+              {
+                f: 'resolvedComplianceGroup?',
+                t: 'ComplianceGroupId',
+                d: 'Present only on /profiles/auto/:locale — the geo-resolved compliance group',
+              },
             ].map(({ f, t, d }) => (
               <tr key={f} className="hover:bg-slate-50">
                 <td className="px-3 py-2 font-mono text-slate-800">{f}</td>
@@ -269,8 +397,8 @@ export default function PublicRoutesPage() {
         <Method m="GET" /> <code>/profiles/:id</code>
       </h3>
       <p>
-        Returns the profile resolved in its <code>defaultLocale</code>.{' '}
-        <code>currentLocale</code> will equal <code>defaultLocale</code>.
+        Returns the profile resolved in its <code>defaultLocale</code>. <code>currentLocale</code>{' '}
+        will equal <code>defaultLocale</code>.
       </p>
       <CodeTabs
         tabs={[
@@ -284,47 +412,46 @@ export default function PublicRoutesPage() {
             lang: 'json',
             code: `{
   "id": "my-profile-id",
-  "version": 3,
   "defaultLocale": "en",
   "currentLocale": "en",
   "locales": ["en", "fr"],
-  "cookies": [
-    { "id": "necessary", "mandatory": true },
-    { "id": "analytics", "listenGpc": true, "expiry": 365 }
-  ],
+  "expiryDays": 365,
+  "cookies": {
+    "necessary": {},
+    "analytics": { "listenGpc": true }
+  },
   "mainBanner": {
     "position": "bottom",
     "heading": "We use cookies",
     "htmlText": "This site uses cookies to improve your experience.",
-    "buttons": [
-      { "text": "Accept All", "type": "primary", "cookies": "*" },
-      { "text": "Reject Optional", "type": "primary", "cookies": "!" },
-      { "text": "Customize", "type": "manage" }
-    ]
+    "buttons": {
+      "accept-all": { "text": "Accept All", "style": "primary", "action": "custom", "cookies": "*" },
+      "reject-optional": { "text": "Reject Optional", "style": "secondary", "action": "custom", "cookies": "!" },
+      "customize": { "text": "Customize", "style": "secondary", "action": "manage" }
+    }
   },
   "preferenceModal": {
     "heading": "Cookie Preferences",
     "showClose": true,
-    "buttons": [
-      { "text": "Accept All", "type": "primary", "cookies": "*" },
-      { "text": "Save Preferences", "type": "submit" },
-      { "text": "Reject Optional", "type": "primary", "cookies": "!" }
-    ],
-    "categories": [
-      {
-        "id": "cat-necessary",
+    "buttons": {
+      "accept-all": { "text": "Accept All", "style": "primary", "action": "custom", "cookies": "*" },
+      "save-preferences": { "text": "Save Preferences", "style": "primary", "action": "submit" },
+      "reject-optional": { "text": "Reject Optional", "style": "text", "action": "custom", "cookies": "!" }
+    },
+    "categories": {
+      "necessary": {
         "heading": "Necessary",
         "htmlText": "Required for the site to function.",
-        "mandatory": true,
+        "legalBasis": "mandatory",
         "cookies": ["necessary"]
       },
-      {
-        "id": "cat-analytics",
+      "analytics": {
         "heading": "Analytics",
         "htmlText": "Help us understand how visitors use the site.",
+        "legalBasis": "consent",
         "cookies": ["analytics"]
       }
-    ]
+    }
   }
 }`,
           },
@@ -352,47 +479,46 @@ export default function PublicRoutesPage() {
             lang: 'json',
             code: `{
   "id": "my-profile-id",
-  "version": 3,
   "defaultLocale": "en",
   "currentLocale": "fr",
   "locales": ["en", "fr"],
-  "cookies": [
-    { "id": "necessary", "mandatory": true },
-    { "id": "analytics", "listenGpc": true, "expiry": 365 }
-  ],
+  "expiryDays": 365,
+  "cookies": {
+    "necessary": {},
+    "analytics": { "listenGpc": true }
+  },
   "mainBanner": {
     "position": "bottom",
     "heading": "Nous utilisons des cookies",
     "htmlText": "Ce site utilise des cookies pour améliorer votre expérience.",
-    "buttons": [
-      { "text": "Tout accepter", "type": "primary", "cookies": "*" },
-      { "text": "Tout refuser", "type": "primary", "cookies": "!" },
-      { "text": "Gérer les préférences", "type": "manage" }
-    ]
+    "buttons": {
+      "accept-all": { "text": "Tout accepter", "style": "primary", "action": "custom", "cookies": "*" },
+      "reject-optional": { "text": "Tout refuser", "style": "secondary", "action": "custom", "cookies": "!" },
+      "customize": { "text": "Gérer les préférences", "style": "secondary", "action": "manage" }
+    }
   },
   "preferenceModal": {
     "heading": "Préférences de cookies",
     "showClose": true,
-    "buttons": [
-      { "text": "Tout accepter", "type": "primary", "cookies": "*" },
-      { "text": "Enregistrer", "type": "submit" },
-      { "text": "Tout refuser", "type": "primary", "cookies": "!" }
-    ],
-    "categories": [
-      {
-        "id": "cat-necessary",
+    "buttons": {
+      "accept-all": { "text": "Tout accepter", "style": "primary", "action": "custom", "cookies": "*" },
+      "save-preferences": { "text": "Enregistrer", "style": "primary", "action": "submit" },
+      "reject-optional": { "text": "Tout refuser", "style": "text", "action": "custom", "cookies": "!" }
+    },
+    "categories": {
+      "necessary": {
         "heading": "Nécessaires",
         "htmlText": "Requis pour le fonctionnement du site.",
-        "mandatory": true,
+        "legalBasis": "mandatory",
         "cookies": ["necessary"]
       },
-      {
-        "id": "cat-analytics",
+      "analytics": {
         "heading": "Analytique",
         "htmlText": "Nous aide à comprendre comment les visiteurs utilisent le site.",
+        "legalBasis": "consent",
         "cookies": ["analytics"]
       }
-    ]
+    }
   }
 }`,
           },
@@ -407,7 +533,9 @@ export default function PublicRoutesPage() {
 
       <h3>
         <Method m="GET" /> <code>/profiles/auto/:locale</code>{' '}
-        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 not-prose">Legacy</span>
+        <span className="inline-block rounded bg-amber-100 px-1.5 py-0.5 text-xs font-semibold text-amber-700 not-prose">
+          Legacy
+        </span>
       </h3>
       <p>
         Legacy geo-resolution route — returns a fully resolved profile object from the database.
@@ -426,11 +554,30 @@ export default function PublicRoutesPage() {
       </p>
       <table>
         <thead>
-          <tr><th>Query param</th><th>Description</th></tr>
+          <tr>
+            <th>Query param</th>
+            <th>Description</th>
+          </tr>
         </thead>
         <tbody>
-          <tr><td><code>tz</code></td><td>IANA timezone string (e.g. <code>Europe/Paris</code>). Used when <code>geoDataProvider: &apos;timezone&apos;</code>.</td></tr>
-          <tr><td><code>lang</code></td><td>Accept-Language header value (e.g. <code>fr-FR,fr;q=0.9</code>). Used when <code>geoDataProvider: &apos;language&apos;</code>.</td></tr>
+          <tr>
+            <td>
+              <code>tz</code>
+            </td>
+            <td>
+              IANA timezone string (e.g. <code>Europe/Paris</code>). Used when{' '}
+              <code>geoDataProvider: &apos;timezone&apos;</code>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>lang</code>
+            </td>
+            <td>
+              Accept-Language header value (e.g. <code>fr-FR,fr;q=0.9</code>). Used when{' '}
+              <code>geoDataProvider: &apos;language&apos;</code>.
+            </td>
+          </tr>
         </tbody>
       </table>
       <CodeTabs
@@ -445,17 +592,17 @@ export default function PublicRoutesPage() {
             lang: 'json',
             code: `{
   "id": "my-gdpr-profile",
-  "version": 3,
   "defaultLocale": "en",
   "currentLocale": "en",
   "resolvedComplianceGroup": "opt-in",
   "locales": ["en", "fr", "de"],
-  "cookies": [
-    { "id": "necessary", "legalBasis": "mandatory" },
-    { "id": "analytics", "legalBasis": "consent", "expiry": 365 }
-  ],
-  "mainBanner": { "position": "bottom", "heading": "We use cookies", "buttons": [...] },
-  "preferenceModal": { "heading": "Cookie Preferences", "buttons": [...], "categories": [...] }
+  "expiryDays": 365,
+  "cookies": {
+    "necessary": { "purpose": "necessary" },
+    "analytics": { "purpose": "analytics", "listenGpc": true }
+  },
+  "mainBanner": { "position": "bottom", "heading": "We use cookies", "buttons": {...} },
+  "preferenceModal": { "heading": "Cookie Preferences", "buttons": {...}, "categories": {...} }
 }`,
           },
           {
@@ -468,34 +615,34 @@ export default function PublicRoutesPage() {
             lang: 'json',
             code: `{
   "id": "my-cpra-profile",
-  "version": 2,
   "defaultLocale": "en",
   "currentLocale": "en",
   "resolvedComplianceGroup": "opt-out-strict",
   "locales": ["en"],
-  "cookies": [
-    { "id": "necessary", "legalBasis": "mandatory" },
-    { "id": "analytics", "legalBasis": "consent", "cpraCategory": "sale", "listenGpc": true }
-  ],
-  "mainBanner": { "position": "bottom", "heading": "Your Privacy Choices", "buttons": [...] },
-  "gpcBanner": { "heading": "We detected GPC", "buttons": [...] },
-  "preferenceModal": { "heading": "Cookie Preferences", "buttons": [...], "categories": [...] }
+  "expiryDays": 365,
+  "cookies": {
+    "necessary": { "purpose": "necessary" },
+    "analytics": { "purpose": "analytics", "cpraCategory": "sale", "listenGpc": true }
+  },
+  "mainBanner": { "position": "bottom", "heading": "Your Privacy Choices", "buttons": {...} },
+  "gpcBanner": { "heading": "We detected GPC", "buttons": {...} },
+  "preferenceModal": { "heading": "Cookie Preferences", "buttons": {...}, "categories": {...} }
 }`,
           },
         ]}
       />
       <Callout type="info">
-        The 3-step jurisdiction lookup: (1) country + region override (e.g. California → CPRA),
-        (2) country base group (e.g. US → opt-out), (3) country default (most strict) when region
-        is unknown (US unknown state → opt-out-strict).
+        The 3-step jurisdiction lookup: (1) country + region override (e.g. California → CPRA), (2)
+        country base group (e.g. US → opt-out), (3) country default (most strict) when region is
+        unknown (US unknown state → opt-out-strict).
       </Callout>
 
       {/* ── Consent ──────────────────────────────────────────────── */}
 
       <h2>Consent</h2>
       <p>
-        Consent records are keyed by <code>visitorId</code>. The visitor ID is persisted in a
-        cookie (<code>consenti_vid</code>) set by the widget after the first submission.
+        Consent records are keyed by <code>visitorId</code>. The visitor ID is persisted in a cookie
+        (<code>consenti_vid</code>) set by the widget after the first submission.
       </p>
 
       <h3>
@@ -521,10 +668,11 @@ export default function PublicRoutesPage() {
     "marketing": "denied"
   },
   "visitorId": "uuid-v4",        // optional — generated if omitted
-  "profileVersion": 3,           // optional — defaults to 1
   "locale": "en",                // optional — defaults to "en"
   "gpcDetected": false,          // optional — defaults to false
-  "source": "banner"             // optional — "banner" | "api" | "import"
+  "source": "banner",            // optional — "banner" | "api" | "import"
+  "ageVerified": true,           // optional — set by the widget's age gate, see UI Events
+  "parentalConsentToken": "pcon_..." // optional — set when age gate requires parental consent
 }`,
           },
           {
@@ -534,7 +682,6 @@ export default function PublicRoutesPage() {
   "id": "record-uuid",
   "visitorId": "visitor-uuid",
   "profileId": "my-profile-id",
-  "profileVersion": 3,
   "locale": "en",
   "consentJson": {
     "necessary": "granted",
@@ -567,7 +714,6 @@ export default function PublicRoutesPage() {
   "id": "record-uuid",
   "visitorId": "visitor-uuid",
   "profileId": "my-profile-id",
-  "profileVersion": 3,
   "locale": "en",
   "consentJson": {
     "necessary": "granted",
@@ -612,7 +758,6 @@ export default function PublicRoutesPage() {
   "id": "record-uuid",
   "visitorId": "visitor-uuid",
   "profileId": "my-profile-id",
-  "profileVersion": 3,
   "locale": "fr",
   "consentJson": {
     "necessary": "granted",
@@ -656,9 +801,10 @@ export default function PublicRoutesPage() {
         <Method m="GET" /> <code>/consent/:visitorId/verify</code>
       </h3>
       <p>
-        Checks whether the stored consent record is still valid — i.e., the profile version matches
-        and the record has not expired. The UI widget calls this on page load to decide whether to
-        re-show the banner.
+        Checks whether the stored consent record is still valid — i.e. the consent&apos;s{' '}
+        <code>profileId</code> still matches the compliance group&apos;s currently active profile
+        id, and the record has not expired. The UI widget calls this on page load to decide whether
+        to re-show the banner.
       </p>
       <CodeTabs
         tabs={[
@@ -671,25 +817,28 @@ export default function PublicRoutesPage() {
             label: 'Response 200',
             lang: 'json',
             code: `// Consent is still valid:
-{ "valid": true }
+{ "valid": true, "reasons": [] }
 
-// Consent is stale (profile version bumped):
+// Consent is stale — the profile has been edited (a new id is active) since consent was given:
 {
   "valid": false,
-  "reason": "profile_version_mismatch"
+  "reasons": ["profile_changed"],
+  "currentProfileId": "prof-d4e5f6",
+  "consentProfileId": "prof-a1b2c3"
 }
 
-// Other possible reasons:
-// "consent_expired" — past retention window
-// "missing_cookies" — cookie categories changed`,
+// Other possible reasons (array can contain more than one):
+// "consent_expired" — past the profile's expiryDays retention window
+// "hmac_invalid" — the stored record's signature doesn't match its contents.
+//   Only checked when consentSigningKey is configured AND the record has a signature.`,
           },
         ]}
       />
 
       <Callout type="tip">
         The widget automatically calls <code>POST /consent</code> after the visitor accepts, then
-        calls <code>GET /consent/:visitorId/verify</code> on subsequent page loads to skip the banner
-        if consent is still valid.
+        calls <code>GET /consent/:visitorId/verify</code> on subsequent page loads to skip the
+        banner if consent is still valid.
       </Callout>
     </div>
   )

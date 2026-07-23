@@ -38,6 +38,7 @@ export class Banner {
    * @param locales          - All locale codes available on the profile (for the locale switcher).
    * @param activeLocale     - The currently active locale code.
    * @param onLocaleSwitch   - Callback invoked when the user selects a different locale.
+   * @param variant          - The variant of the banner 'main' | 'gpc.
    * @returns The constructed banner `<div>` element.
    */
   build(
@@ -47,11 +48,12 @@ export class Banner {
     locales?: string[],
     activeLocale?: string,
     onLocaleSwitch?: (locale: string) => void,
-    hidePoweredBy = false,
+    hidePoweredBy = true,
+    variant: 'main' | 'gpc' = 'main'
   ): HTMLElement {
     const banner = document.createElement('div')
     banner.id = 'consenti-banner'
-    banner.className = `consenti-banner consenti-banner--${config.position}`
+    banner.className = `consenti-banner consenti-banner--${variant} consenti-banner--${config.position}`
     banner.setAttribute('role', 'region')
     banner.setAttribute('aria-label', 'Cookie consent')
     banner.setAttribute('aria-live', 'polite')
@@ -62,7 +64,7 @@ export class Banner {
     linksContainer.className = 'consenti-banner__links'
 
     if (config.heading) {
-      const headingTag = config.headingTag ?? 'h2'
+      const headingTag = config.headingTag ?? 'div'
       const heading = document.createElement(headingTag)
       heading.id = 'consenti-banner-heading'
       heading.className = 'consenti-banner__heading'
@@ -87,9 +89,10 @@ export class Banner {
     textContainer.appendChild(text)
 
     // Render link-action buttons as styled anchors below the body text
-    const linkButtons = config.buttons.filter((b): b is Button & { action: 'link' } => b.action === 'link')
+    const buttonEntries = Object.entries(config.buttons)
+    const linkButtons = buttonEntries.filter((e): e is [string, Button & { action: 'link' }] => e[1].action === 'link')
     if (linkButtons.length > 0) {
-      for (const btn of linkButtons) {
+      for (const [, btn] of linkButtons) {
         if (!btn.url) continue
         const anchor = document.createElement('a')
         anchor.href = btn.url
@@ -106,19 +109,19 @@ export class Banner {
 
     banner.appendChild(textContainer)
 
-    const actionButtons = config.buttons.filter(b => b.action !== 'link')
+    const actionButtons = buttonEntries.filter(([, b]) => b.action !== 'link')
     if (actionButtons.length > 0) {
       const btns = document.createElement('div')
       btns.className = 'consenti-banner__buttons'
-      for (const btn of actionButtons) {
-        btns.appendChild(buildButton(btn, handlers))
+      for (const [id, btn] of actionButtons) {
+        btns.appendChild(buildButton(id, btn, handlers))
       }
       banner.appendChild(btns)
     }
 
     // Controls group: locale switcher + close button (both positioned absolute top-right)
     const hasClose = config.showClose
-    const hasLocaleSwitcher = config.showLocaleSwitcher && locales && locales.length > 1
+    const hasLocaleSwitcher = config.showLocaleSwitcher && locales && locales.length > 0
 
     if (hasClose || hasLocaleSwitcher) {
       const controls = document.createElement('div')
@@ -131,7 +134,7 @@ export class Banner {
       if (hasClose) {
         const close = document.createElement('button')
         close.type = 'button'
-        close.className = 'consenti-banner__close consenti-btn consenti-btn--close'
+        close.className = 'consenti-banner__close consenti-btn consenti-transition-1_2x consenti-btn--action'
         close.setAttribute('aria-label', 'Close cookie banner')
         close.textContent = '×'
         close.addEventListener('click', handlers.onClose)
@@ -146,9 +149,9 @@ export class Banner {
     }
 
     const pb = document.createElement('a')
-    pb.href = 'https://consenti.dev'
-    pb.className = 'consenti-banner__powered-by'
-    pb.textContent = 'Powered by Consenti'
+    pb.href = 'https://consenti.dev/?utm_source=widget&utm_medium=powered-by&utm_campaign=consenti-ui'
+    pb.className = 'consenti__powered-by'
+    pb.textContent = 'Powered by Consenti ↗'
     pb.setAttribute('target', '_blank')
     pb.setAttribute('rel', 'noopener noreferrer')
     if (hidePoweredBy) {
@@ -200,7 +203,7 @@ function buildLocaleSwitcher(
 
   const btn = document.createElement('button')
   btn.type = 'button'
-  btn.className = 'consenti-locale-switcher__btn consenti-btn consenti-btn--close'
+  btn.className = 'consenti-locale-switcher__btn consenti-btn consenti-transition-1_2x consenti-btn--action'
   btn.setAttribute('aria-label', 'Switch language')
   btn.setAttribute('aria-haspopup', 'listbox')
   btn.textContent = '🌐'

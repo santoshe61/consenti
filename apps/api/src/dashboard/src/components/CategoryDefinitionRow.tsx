@@ -36,12 +36,16 @@ export function CategoryDefinitionRow({ cat, onChange, onRemove, cookieOptions }
           <label class="block text-xs text-gray-500 mb-0.5">Legal Basis</label>
           <select
             class="w-full border border-gray-300 rounded px-2 py-1 text-xs"
-            value={cat.type}
-            onChange={e => onChange({ type: (e.target as HTMLSelectElement).value as TemplateCategoryDef['type'] })}
+            value={cat.legalBasis}
+            onChange={e => onChange({ legalBasis: (e.target as HTMLSelectElement).value as TemplateCategoryDef['legalBasis'] })}
           >
             <option value="consent">Consent</option>
             <option value="legitimate_interest">Legitimate Interest</option>
+            <option value="mandatory">Mandatory / Strictly Necessary</option>
           </select>
+          {cat.legalBasis === 'legitimate_interest' && (
+            <p class="text-xs text-gray-400 mt-0.5">Balancing-test description is authored per-locale on the profile, in Preference Modal content.</p>
+          )}
         </div>
 
         <div class="flex items-start">
@@ -53,7 +57,7 @@ export function CategoryDefinitionRow({ cat, onChange, onRemove, cookieOptions }
           >✕</button>
         </div>
 
-        <div class="col-span-2">
+        <div class="col-span-2 lg:col-span-4">
           <label class="block text-xs text-gray-500 mb-0.5">Cookies in this category <span class="text-red-500">*</span></label>
           <CookieMultiSelect
             value={cat.cookies.length ? cat.cookies : undefined}
@@ -62,26 +66,6 @@ export function CategoryDefinitionRow({ cat, onChange, onRemove, cookieOptions }
             extraCookies={cookieOptions}
           />
           {!cat.cookies.length && <p class="text-xs text-red-500 mt-0.5">Select at least one cookie</p>}
-        </div>
-
-        <div class="flex items-end gap-4 pb-2">
-          <label class="flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={cat.mandatory}
-              onChange={e => onChange({ mandatory: (e.target as HTMLInputElement).checked })}
-            />
-            Mandatory
-          </label>
-          <label class={`flex items-center gap-1.5 text-xs text-gray-600 cursor-pointer ${cat.type !== 'legitimate_interest' ? 'opacity-40' : ''}`}>
-            <input
-              type="checkbox"
-              checked={cat.liEnabled}
-              disabled={cat.type !== 'legitimate_interest'}
-              onChange={e => onChange({ liEnabled: (e.target as HTMLInputElement).checked })}
-            />
-            LI active
-          </label>
         </div>
       </div>
     </div>

@@ -14,6 +14,11 @@ export type ColType =
   | 'text_hash' // Hash string ≤64    (TEXT in SQLite/PG; VARCHAR(64)  in MySQL)
   | 'longtext'  // Long text          (TEXT in SQLite/PG; LONGTEXT     in MySQL)
   | 'json'      // JSON blob          (TEXT in SQLite; JSONB in PG; LONGTEXT in MySQL)
+  | 'json_ordered' // JSON blob whose object-key order is meaningful (authored button/category/
+                    // cookie maps) — same as 'json' except in PG, where it uses the plain JSON
+                    // type instead of JSONB. JSONB's binary storage format re-sorts object keys
+                    // (by key length, then lexicographically) on every write, silently discarding
+                    // authored order; plain JSON stores the exact input text. (TEXT in SQLite; JSON in PG; LONGTEXT in MySQL)
   | 'int'       // Integer
   | 'bool'      // Boolean            (INTEGER 0/1 in SQLite; BOOLEAN in PG; TINYINT(1) in MySQL)
   | 'ts'        // Timestamp with current-time default
@@ -34,6 +39,10 @@ export interface TableDef {
   cols: ColDef[]
   pk?: string[]                    // composite primary key
   uq?: { cols: string[] }[]        // composite unique constraints
+  idx?: { cols: string[] }[]       // secondary indexes — generated for SQLite/Postgres/MySQL,
+                                    // and consumed as-is by the Mongo adapter's createIndexes().
+                                    // Single source of truth: add a query pattern here once,
+                                    // it reaches every storage driver.
 }
 
 // ── Table definitions ─────────────────────────────────────────────────────────
@@ -56,41 +65,26 @@ const profiles: TableDef = {
     { n: 'tenant_id',      t: 'text', ref: 'tenants' },
     { n: 'name',           t: 'text' },
     { n: 'default_locale', t: 'text_sm', def: 'en' },
+    // Incremented in place on every save — the row is mutated, not replaced.
     { n: 'version',        t: 'int', def: 1 },
-    { n: 'profile_json',   t: 'json' },
+    { n: 'profile_json',   t: 'json_ordered' },
     { n: 'created_at',     t: 'ts', def: '$now' },
     { n: 'updated_at',     t: 'ts', def: '$now', mysqlUpd: true },
   ],
+  idx: [{ cols: ['tenant_id'] }],
+  // SQLite adapters additionally hand-roll a `(tenant_id, json_extract(profile_json,'$.complianceGroup'),
+  // json_extract(profile_json,'$.isActive'))` expression index for findActiveProfileByComplianceGroup —
+  // expression indexes aren't representable in this plain-column declarative system, and profiles is a
+  // small, per-tenant table (not a millions-of-rows target), so it stays hand-written there.
 }
 
-// SQLite initial schema — without enterprise columns (added via ALTER TABLE in v3 migration)
-const consentRecordsBase: TableDef = {
-  name: 'consent_records',
-  cols: [
-    { n: 'id',              t: 'pk' },
-    { n: 'tenant_id',       t: 'text', ref: 'tenants' },
-    { n: 'visitor_id',      t: 'text' },
-    { n: 'profile_id',      t: 'text', ref: 'profiles' },
-    { n: 'profile_version', t: 'int' },
-    { n: 'locale',          t: 'text_sm' },
-    { n: 'consent_json',    t: 'json' },
-    { n: 'gpc_detected',    t: 'bool', def: false },
-    { n: 'source',          t: 'text_sm' },
-    { n: 'created_at',      t: 'ts', def: '$now' },
-    { n: 'updated_at',      t: 'ts', def: '$now', mysqlUpd: true },
-  ],
-  uq: [{ cols: ['visitor_id', 'profile_id'] }],
-}
-
-// Full schema — includes enterprise columns; used for PostgreSQL/MySQL
-const consentRecordsFull: TableDef = {
+const consentRecords: TableDef = {
   name: 'consent_records',
   cols: [
     { n: 'id',                     t: 'pk' },
     { n: 'tenant_id',              t: 'text', ref: 'tenants' },
     { n: 'visitor_id',             t: 'text' },
     { n: 'profile_id',             t: 'text', ref: 'profiles' },
-    { n: 'profile_version',        t: 'int' },
     { n: 'locale',                 t: 'text_sm' },
     { n: 'consent_json',           t: 'json' },
     { n: 'gpc_detected',           t: 'bool', def: false },
@@ -98,10 +92,20 @@ const consentRecordsFull: TableDef = {
     { n: 'age_verified',           t: 'bool', def: false },
     { n: 'parental_consent_token', t: 'longtext', null: true },
     { n: 'tcf_string',             t: 'longtext', null: true },
+    { n: 'signature',              t: 'longtext', null: true },
     { n: 'created_at',             t: 'ts', def: '$now' },
     { n: 'updated_at',             t: 'ts', def: '$now', mysqlUpd: true },
   ],
   uq: [{ cols: ['visitor_id', 'profile_id'] }],
+  // `uq` above already gives every dialect a (visitor_id, profile_id) index, which — by the
+  // leftmost-prefix rule every SQL engine follows — also serves lookups/prefix-searches on
+  // visitor_id alone, so it isn't repeated here.
+  idx: [
+    { cols: ['tenant_id', 'created_at'] },              // base list/sort (no profileId filter)
+    { cols: ['tenant_id', 'profile_id', 'created_at'] }, // list/sort filtered by profileId
+    { cols: ['locale'] },                                // q-search column
+    { cols: ['source'] },                                // q-search column
+  ],
 }
 
 const consentHistory: TableDef = {
@@ -116,6 +120,7 @@ const consentHistory: TableDef = {
     { n: 'action',            t: 'text_sm' },
     { n: 'created_at',        t: 'ts', def: '$now' },
   ],
+  idx: [{ cols: ['visitor_id'] }],
 }
 
 const visitors: TableDef = {
@@ -132,25 +137,27 @@ const visitors: TableDef = {
     { n: 'first_seen',      t: 'ts', def: '$now' },
     { n: 'last_seen',       t: 'ts', def: '$now', mysqlUpd: true },
   ],
-}
-
-// SQLite initial schema — without TOTP columns (added via ALTER TABLE in v3 migration)
-const usersBase: TableDef = {
-  name: 'users',
-  cols: [
-    { n: 'id',            t: 'pk' },
-    { n: 'tenant_id',     t: 'text', ref: 'tenants' },
-    { n: 'name',          t: 'text' },
-    { n: 'email',         t: 'text', unique: true },
-    { n: 'password_hash', t: 'text' },
-    { n: 'is_active',     t: 'bool', def: true },
-    { n: 'created_at',    t: 'ts', def: '$now' },
-    { n: 'updated_at',    t: 'ts', def: '$now', mysqlUpd: true },
+  // visitor_id's `unique: true` above already gives every dialect an index covering visitor_id.
+  idx: [
+    { cols: ['tenant_id', 'first_seen'] },
+    { cols: ['country'] }, // q-search column
   ],
 }
 
-// Full schema — includes TOTP columns; used for PostgreSQL/MySQL
-const usersFull: TableDef = {
+const noticeShown: TableDef = {
+  name: 'notice_shown',
+  cols: [
+    { n: 'id',         t: 'pk' },
+    { n: 'tenant_id',  t: 'text', ref: 'tenants' },
+    { n: 'visitor_id', t: 'text' },
+    { n: 'profile_id', t: 'text', ref: 'profiles' },
+    { n: 'locale',     t: 'text_sm' },
+    { n: 'created_at', t: 'ts', def: '$now' },
+  ],
+  idx: [{ cols: ['visitor_id'] }],
+}
+
+const users: TableDef = {
   name: 'users',
   cols: [
     { n: 'id',            t: 'pk' },
@@ -164,6 +171,14 @@ const usersFull: TableDef = {
     { n: 'created_at',    t: 'ts', def: '$now' },
     { n: 'updated_at',    t: 'ts', def: '$now', mysqlUpd: true },
   ],
+}
+
+/** SQLite-only variant — adds `allowed_tenants`, which only the SQLite adapters currently
+ * read/write (see `RawUser.allowed_tenants` in each `sqlite/*.adapter.ts`). PostgreSQL/MySQL
+ * don't support per-user tenant scoping yet. */
+const usersSqlite: TableDef = {
+  ...users,
+  cols: [...users.cols, { n: 'allowed_tenants', t: 'json', null: true }],
 }
 
 const roles: TableDef = {
@@ -185,18 +200,7 @@ const permissions: TableDef = {
   ],
 }
 
-// SQLite v1 — no tenant_id column (added via ALTER TABLE in v4 migration)
-const userRolesBase: TableDef = {
-  name: 'user_roles',
-  cols: [
-    { n: 'user_id', t: 'text', ref: 'users' },
-    { n: 'role_id', t: 'text', ref: 'roles' },
-  ],
-  pk: ['user_id', 'role_id'],
-}
-
-// Full schema with tenant_id — used for PostgreSQL/MySQL
-const userRolesFull: TableDef = {
+const userRoles: TableDef = {
   name: 'user_roles',
   cols: [
     { n: 'user_id',   t: 'text', ref: 'users' },
@@ -204,6 +208,7 @@ const userRolesFull: TableDef = {
     { n: 'tenant_id', t: 'text', def: 'default' },
   ],
   pk: ['user_id', 'role_id', 'tenant_id'],
+  idx: [{ cols: ['user_id'] }],
 }
 
 const rolePermissions: TableDef = {
@@ -213,6 +218,7 @@ const rolePermissions: TableDef = {
     { n: 'permission_id', t: 'text', ref: 'permissions' },
   ],
   pk: ['role_id', 'permission_id'],
+  idx: [{ cols: ['role_id'] }],
 }
 
 const auditLogs: TableDef = {
@@ -228,6 +234,13 @@ const auditLogs: TableDef = {
     { n: 'new_data',      t: 'json', null: true },
     { n: 'created_at',    t: 'ts', def: '$now' },
   ],
+  idx: [
+    { cols: ['tenant_id', 'created_at'] },
+    { cols: ['action'] },
+    { cols: ['resource_type'] },
+    { cols: ['resource_id'] },
+    { cols: ['user_id'] },
+  ],
 }
 
 const apiKeys: TableDef = {
@@ -238,19 +251,36 @@ const apiKeys: TableDef = {
     { n: 'key_hash',   t: 'text_hash', unique: true },
     { n: 'name',       t: 'text' },
     { n: 'is_active',  t: 'bool', def: true },
+    { n: 'created_by', t: 'text', null: true },
+    { n: 'expire_by',  t: 'ts', null: true },
     { n: 'created_at', t: 'ts', def: '$now' },
+    { n: 'updated_at', t: 'ts', def: '$now', mysqlUpd: true },
   ],
 }
 
-const cookieTemplates: TableDef = {
-  name: 'cookie_templates',
+const tenantSettings: TableDef = {
+  name: 'tenant_settings',
   cols: [
-    { n: 'id',           t: 'pk' },
-    { n: 'tenant_id',    t: 'text', ref: 'tenants', onDel: 'CASCADE' },
-    { n: 'name',         t: 'text' },
-    { n: 'cookies_json', t: 'json', def: '$arr' },
-    { n: 'created_at',   t: 'ts', def: '$now' },
-    { n: 'updated_at',   t: 'ts', def: '$now', mysqlUpd: true },
+    { n: 'tenant_id',                   t: 'text', ref: 'tenants', onDel: 'CASCADE' },
+    { n: 'allowed_origins_json',        t: 'json', def: '$arr' },
+    { n: 'admin_allowed_origins_json',  t: 'json', def: '$arr' },
+    // First-run setup wizard completion flag — set once, never reset (see setup.routes.ts).
+    { n: 'setup_completed',             t: 'bool', def: false },
+    { n: 'updated_at',                  t: 'ts', def: '$now', mysqlUpd: true },
+  ],
+  pk: ['tenant_id'],
+}
+
+const consentTemplates: TableDef = {
+  name: 'consent_templates',
+  cols: [
+    { n: 'id',             t: 'pk' },
+    { n: 'tenant_id',      t: 'text', ref: 'tenants', onDel: 'CASCADE' },
+    { n: 'name',           t: 'text' },
+    { n: 'cookies_json',   t: 'json_ordered', def: '$obj' },
+    { n: 'categories_json', t: 'json_ordered', def: '$obj' },
+    { n: 'created_at',     t: 'ts', def: '$now' },
+    { n: 'updated_at',     t: 'ts', def: '$now', mysqlUpd: true },
   ],
 }
 
@@ -260,31 +290,31 @@ const uiTemplates: TableDef = {
     { n: 'id',            t: 'pk' },
     { n: 'tenant_id',     t: 'text', ref: 'tenants', onDel: 'CASCADE' },
     { n: 'name',          t: 'text' },
-    { n: 'settings_json', t: 'json', def: '$obj' },
+    { n: 'settings_json', t: 'json_ordered', def: '$obj' },
     { n: 'created_at',    t: 'ts', def: '$now' },
     { n: 'updated_at',    t: 'ts', def: '$now', mysqlUpd: true },
   ],
 }
 
 // ── Exported table definition groups ─────────────────────────────────────────
+// No installations predate this schema, so every adapter creates the full current table set
+// in one pass on first connect — no incremental/versioned migration steps. `migrate()` in each
+// SQL adapter keeps a `schema_version`/`PRAGMA user_version` check so *future* real migrations
+// have somewhere to hook in; there's just nothing to gate behind a version yet.
 
-/** Core tables for SQLite initial (v1) migration — no enterprise columns, no tenant_id in user_roles. */
-export const CORE_TABLES_SQLITE: readonly TableDef[] = [
-  tenants, profiles, consentRecordsBase, consentHistory, visitors,
-  usersBase, roles, permissions, userRolesBase, rolePermissions, auditLogs,
+/** All tables, SQLite dialect — `usersSqlite` includes `allowed_tenants`. */
+export const ALL_TABLES_SQLITE: readonly TableDef[] = [
+  tenants, profiles, consentRecords, consentHistory, visitors,
+  usersSqlite, roles, permissions, userRoles, rolePermissions, auditLogs,
+  apiKeys, consentTemplates, uiTemplates, tenantSettings, noticeShown,
 ]
 
-/** Core tables with all current columns — for PostgreSQL/MySQL full initial schema. */
-export const CORE_TABLES_FULL: readonly TableDef[] = [
-  tenants, profiles, consentRecordsFull, consentHistory, visitors,
-  usersFull, roles, permissions, userRolesFull, rolePermissions, auditLogs,
+/** All tables, PostgreSQL/MySQL dialect. */
+export const ALL_TABLES_FULL: readonly TableDef[] = [
+  tenants, profiles, consentRecords, consentHistory, visitors,
+  users, roles, permissions, userRoles, rolePermissions, auditLogs,
+  apiKeys, consentTemplates, uiTemplates, tenantSettings, noticeShown,
 ]
-
-/** api_keys table — SQLite v2 migration. */
-export const API_KEY_TABLES: readonly TableDef[] = [apiKeys]
-
-/** Template tables — SQLite v5 migration. */
-export const TEMPLATE_TABLES: readonly TableDef[] = [cookieTemplates, uiTemplates]
 
 // ── SQL generators ────────────────────────────────────────────────────────────
 
@@ -316,6 +346,16 @@ function buildTableSQLite(t: TableDef): string {
   return `CREATE TABLE IF NOT EXISTS ${t.name} (\n${lines.join(',\n')}\n);`
 }
 
+function idxName(t: TableDef, cols: string[]): string {
+  return `idx_${t.name}_${cols.join('_')}`
+}
+
+function buildIndexesSQLite(t: TableDef): string {
+  return (t.idx ?? [])
+    .map(i => `CREATE INDEX IF NOT EXISTS ${idxName(t, i.cols)} ON ${t.name} (${i.cols.join(', ')});`)
+    .join('\n')
+}
+
 function pgDef(def: string | number | boolean): string {
   if (def === '$now') return 'DEFAULT NOW()'
   if (def === '$arr') return `DEFAULT '[]'`
@@ -328,7 +368,7 @@ function pgDef(def: string | number | boolean): string {
 
 function buildColPg(c: ColDef): string {
   if (c.t === 'pk') return `${c.n} TEXT PRIMARY KEY`
-  const type = c.t === 'json' ? 'JSONB' : c.t === 'int' ? 'INTEGER' : c.t === 'bool' ? 'BOOLEAN' : c.t === 'ts' ? 'TIMESTAMPTZ' : 'TEXT'
+  const type = c.t === 'json' ? 'JSONB' : c.t === 'json_ordered' ? 'JSON' : c.t === 'int' ? 'INTEGER' : c.t === 'bool' ? 'BOOLEAN' : c.t === 'ts' ? 'TIMESTAMPTZ' : 'TEXT'
   const parts = [`${c.n} ${type}`]
   if (!c.null) parts.push('NOT NULL')
   if (c.def !== undefined) parts.push(pgDef(c.def))
@@ -344,9 +384,17 @@ function buildTablePg(t: TableDef): string {
   return `CREATE TABLE IF NOT EXISTS ${t.name} (\n${lines.join(',\n')}\n);`
 }
 
+function buildIndexesPg(t: TableDef): string {
+  // Only runs once, inside the same version-gated fresh-install transaction as the CREATE TABLE
+  // statements above (see PostgreSQLAdapter#migrate), so IF NOT EXISTS is defensive, not required.
+  return (t.idx ?? [])
+    .map(i => `CREATE INDEX IF NOT EXISTS ${idxName(t, i.cols)} ON ${t.name} (${i.cols.join(', ')});`)
+    .join('\n')
+}
+
 const MYSQL_TEXT: Partial<Record<ColType, string>> = {
   text: 'VARCHAR(255)', text_sm: 'VARCHAR(20)', text_md: 'VARCHAR(100)',
-  text_geo: 'VARCHAR(10)', text_hash: 'VARCHAR(64)', longtext: 'LONGTEXT', json: 'LONGTEXT',
+  text_geo: 'VARCHAR(10)', text_hash: 'VARCHAR(64)', longtext: 'LONGTEXT', json: 'LONGTEXT', json_ordered: 'LONGTEXT',
 }
 
 function mysqlDef(def: string | number | boolean): string {
@@ -360,7 +408,9 @@ function mysqlDef(def: string | number | boolean): string {
 }
 
 function buildColMySQL(c: ColDef): string {
-  if (c.t === 'pk') return `${c.n} VARCHAR(36) PRIMARY KEY`
+  // Prefixed IDs (e.g. `cons_<40 hex chars>`, see utils/crypto.ts) run to 45 chars — sized with
+  // headroom above a bare UUID's 36.
+  if (c.t === 'pk') return `${c.n} VARCHAR(64) PRIMARY KEY`
   const type = c.t === 'int' ? 'INT' : c.t === 'bool' ? 'TINYINT(1)' : c.t === 'ts' ? 'DATETIME' : (MYSQL_TEXT[c.t] ?? 'TEXT')
   const parts = [`${c.n} ${type}`]
   if (!c.null) parts.push('NOT NULL')
@@ -378,33 +428,52 @@ function buildTableMySQL(t: TableDef): string {
   return `CREATE TABLE IF NOT EXISTS ${t.name} (\n${lines.join(',\n')}\n) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;`
 }
 
-function toSQLite(tables: readonly TableDef[]): string { return tables.map(buildTableSQLite).join('\n') }
-function toPostgres(tables: readonly TableDef[]): string { return tables.map(buildTablePg).join('\n') }
-function toMySQL(tables: readonly TableDef[]): string { return tables.map(buildTableMySQL).join('\n') }
+function buildIndexesMySQL(t: TableDef): string {
+  // MySQL's CREATE INDEX has no IF NOT EXISTS — safe regardless, since this only runs once,
+  // inside the same version-gated fresh-install pass as the CREATE TABLE statements above.
+  return (t.idx ?? [])
+    .map(i => `CREATE INDEX ${idxName(t, i.cols)} ON ${t.name} (${i.cols.join(', ')});`)
+    .join('\n')
+}
+
+function toSQLite(tables: readonly TableDef[]): string {
+  const idx = tables.map(buildIndexesSQLite).filter(Boolean).join('\n')
+  return idx ? `${tables.map(buildTableSQLite).join('\n')}\n${idx}` : tables.map(buildTableSQLite).join('\n')
+}
+function toPostgres(tables: readonly TableDef[]): string {
+  const idx = tables.map(buildIndexesPg).filter(Boolean).join('\n')
+  return idx ? `${tables.map(buildTablePg).join('\n')}\n${idx}` : tables.map(buildTablePg).join('\n')
+}
+function toMySQL(tables: readonly TableDef[]): string {
+  const idx = tables.map(buildIndexesMySQL).filter(Boolean).join('\n')
+  return idx ? `${tables.map(buildTableMySQL).join('\n')}\n${idx}` : tables.map(buildTableMySQL).join('\n')
+}
+
+// ── Index list for document stores ────────────────────────────────────────────
+// MongoDB is schemaless, so it can't consume CREATE INDEX SQL — it consumes this list directly.
+// Same source of truth as the SQL dialects above: add a query pattern once (via `idx`/`uq`/
+// `unique` on a TableDef), every driver picks it up.
+
+export interface IndexDef { table: string; cols: string[]; unique?: true }
+
+function collectIndexes(tables: readonly TableDef[]): IndexDef[] {
+  const result: IndexDef[] = []
+  for (const t of tables) {
+    for (const u of t.uq ?? []) result.push({ table: t.name, cols: u.cols, unique: true })
+    for (const c of t.cols) if (c.unique) result.push({ table: t.name, cols: [c.n], unique: true })
+    for (const i of t.idx ?? []) result.push({ table: t.name, cols: i.cols })
+  }
+  return result
+}
+
+/** All indexes (unique + secondary), PostgreSQL/MySQL/Mongo dialect table names. */
+export const ALL_INDEXES: readonly IndexDef[] = collectIndexes(ALL_TABLES_FULL)
 
 // ── Schema SQL exports ────────────────────────────────────────────────────────
-// SQLite: separate blocks matching its versioned migration steps.
-// PostgreSQL/MySQL: one block containing the full current schema.
+// One block per dialect containing the full current schema — applied once on first connect.
 
-/** SQLite v1 migration: core tables. */
-export const SCHEMA_SQL_SQLITE = toSQLite(CORE_TABLES_SQLITE)
-
-/** SQLite v2 migration: api_keys table. */
-export const SCHEMA_SQL_SQLITE_API_KEYS = toSQLite(API_KEY_TABLES)
-
-/** SQLite v3 migration: enterprise columns added via ALTER TABLE (not generatable from TableDef). */
-export const SCHEMA_SQL_SQLITE_ENTERPRISE = `
-ALTER TABLE consent_records ADD COLUMN age_verified INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE consent_records ADD COLUMN parental_consent_token TEXT;
-ALTER TABLE consent_records ADD COLUMN tcf_string TEXT;
-ALTER TABLE users ADD COLUMN totp_secret TEXT;
-ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0;
-`
-
-/** SQLite v5 migration: template tables. */
-export const SCHEMA_SQL_SQLITE_TEMPLATES = toSQLite(TEMPLATE_TABLES)
-
-const ALL_TABLES_FULL: readonly TableDef[] = [...CORE_TABLES_FULL, ...API_KEY_TABLES, ...TEMPLATE_TABLES]
+/** SQLite full schema — all tables with current column set. */
+export const SCHEMA_SQL_SQLITE = toSQLite(ALL_TABLES_SQLITE)
 
 /** PostgreSQL full schema — all tables with current column set. */
 export const SCHEMA_SQL_POSTGRES =
@@ -442,6 +511,7 @@ export const SEED_PERMISSIONS: SeedPermission[] = [
   { id: 'perm_audit_view',      name: 'audit:view',      description: 'View audit logs' },
   { id: 'perm_settings_update', name: 'settings:update', description: 'Update settings' },
   { id: 'perm_export_run',      name: 'export:run',      description: 'Run data exports' },
+  { id: 'perm_stats_view',      name: 'stats:view',      description: 'View reporting and analytics' },
 ]
 
 export const SEED_ROLES: SeedRole[] = [
@@ -452,8 +522,8 @@ export const SEED_ROLES: SeedRole[] = [
 ]
 
 const adminExcluded     = new Set(['role:delete', 'user:delete'])
-const complianceAllowed = new Set(['consent:view', 'visitor:view', 'audit:view', 'profile:view', 'export:run'])
-const viewerAllowed     = new Set(['consent:view', 'visitor:view', 'profile:view'])
+const complianceAllowed = new Set(['consent:view', 'visitor:view', 'audit:view', 'profile:view', 'export:run', 'stats:view'])
+const viewerAllowed     = new Set(['consent:view', 'visitor:view', 'profile:view', 'stats:view'])
 
 export const SEED_ROLE_PERMISSIONS: SeedRolePermission[] = [
   ...SEED_PERMISSIONS.map(p => ({ roleId: 'role_super_admin', permissionId: p.id })),

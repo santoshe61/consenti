@@ -1,3 +1,14 @@
+// Allowlist entries are authored as full origins (the dashboard's own placeholder/hint is
+// "https://example.com") — bare hostnames are also accepted for anyone who typed one directly.
+function patternHostname(pattern: string): string {
+  if (!pattern.includes('://')) return pattern
+  try {
+    return new URL(pattern).hostname
+  } catch {
+    return pattern
+  }
+}
+
 function matchesAllowedOrigin(origin: string, allowedOrigins: string[]): boolean {
   let hostname: string
   try {
@@ -10,7 +21,7 @@ function matchesAllowedOrigin(origin: string, allowedOrigins: string[]): boolean
       const suffix = pattern.slice(1) // '.example.com'
       return hostname === pattern.slice(2) || hostname.endsWith(suffix)
     }
-    return hostname === pattern
+    return hostname === patternHostname(pattern)
   })
 }
 
@@ -24,6 +35,11 @@ export function buildCorsHeaders(origin: string | null, allowedOrigins?: string[
     'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     'Access-Control-Max-Age': '86400',
+    // Required for the browser to send/accept the visitor-ownership cookie on cross-origin
+    // consent requests (the widget's page origin is almost never the API's own origin). Has
+    // no effect when Allow-Origin ends up '*' (no Origin header on the request) — browsers
+    // reject credentialed responses with a wildcard origin regardless of this header.
+    'Access-Control-Allow-Credentials': 'true',
   }
 }
 

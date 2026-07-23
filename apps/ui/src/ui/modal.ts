@@ -1,9 +1,14 @@
 /**
  * Preference modal DOM builder and state manager.
  *
- * The modal renders a list of consent category toggles (`role="switch"`) in an
- * accessible dialog (`role="dialog"`, `aria-modal="true"`). Each toggle reflects
- * the user's current consent for that category and can be flipped before saving.
+ * The modal renders each category as a 3-state master toggle (`role="checkbox"`,
+ * `aria-checked` one of `"true"`/`"false"`/`"mixed"`) followed by one binary
+ * `role="switch"` per parameter it contains (with purpose/CPRA category/TCF vendor
+ * shown where set). The master toggle's state is always *derived* from its
+ * parameters' states, never stored independently: `'allowed'` when every parameter
+ * is granted, `'denied'` when none are, `'mixed'` otherwise. Clicking the master
+ * toggle while `'mixed'` or `'denied'` grants every parameter first; clicking again
+ * from `'allowed'` denies every parameter.
  *
  * Legitimate-interest (LI) categories use `'objected'` as their off-state rather than
  * `'denied'`, per the GDPR Art. 21 framework for LI objection.
@@ -12,25 +17,27 @@
  * It resets to unchecked each time the modal is opened so the user must opt in per submission.
  */
 
-import type { PreferenceModal, Category, ConsentValue, Button } from '../types'
+import type { PreferenceModal, Category, CategoryMap, CookieMap, ConsentValue, ConsentStatus, Button } from '../types'
 import type { ButtonClickHandler } from './buttons'
 import { buildButton } from './buttons'
 import { createOverlay } from './overlay'
 import { trapFocus } from './focus-trap'
 
-/**
- * Builds and manages the preference modal DOM.
- * One `Modal` instance is created per `ConsentiSetup` and reused across openings.
- */
+type CategoryRollup = 'allowed' | 'denied' | 'mixed'
+
 export class Modal {
   private el: HTMLElement | null = null
   private triggerEl: HTMLElement | null = null
   private trapCleanup: (() => void) | null = null
-  /** Map of category ID → toggle button element, used to read state on submit. */
-  private toggleMap = new Map<string, HTMLButtonElement>()
+  /** Live per-parameter (cookie id) toggle state — same shape as `ConsentValue`. Source of truth for `getToggleConsent()`. */
+  private toggleState = new Map<string, ConsentStatus>()
+  /** Per-parameter toggle elements, keyed by cookie id — used to cascade visual updates when the category master toggle is clicked. */
+  private paramToggles = new Map<string, HTMLButtonElement>()
+  /** Category master toggle elements + their member cookie ids and legal basis, keyed by category id — used to recompute/update the master's rollup state when a member parameter changes. */
+  private categoryToggles = new Map<string, { el: HTMLButtonElement; cookieIds: string[]; isLI: boolean }>()
+  /** Each category's text-clamp + parameter-list disclosure, keyed by category id — a single "Show more" toggle drives both together. `params` is `null` when the category has 0-1 parameters (nothing to disclose there). */
+  private categoryDisclosures = new Map<string, { text: HTMLElement; toggle: HTMLButtonElement; params: HTMLElement | null }>()
   private receiptCheckbox: HTMLInputElement | null = null
-  /** Live toggle state — updated on each click so `getToggleConsent()` reads the latest. */
-  private toggleState = new Map<string, boolean>()
   /** When `true`, the modal wrapper is passthrough (overlayOpacity === 0). */
   private passthrough = false
   /** Screen width (px) below which the modal goes full-screen. 0 = disabled. */
@@ -43,6 +50,7 @@ export class Modal {
    * The modal is not inserted into the document until `open()` is called.
    *
    * @param config         - Modal layout and content config from the resolved profile.
+   * @param cookies        - The resolved profile's parameter map — supplies purpose/CPRA category/TCF vendor/preGrant per parameter rendered inside each category.
    * @param initialConsent - Current stored consent, used to pre-set toggle states.
    * @param handlers       - Click handlers wired to each button.
    * @param allowReceipt   - When `true`, renders the consent receipt download checkbox.
@@ -53,6 +61,7 @@ export class Modal {
    */
   build(
     config: PreferenceModal,
+    cookies: CookieMap,
     initialConsent: ConsentValue,
     handlers: ButtonClickHandler,
     allowReceipt: boolean,
@@ -60,7 +69,7 @@ export class Modal {
     locales?: string[],
     activeLocale?: string,
     onLocaleSwitch?: (locale: string) => void,
-    hidePoweredBy = false,
+    hidePoweredBy = true,
   ): void {
     this.mobileBreakpoint = config.mobileFullScreenBreakpoint ?? 576
     const position = config.position ?? 'center'
@@ -94,7 +103,7 @@ export class Modal {
     body.className = 'consenti-modal__body'
 
     if (config.heading) {
-      const headingTag = config.headingTag ?? 'h2'
+      const headingTag = config.headingTag ?? 'div'
       const heading = document.createElement(headingTag)
       heading.id = 'consenti-modal-heading'
       heading.className = 'consenti-modal__heading'
@@ -112,7 +121,7 @@ export class Modal {
 
     // Header controls: locale switcher + close
     const hasClose = config.showClose !== false
-    const hasLocaleSwitcher = config.showLocaleSwitcher && locales && locales.length > 1
+    const hasLocaleSwitcher = config.showLocaleSwitcher && locales && locales.length > 0
 
     if (hasLocaleSwitcher || hasClose) {
       const headerControls = document.createElement('div')
@@ -125,7 +134,7 @@ export class Modal {
       if (hasClose) {
         const close = document.createElement('button')
         close.type = 'button'
-        close.className = 'consenti-modal__close consenti-btn consenti-btn--close'
+        close.className = 'consenti-modal__close consenti-transition-1_2x consenti-btn consenti-btn--action'
         close.setAttribute('aria-label', 'Close preference modal')
         close.textContent = '×'
         close.addEventListener('click', handlers.onClose)
@@ -144,11 +153,12 @@ export class Modal {
     }
 
     // Render link-action buttons as styled anchors below the intro text
-    const linkButtons = config.buttons.filter((b): b is Button & { action: 'link' } => b.action === 'link')
+    const buttonEntries = Object.entries(config.buttons)
+    const linkButtons = buttonEntries.filter((e): e is [string, Button & { action: 'link' }] => e[1].action === 'link')
     if (linkButtons.length > 0) {
       const linksContainer = document.createElement('div')
       linksContainer.className = 'consenti-modal__links'
-      for (const btn of linkButtons) {
+      for (const [, btn] of linkButtons) {
         if (!btn.url) continue
         const anchor = document.createElement('a')
         anchor.href = btn.url
@@ -158,21 +168,20 @@ export class Modal {
         anchor.setAttribute('rel', 'noopener noreferrer')
         linksContainer.appendChild(anchor)
       }
-      container.appendChild(linksContainer)
+      header.appendChild(linksContainer)
     }
 
     const categories = document.createElement('div')
     categories.className = 'consenti-modal__categories'
 
-    for (const cat of config.categories) {
-      const catEl = this.buildCategory(cat, initialConsent)
+    for (const [categoryId, cat] of Object.entries(config.categories)) {
+      const catEl = this.buildCategory(categoryId, cat, cookies, initialConsent)
       categories.appendChild(catEl)
     }
     body.appendChild(categories)
     container.appendChild(body)
-
     if (allowReceipt) {
-      body.appendChild(this.buildReceiptOption())
+      body.appendChild(this.buildReceiptOption(config.receiptLabel, config.receiptDescription))
     }
 
     if (dpdpaConfig) {
@@ -192,15 +201,15 @@ export class Modal {
 
     const btns = document.createElement('div')
     btns.className = 'consenti-modal__buttons'
-    for (const btn of config.buttons.filter(b => b.action !== 'link')) {
-      btns.appendChild(buildButton(btn, handlers))
+    for (const [id, btn] of buttonEntries.filter(([, b]) => b.action !== 'link')) {
+      btns.appendChild(buildButton(id, btn, handlers))
     }
     container.appendChild(btns)
 
     const pb = document.createElement('a')
-    pb.href = 'https://consenti.dev'
-    pb.className = 'consenti-modal__powered-by'
-    pb.textContent = 'Powered by Consenti'
+    pb.href = 'https://consenti.dev/?utm_source=widget&utm_medium=powered-by&utm_campaign=consenti-ui'
+    pb.className = 'consenti__powered-by'
+    pb.textContent = 'Powered by Consenti ↗'
     pb.setAttribute('target', '_blank')
     pb.setAttribute('rel', 'noopener noreferrer')
     if (hidePoweredBy) {
@@ -215,41 +224,15 @@ export class Modal {
     this.el = wrapper
   }
 
-  private buildCategory(cat: Category, initialConsent: ConsentValue): HTMLElement {
-    const isLI = cat.type === 'legitimate_interest'
-    const isMandatory = cat.mandatory === true
-
-    let defaultOn: boolean
-    if (isMandatory) {
-      defaultOn = true
-    } else if (isLI) {
-      // LI categories are "on" unless the user has actively objected
-      defaultOn = initialConsent[cat.cookies[0] ?? ''] !== 'objected'
-    } else {
-      defaultOn = initialConsent[cat.cookies[0] ?? ''] === 'granted'
-    }
-    this.toggleState.set(cat.id, defaultOn)
-
-    const wrapper = document.createElement('div')
-    wrapper.className = `consenti-category${isMandatory ? ' consenti-category--mandatory' : ''}`
-
-    const header = document.createElement('div')
-    header.className = 'consenti-category__header'
-
-    const headingTag = cat.headingTag ?? 'h3'
-    const heading = document.createElement(headingTag)
-    heading.id = `consenti-cat-${cat.id}-heading`
-    heading.className = 'consenti-category__heading'
-    heading.textContent = cat.heading
-    header.appendChild(heading)
-
-    const toggle = document.createElement('button')
-    toggle.type = 'button'
-    toggle.className = `consenti-category__toggle${isMandatory ? ' consenti-category__toggle--mandatory' : ''}`
-    toggle.setAttribute('role', 'switch')
-    toggle.setAttribute('aria-checked', String(defaultOn))
-    toggle.setAttribute('aria-labelledby', `consenti-cat-${cat.id}-heading`)
-    if (isMandatory) toggle.setAttribute('aria-disabled', 'true')
+  /**
+   * Appends the shared check/cross/objected/knob icon markup to a toggle button (used by both
+   * the category master toggle and per-parameter switches). `isLI` renders the off-state as an
+   * "objected" (circle-slash) icon instead of the plain cross, and marks the toggle with
+   * `consenti-toggle--li` so CSS swaps between them — legitimate-interest categories are on by
+   * default and the visitor *objects* rather than plainly denying, per GDPR Art. 21.
+   */
+  private static appendToggleIcons(toggle: HTMLButtonElement, isLI: boolean): void {
+    if (isLI) toggle.classList.add('consenti-toggle--li')
 
     const checkIcon = document.createElement('span')
     checkIcon.className = 'consenti-category__toggle-icon consenti-category__toggle-icon--check'
@@ -263,40 +246,211 @@ export class Modal {
     crossIcon.innerHTML = '<svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M2 2L8 8M8 2L2 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>'
     toggle.appendChild(crossIcon)
 
+    if (isLI) {
+      const objectedIcon = document.createElement('span')
+      objectedIcon.className = 'consenti-category__toggle-icon consenti-category__toggle-icon--objected'
+      objectedIcon.setAttribute('aria-hidden', 'true')
+      objectedIcon.innerHTML = '<svg viewBox="0 0 10 10" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="5" cy="5" r="3.5" stroke="currentColor" stroke-width="1.4"/><path d="M2.5 2.5L7.5 7.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
+      toggle.appendChild(objectedIcon)
+    }
+
     const knob = document.createElement('span')
     knob.className = 'consenti-category__toggle-knob'
     knob.setAttribute('aria-hidden', 'true')
     toggle.appendChild(knob)
+  }
+
+  /** `'allowed'` when every parameter is granted, `'denied'` when none are, `'mixed'` otherwise. LI categories treat 'objected' as the off-state. */
+  private computeRollup(cookieIds: string[], isLI: boolean): CategoryRollup {
+    const offStatus: ConsentStatus = isLI ? 'objected' : 'denied'
+    const statuses = cookieIds.map(id => this.toggleState.get(id))
+    if (statuses.every(s => s === 'granted')) return 'allowed'
+    if (statuses.every(s => s === offStatus || s === undefined)) return 'denied'
+    return 'mixed'
+  }
+
+  /** Recomputes and re-renders a category's master toggle from its current member states. */
+  private updateCategoryToggleVisual(categoryId: string): void {
+    const entry = this.categoryToggles.get(categoryId)
+    if (!entry) return
+    const rollup = this.computeRollup(entry.cookieIds, entry.isLI)
+    const ariaChecked = rollup === 'allowed' ? 'true' : rollup === 'denied' ? 'false' : 'mixed'
+    entry.el.setAttribute('aria-checked', ariaChecked)
+    entry.el.classList.toggle('consenti-category__toggle--partial', rollup === 'mixed')
+  }
+
+  /** Builds one parameter row (purpose/CPRA/TCF info + its own switch) inside a category. */
+  private buildParamRow(categoryId: string, cookieId: string, cookie: CookieMap[string] | undefined, isMandatory: boolean, isLI: boolean): HTMLElement {
+    const row = document.createElement('div')
+    row.className = 'consenti-category__param'
+
+    const info = document.createElement('div')
+    info.className = 'consenti-category__param-info'
+
+    const label = document.createElement('span')
+    label.className = 'consenti-category__param-label'
+    label.textContent = cookieId
+    info.appendChild(label)
+
+    const meta = document.createElement('span')
+    meta.className = 'consenti-category__param-meta'
+    const badges: string[] = []
+    if (cookie?.purpose) badges.push(cookie.purpose)
+    if (cookie?.cpraCategory) badges.push(`CPRA: ${cookie.cpraCategory}`)
+    if (cookie?.tcfVendorId != null) badges.push(`TCF Vendor #${cookie.tcfVendorId}`)
+    meta.textContent = badges.join(' · ')
+    if (badges.length) info.appendChild(meta)
+
+    row.appendChild(info)
+
+    const offStatus: ConsentStatus = isLI ? 'objected' : 'denied'
+    const status = this.toggleState.get(cookieId) ?? offStatus
+    const on = status === 'granted'
+
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = `consenti-category__param-toggle${isMandatory ? ' consenti-category__param-toggle--mandatory' : ''}`
+    toggle.setAttribute('role', 'switch')
+    toggle.setAttribute('aria-checked', String(on))
+    toggle.setAttribute('aria-label', cookieId)
+    if (isMandatory) {
+      toggle.setAttribute('aria-disabled', 'true')
+      toggle.disabled = true
+    }
+    Modal.appendToggleIcons(toggle, isLI)
 
     if (!isMandatory) {
       toggle.addEventListener('click', () => {
-        const current = this.toggleState.get(cat.id) ?? false
-        const next = !current
-        this.toggleState.set(cat.id, next)
-        toggle.setAttribute('aria-checked', String(next))
+        const next: ConsentStatus = this.toggleState.get(cookieId) === 'granted' ? offStatus : 'granted'
+        this.toggleState.set(cookieId, next)
+        toggle.setAttribute('aria-checked', String(next === 'granted'))
+        this.updateCategoryToggleVisual(categoryId)
       })
     }
 
-    this.toggleMap.set(cat.id, toggle)
+    this.paramToggles.set(cookieId, toggle)
+    row.appendChild(toggle)
+    return row
+  }
+
+  private buildCategory(categoryId: string, cat: Category, cookies: CookieMap, initialConsent: ConsentValue): HTMLElement {
+    const isLI = cat.legalBasis === 'legitimate_interest'
+    const isMandatory = cat.legalBasis === 'mandatory'
+    const offStatus: ConsentStatus = isLI ? 'objected' : 'denied'
+
+    // Seed per-parameter state: stored consent wins; otherwise mandatory→granted,
+    // LI→granted (on unless objected), consent-basis→preGrant ? granted : denied.
+    for (const cookieId of cat.cookies) {
+      const stored = initialConsent[cookieId]
+      let status: ConsentStatus
+      if (stored !== undefined) {
+        status = stored
+      } else if (isMandatory) {
+        status = 'granted'
+      } else if (isLI) {
+        status = 'granted'
+      } else {
+        status = cookies[cookieId]?.preGrant ? 'granted' : 'denied'
+      }
+      this.toggleState.set(cookieId, status)
+    }
+
+    const wrapper = document.createElement('div')
+    wrapper.className = `consenti-category${isMandatory ? ' consenti-category--mandatory' : ''}`
+
+    const header = document.createElement('div')
+    header.className = 'consenti-category__header'
+
+    const headingTag = cat.headingTag ?? 'div'
+    const heading = document.createElement(headingTag)
+    heading.id = `consenti-cat-${categoryId}-heading`
+    heading.className = 'consenti-category__heading'
+    heading.textContent = cat.heading
+    header.appendChild(heading)
+
+    const rollup = this.computeRollup(cat.cookies, isLI)
+    const toggle = document.createElement('button')
+    toggle.type = 'button'
+    toggle.className = `consenti-category__toggle${isMandatory ? ' consenti-category__toggle--mandatory' : ''}${rollup === 'mixed' ? ' consenti-category__toggle--partial' : ''}`
+    // A 3-state master toggle needs `aria-checked="mixed"`, which is only valid ARIA
+    // for role="checkbox" — role="switch" is strictly binary per the ARIA spec.
+    // Per-parameter toggles below stay role="switch" since they're always binary.
+    toggle.setAttribute('role', 'checkbox')
+    toggle.setAttribute('aria-checked', rollup === 'allowed' ? 'true' : rollup === 'denied' ? 'false' : 'mixed')
+    toggle.setAttribute('aria-labelledby', `consenti-cat-${categoryId}-heading`)
+    if (isMandatory) {
+      toggle.setAttribute('aria-disabled', 'true')
+      toggle.disabled = true
+    }
+    Modal.appendToggleIcons(toggle, isLI)
+
+    this.categoryToggles.set(categoryId, { el: toggle, cookieIds: cat.cookies, isLI })
+
+    if (!isMandatory) {
+      toggle.addEventListener('click', () => {
+        const current = this.computeRollup(cat.cookies, isLI)
+        // Matches native tri-state "select all" checkbox convention: mixed/denied → grant
+        // everything first; a second click from fully-allowed denies everything.
+        const next: ConsentStatus = current === 'allowed' ? offStatus : 'granted'
+        for (const cookieId of cat.cookies) {
+          this.toggleState.set(cookieId, next)
+          const paramToggle = this.paramToggles.get(cookieId)
+          if (paramToggle && !paramToggle.disabled) paramToggle.setAttribute('aria-checked', String(next === 'granted'))
+        }
+        this.updateCategoryToggleVisual(categoryId)
+      })
+    }
+
     header.appendChild(toggle)
     wrapper.appendChild(header)
 
-    const text = document.createElement('div')
-    text.className = 'consenti-category__text'
-    text.innerHTML = cat.htmlText
-    wrapper.appendChild(text)
-
-    if (isLI && cat.legitimateInterest?.description) {
+    if (isLI && cat.legitimateInterestDescription) {
       const li = document.createElement('p')
       li.className = 'consenti-category__li-desc'
-      li.textContent = cat.legitimateInterest.description
+      li.textContent = cat.legitimateInterestDescription
       wrapper.appendChild(li)
     }
+
+    const textWrap = document.createElement('div')
+    textWrap.className = 'consenti-category__text-wrap'
+
+    const text = document.createElement('div')
+    text.className = 'consenti-category__text consenti-category__text--clamped'
+    text.innerHTML = cat.htmlText
+    textWrap.appendChild(text)
+
+    const showMore = document.createElement('button')
+    showMore.type = 'button'
+    showMore.className = 'consenti-category__show-more consenti-d-none'
+    showMore.setAttribute('aria-expanded', 'false')
+    showMore.textContent = 'Show more'
+    textWrap.appendChild(showMore)
+
+    wrapper.appendChild(textWrap)
+
+    const params = document.createElement('div')
+    params.className = 'consenti-category__params'
+    for (const cookieId of cat.cookies) {
+      params.appendChild(this.buildParamRow(categoryId, cookieId, cookies[cookieId], isMandatory, isLI))
+    }
+    const hasMultipleParams = cat.cookies.length > 1
+    params.classList.add('consenti-d-none')
+    wrapper.appendChild(params)
+
+    // One toggle drives both disclosures together: unclamping the text and revealing the
+    // parameter list happen as a single "Show more" action, not two independent controls.
+    showMore.addEventListener('click', () => {
+      const expanded = !text.classList.toggle('consenti-category__text--clamped')
+      if (hasMultipleParams) params.classList.toggle('consenti-d-none', !expanded)
+      showMore.setAttribute('aria-expanded', String(expanded))
+      showMore.textContent = expanded ? 'Show less' : 'Show more'
+    })
+    this.categoryDisclosures.set(categoryId, { text, toggle: showMore, params: hasMultipleParams ? params : null })
 
     return wrapper
   }
 
-  private buildReceiptOption(): HTMLElement {
+  private buildReceiptOption(label_?: string, description?: string): HTMLElement {
     const wrapper = document.createElement('div')
     wrapper.className = 'consenti-modal__receipt-option'
 
@@ -311,25 +465,28 @@ export class Modal {
     this.receiptCheckbox = checkbox
 
     label.appendChild(checkbox)
-    label.append(' Get a copy of my consent choices (JSON)')
+    label.append(' ' + (label_ ?? 'Get a copy of my consent choices (JSON)'))
     wrapper.appendChild(label)
 
     const desc = document.createElement('p')
     desc.id = 'consenti-receipt-desc'
     desc.className = 'consenti-modal__receipt-desc'
-    desc.textContent = 'A JSON file will be downloaded to your device when you save your preferences.'
+    desc.textContent = description ?? 'A JSON file will be downloaded to your device when you save your preferences.'
     wrapper.appendChild(desc)
 
     return wrapper
   }
 
   /**
-   * Appends the modal to `document.body` and activates the focus trap.
-   * The receipt checkbox (if present) is reset to unchecked.
+   * Appends the modal to `mountEl` (falling back to `document.body` if omitted) and activates
+   * the focus trap. The receipt checkbox (if present) is reset to unchecked.
    *
    * @param triggerEl - The element that opened the modal. Focus returns here on `close()`.
+   * @param mountEl   - Element to append the modal into — normally `#consenti-root`, so the
+   *                    whole widget lives under one root and inherits its theme/a11y classes
+   *                    via normal CSS descendant inheritance instead of needing them mirrored.
    */
-  open(triggerEl?: HTMLElement): void {
+  open(triggerEl?: HTMLElement, mountEl?: HTMLElement): void {
     if (!this.el) return
     this.triggerEl = triggerEl ?? (document.activeElement as HTMLElement)
     if (this.receiptCheckbox) this.receiptCheckbox.checked = false
@@ -339,7 +496,7 @@ export class Modal {
     } else {
       this.el.classList.remove('consenti-modal--fullscreen')
     }
-    document.body.appendChild(this.el)
+    ;(mountEl ?? document.body).appendChild(this.el)
     // Lock page scroll when the modal has an overlay or is in mobile full-screen mode.
     // Skip when passthrough and not full-screen — the user can still scroll the page.
     if (!this.passthrough || isFullscreen) {
@@ -350,6 +507,24 @@ export class Modal {
     // page behind the modal panel so trapping keyboard focus would be counterproductive.
     if (!this.passthrough) {
       this.trapCleanup = trapFocus(this.el)
+    }
+    this.resetCategoryDisclosures()
+  }
+
+  /**
+   * Re-evaluates whether each category's text overflows its 3-line clamp and/or it has more
+   * than one parameter, and shows/hides the single "Show more" toggle accordingly. Resets
+   * every category back to clamped-text + hidden-params first, so re-opening the modal
+   * always starts collapsed.
+   */
+  private resetCategoryDisclosures(): void {
+    for (const { text, toggle, params } of this.categoryDisclosures.values()) {
+      text.classList.add('consenti-category__text--clamped')
+      params?.classList.add('consenti-d-none')
+      toggle.setAttribute('aria-expanded', 'false')
+      toggle.textContent = 'Show more'
+      const isTextOverflowing = text.scrollHeight > text.clientHeight + 1
+      toggle.classList.toggle('consenti-d-none', !(isTextOverflowing || params !== null))
     }
   }
 
@@ -380,28 +555,24 @@ export class Modal {
   }
 
   /**
-   * Reads the current toggle state map and converts it to a `ConsentValue`.
+   * Reads the current per-parameter toggle state and converts it to a `ConsentValue`.
+   * The internal state is already keyed by cookie id (built up in `buildCategory`/
+   * `buildParamRow` at construction time), so this is close to a direct read —
+   * the fallback branch only matters if `categories` lists a parameter that was
+   * never rendered (shouldn't happen in practice).
    *
    * Called by the submit handler to build the consent object before writing to storage.
    *
-   * @param categories - The category list from the resolved profile (provides cookie IDs and type).
+   * @param categories - The category map from the resolved profile (provides cookie IDs and legal basis for the fallback).
    */
-  getToggleConsent(categories: Category[]): ConsentValue {
+  getToggleConsent(categories: CategoryMap): ConsentValue {
     const consent: ConsentValue = {}
-    for (const cat of categories) {
-      const isLI = cat.type === 'legitimate_interest'
-      const isMandatory = cat.mandatory === true
-      const on = this.toggleState.get(cat.id) ?? false
-
+    for (const cat of Object.values(categories)) {
+      const isLI = cat.legalBasis === 'legitimate_interest'
+      const isMandatory = cat.legalBasis === 'mandatory'
+      const fallback: ConsentStatus = isMandatory ? 'granted' : isLI ? 'objected' : 'denied'
       for (const cookieId of cat.cookies) {
-        if (isMandatory) {
-          consent[cookieId] = 'granted'
-        } else if (isLI) {
-          // LI refusal is 'objected' not 'denied' — distinct status for Art. 21 records
-          consent[cookieId] = on ? 'granted' : 'objected'
-        } else {
-          consent[cookieId] = on ? 'granted' : 'denied'
-        }
+        consent[cookieId] = isMandatory ? 'granted' : (this.toggleState.get(cookieId) ?? fallback)
       }
     }
     return consent
@@ -416,7 +587,9 @@ export class Modal {
     }
     this.el?.remove()
     this.el = null
-    this.toggleMap.clear()
+    this.paramToggles.clear()
+    this.categoryToggles.clear()
+    this.categoryDisclosures.clear()
     this.toggleState.clear()
     this.receiptCheckbox = null
   }
@@ -433,7 +606,7 @@ function buildModalLocaleSwitcher(
 
   const btn = document.createElement('button')
   btn.type = 'button'
-  btn.className = 'consenti-locale-switcher__btn consenti-btn consenti-btn--close'
+  btn.className = 'consenti-locale-switcher__btn consenti-btn consenti-btn--action consenti-transition-1_2x'
   btn.setAttribute('aria-label', 'Switch language')
   btn.setAttribute('aria-haspopup', 'listbox')
   btn.textContent = '🌐'

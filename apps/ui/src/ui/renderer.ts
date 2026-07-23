@@ -47,6 +47,7 @@ export class Renderer {
         if (!document.contains(rootEl)) throw new Error('[Consenti] rootEl element is not attached to the document.')
         this.root = rootEl
       }
+      this.root.classList.add('consenti-root')
       return this.root
     }
 
@@ -56,6 +57,7 @@ export class Renderer {
       root.id = ROOT_ID
       document.body.appendChild(root)
     }
+    root.classList.add('consenti-root')
     this.root = root
     return root
   }

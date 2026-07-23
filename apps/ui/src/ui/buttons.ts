@@ -37,13 +37,15 @@ export interface ButtonClickHandler {
 /**
  * Constructs a `<button>` element from a `Button` config and registers a click handler.
  *
+ * @param id       - The button's key in the profile's `ButtonMap`, rendered as the DOM `id`.
  * @param btn      - Button configuration from the resolved profile.
  * @param handlers - Click handler implementations.
  * @returns A fully wired `HTMLButtonElement`.
  */
-export function buildButton(btn: Button, handlers: ButtonClickHandler): HTMLButtonElement {
+export function buildButton(id: string, btn: Button, handlers: ButtonClickHandler): HTMLButtonElement {
   const el = document.createElement('button')
   el.type = 'button'
+  if (id) el.id = id
   el.className = `consenti-btn consenti-btn--${btn.style}`
   el.textContent = btn.text
 

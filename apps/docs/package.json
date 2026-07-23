@@ -5,16 +5,17 @@
   "scripts": {
     "dev": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 next dev --port 3000 --webpack",
     "build": "NEXT_IGNORE_INCORRECT_LOCKFILE=1 next build --webpack",
-    "start": "node .next/standalone/apps/docs/server.js",
+    "start": "UV_THREADPOOL_SIZE=1 node --max-old-space-size=256 .next/standalone/apps/docs/server.js",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@consenti/api": "*",
     "@consenti/ui": "*",
+    "@consenti/utils": "*",
     "@docsearch/react": "^4.6.3",
     "@tailwindcss/typography": "^0.5.20",
-    "lucide-react": "^1.23.0",
-    "next": "^16.2.10",
+    "lucide-react": "^1.25.0",
+    "next": "^16.2.11",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-icons": "^5.7.0",
@@ -22,12 +23,12 @@
     "shiki": "^4.3.1"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.3.2",
-    "@types/node": "^26.1.0",
+    "@tailwindcss/postcss": "^4.3.3",
+    "@types/node": "^26.1.1",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
-    "autoprefixer": "^10.4.0",
-    "postcss": "^8.5.16",
+    "autoprefixer": "^10.5.4",
+    "postcss": "^8.5.20",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3"
   },

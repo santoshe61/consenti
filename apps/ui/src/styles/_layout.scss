@@ -1,7 +1,11 @@
-#consenti-root {
+.consenti-root {
     position: relative;
 }
 
+// !important is intentional: this is a utility override class meant to win over any
+// component's own `display` rule regardless of selector specificity or source order
+// (e.g. `.consenti-category__params { display: flex }` would otherwise beat it on
+// equal specificity + later source order).
 .consenti-d-none {
-    display: none;
+    display: none !important;
 }

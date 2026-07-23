@@ -1,16 +1,16 @@
 // Structured content format: produced by the admin editor, consumed by the widget renderer.
 // Stored in the DB as a compact JSON string. Safer than raw HTML: the renderer
 // only emits a known whitelist of tags, preventing XSS.
+//
+// `ContentNode`/`ContentDoc`/`jsonToHtml` live in `@consenti/utils` (DOM-independent, so the
+// server can render the same format) — re-exported here so existing dashboard imports are
+// unaffected. `htmlToJson` needs a DOM parser, so it stays dashboard-only.
 
-export type ContentNode = TextNode | InlineNode | BlockNode | LinkNode | BrNode
+import type { ContentNode, ContentDoc } from '@consenti/utils'
+import { jsonToHtml } from '@consenti/utils'
 
-export interface TextNode { t: 'text'; v: string }
-export interface InlineNode { t: 'b' | 'i' | 'u'; c: ContentNode[] }
-export interface BlockNode { t: 'p' | 'ul' | 'ol' | 'li'; c: ContentNode[] }
-export interface LinkNode { t: 'a'; href: string; c: ContentNode[] }
-export interface BrNode { t: 'br' }
-
-export type ContentDoc = ContentNode[]
+export type { ContentNode, ContentDoc } from '@consenti/utils'
+export { jsonToHtml } from '@consenti/utils'
 
 // Parse a stored value: JSON (new format) or legacy HTML string
 export function parseContent(value: string): ContentDoc {
@@ -26,18 +26,6 @@ export function parseContent(value: string): ContentDoc {
 export function serializeContent(doc: ContentDoc): string {
   if (!doc.length) return ''
   return JSON.stringify(doc)
-}
-
-// Render ContentDoc to HTML string (for editor display / export)
-export function jsonToHtml(doc: ContentDoc): string {
-  return doc.map(renderNode).join('')
-}
-
-function renderNode(node: ContentNode): string {
-  if (node.t === 'text') return escHtml(node.v)
-  if (node.t === 'br') return '<br>'
-  if (node.t === 'a') return `<a href="${escAttr(node.href)}">${node.c.map(renderNode).join('')}</a>`
-  return `<${node.t}>${node.c.map(renderNode).join('')}</${node.t}>`
 }
 
 // Convert an HTML string (from contenteditable or import) to ContentDoc
@@ -92,12 +80,4 @@ function fromElement(el: Element): ContentNode[] {
     default:
       return children // unknown tag: pass through children
   }
-}
-
-function escHtml(s: string): string {
-  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-}
-
-function escAttr(s: string): string {
-  return s.replace(/"/g, '&quot;').replace(/</g, '&lt;')
 }

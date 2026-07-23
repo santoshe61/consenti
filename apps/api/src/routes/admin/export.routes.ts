@@ -6,6 +6,7 @@ import { withErrorHandler } from '../../middleware/error.middleware'
 import { errorResponse } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
 import { getQueryParam } from '../../utils/http'
+import type { ProfileService } from '../../services/profile.service'
 
 function escapeCsv(val: string | number | boolean | null | undefined): string {
   const s = val == null ? '' : String(val)
@@ -17,9 +18,9 @@ function escapeCsv(val: string | number | boolean | null | undefined): string {
 
 function consentToCsvRow(r: ConsentDbRecord): string {
   return [
-    r.id, r.visitorId, r.profileId, r.profileVersion, r.locale,
+    r.id, r.visitorId, r.profileId, r.locale,
     JSON.stringify(r.consentJson), r.gpcDetected ? '1' : '0',
-    r.source, r.createdAt, r.updatedAt,
+    r.source, r.signature ?? '', r.createdAt, r.updatedAt,
   ].map(escapeCsv).join(',') + '\n'
 }
 
@@ -33,6 +34,7 @@ export function buildAdminExportRoutes(
   storage: StorageAdapter,
   authConfig: AuthConfig,
   secret: string,
+  profileService: ProfileService,
 ) {
   async function auth(req: Request) {
     const user = await authenticate(req, storage, authConfig, secret)
@@ -69,7 +71,7 @@ export function buildAdminExportRoutes(
         }
 
         const enc = new TextEncoder()
-        const header = 'id,visitor_id,profile_id,profile_version,locale,consent_json,gpc_detected,source,created_at,updated_at\n'
+        const header = 'id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,signature,created_at,updated_at\n'
         const stream = new ReadableStream({
           async start(controller) {
             controller.enqueue(enc.encode(header))
@@ -130,12 +132,12 @@ export function buildAdminExportRoutes(
             id: r.id,
             visitor_id: r.visitorId,
             profile_id: r.profileId,
-            profile_version: r.profileVersion,
             locale: r.locale,
             consent_json: JSON.stringify(r.consentJson),
             gpc_detected: r.gpcDetected ? 1 : 0,
             age_verified: r.ageVerified ? 1 : 0,
             tcf_string: r.tcfString ?? '',
+            signature: r.signature ?? '',
             source: r.source,
             created_at: r.createdAt,
             updated_at: r.updatedAt,
@@ -163,9 +165,25 @@ export function buildAdminExportRoutes(
         const profile = await storage.getProfile(profileId)
         if (!profile) return errorResponse(404, 'Profile not found')
 
-        const translations = profile.profileJson.translations ?? {}
-        const locales = Object.keys(translations)
-        if (locales.length === 0) {
+        const pj = profile.profileJson
+        const locales = pj.locales?.length ? pj.locales : [profile.defaultLocale]
+        // Default locale's content lives directly on the row; every other locale lives only in
+        // its own on-disk version file (see ProfileService) — read each independently, same as
+        // getResolved() does for a single locale.
+        const translations: Record<string, Record<string, unknown>> = {}
+        for (const locale of locales) {
+          if (locale === profile.defaultLocale) {
+            translations[locale] = { mainBanner: pj.mainBanner, ...(pj.gpcBanner ? { gpcBanner: pj.gpcBanner } : {}), preferenceModal: pj.preferenceModal }
+            continue
+          }
+          const raw = await profileService.getVersionFile(profileId, String(profile.version), locale)
+          if (!raw) continue
+          try {
+            const parsed = JSON.parse(raw) as Record<string, unknown>
+            translations[locale] = { mainBanner: parsed['mainBanner'], ...(parsed['gpcBanner'] ? { gpcBanner: parsed['gpcBanner'] } : {}), preferenceModal: parsed['preferenceModal'] }
+          } catch { /* skip an unreadable/corrupt locale file */ }
+        }
+        if (Object.keys(translations).length === 0) {
           return new Response('locale,field,value\n', {
             status: 200,
             headers: {
@@ -176,9 +194,7 @@ export function buildAdminExportRoutes(
         }
 
         const rows: string[] = ['locale,section,field,value']
-        for (const locale of locales) {
-          const t = translations[locale]
-          if (!t) continue
+        for (const [locale, t] of Object.entries(translations)) {
           for (const [section, content] of Object.entries(t)) {
             if (typeof content === 'object' && content !== null) {
               for (const [field, value] of Object.entries(content as Record<string, unknown>)) {

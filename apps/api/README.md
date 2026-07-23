@@ -129,6 +129,12 @@ const consenti = createConsenti({
     // Optional
     uri: 'mongodb://localhost:27017/consenti', // db connection string/uri, only for (driver: 'postgresql' | 'mysql' | 'mongodb')
     database: 'consenti',        // database name when not in above uri
+
+    // Postgres/MySQL only — connection pool tuning
+    poolMax: 10,                       // max pool connections (default: 10, both drivers' own default)
+    statementTimeoutMs: 30_000,        // abort a query after N ms — unset by default; a forced
+                                        // default could break a legitimate long-running export
+    idleInTransactionTimeoutMs: 30_000, // Postgres only: kill a connection idle inside an open transaction after N ms
   },
 
   // ── Auth ─────────────────────────────────────────────────────────────────────
@@ -190,8 +196,12 @@ const consenti = createConsenti({
   },
 
   // ── S3 profile file sync (optional) ─────────────────────────────────────────
-  // When enabled, every locale JSON written to disk is also PUT to S3.
-  // /resolve-profile returns an s3:// URL so the widget can fetch directly from CDN.
+  // When enabled, every locale JSON written to disk is also PUT to S3, plus a small
+  // pointer.json per compliance group ({ profileId, version }) written on activate —
+  // S3 has no symlink equivalent to the local hot-serve swap, so this pointer plays
+  // the same role. Consenti's own /resolve-profile route does NOT read from S3 or
+  // resolve this pointer — it's a contract for an external CDN/edge function to use
+  // if you want reads to bypass the Node process entirely.
   s3Api: {
     enabled: false,
     region: 'us-east-1',
@@ -204,9 +214,9 @@ const consenti = createConsenti({
   // ── Cache invalidation hook (optional) ──────────────────────────────────────
   // Called after every profile creation, edit, activation, deactivation, or delete.
   // isPurge=false = warm the cache at these paths; isPurge=true = purge.
-  handleCache: (paths: string[], version: number, isPurge: boolean) => {
+  handleCache: (paths: string[], profileId: string, isPurge: boolean) => {
     // paths: array of file paths that were written or removed
-    // version: current profile version
+    // profileId: id of the profile that triggered this write (stable across edits — see Profile Edit History)
     // isPurge: true when files were removed (deactivate/delete); false when written (activate/create)
     // Example: purge CDN edge nodes, update nginx cache keys, etc.
   },
@@ -219,6 +229,9 @@ const consenti = createConsenti({
   },
 
   // ── Age gate ─────────────────────────────────────────────────────────────────
+  // The actual gating prompt is widget-side (@consenti/ui README, "Age Gate" section) — this
+  // block only needs to exist so `ageVerified`/`parentalConsentToken` land in consent records;
+  // there's a matching `compliance.ageGate` block in the widget config with the same shape.
   ageGate: {
     enabled: false,
     minimumAge: 13,              // COPPA = 13; GDPR Article 8 = 16
@@ -227,7 +240,8 @@ const consenti = createConsenti({
 
   // ── Data retention ───────────────────────────────────────────────────────────
   dataRetention: {
-    purgeAfterDays: 365,         // delete consent records older than N days; runs nightly
+    purgeAfterDays: 365,          // delete consent records older than N days; runs nightly
+    auditLogPurgeAfterDays: 730,  // optional, independent from purgeAfterDays — unset = keep forever
   },
 
   // ── Multi-tenant ─────────────────────────────────────────────────────────────
@@ -373,6 +387,46 @@ On first start with JSON, Consenti:
 
 Subsequent starts run only pending migrations.
 
+### Default Profile Seeding
+
+`ProfileService` exposes two idempotent helpers for seeding the 8 built-in compliance groups:
+
+```ts
+// Seed one group (skips if an active profile already exists for that group)
+await profileService.seedDefaultProfile('opt-in')
+
+// Seed all 8 groups in parallel
+await profileService.seedAllDefaults()
+```
+
+Each seeded profile is built from the English base in `@consenti/utils/profiles` and automatically includes translated text overlays for **German (de), Spanish (es), French (fr), and Japanese (ja)** — 5 locales total per group, 40 locale files across all 8 groups.
+
+Locale coverage per compliance group:
+
+| Group                       | en | de | es | fr | ja |
+|-----------------------------|----|----|----|----|----|
+| `opt-in` (GDPR)             | ✓  | ✓  | ✓  | ✓  | ✓  |
+| `opt-out` (CCPA)            | ✓  | ✓  | ✓  | ✓  | ✓  |
+| `opt-out-strict` (CPRA)     | ✓  | ✓  | ✓  | ✓  | ✓  |
+| `opt-in-dpdpa` (India)      | ✓  | ✓  | ✓  | ✓  | ✓  |
+| `opt-in-china` (PIPL)       | ✓  | ✓  | ✓  | ✓  | ✓  |
+| `opt-in-brazil` (LGPD)      | ✓  | ✓  | ✓  | ✓  | ✓  |
+| `general-privacy-consent`   | ✓  | ✓  | ✓  | ✓  | ✓  |
+| `notice-only`               | ✓  | ✓  | ✓  | ✓  | ✓  |
+
+All 5 locales — English base plus the de/es/fr/ja overlays — live in `packages/utils/src/profiles/`, the single source of truth for default compliance-profile content shared by profile seeding, the dashboard's "Load Defaults", and `@consenti/ui`'s embedded fallback profile (English only there — see below).
+
+### First-Run Setup Wizard
+
+The dashboard shows a 4-step setup wizard (`#/setup`) once — the first time any admin logs in after install — like a self-hosted app's installer (WordPress, phpMyAdmin, etc.):
+
+1. **Welcome** — links to documentation and the in-dashboard "How Consenti Works" page. Skippable.
+2. **Your configuration** — a plain, read-only view of the fully merged `ConsentiServerConfig` (your config + env vars merged over the built-in defaults — exactly what `createConsenti` resolved at boot), with secrets redacted.
+3. **Default compliance profiles** — an accordion of the 8 built-in compliance groups (label, description, and badges for GPC mode / TCF / CPRA categories / DPDPA disclosure), all checked by default. Continuing calls the same idempotent `seedDefaultProfile`/`seedAllDefaults` helpers described above.
+4. **Confirmation** — a summary of what was installed, plus a production-readiness panel that surfaces the JSON-storage-driver and default-credentials warnings `createConsenti` already logs to the server console (otherwise invisible to a dashboard-only admin). CTAs: **Go to Dashboard** / **See How Consenti Works**.
+
+Gated by `tenant_settings.setup_completed` (per-tenant in multi-tenant mode) — set once the wizard finishes **or** is skipped, and never reset from the dashboard afterward. There is no "run it again" entry point; it's a one-time first-run flow, not a recurring settings screen: navigating to `#/setup` directly once setup is complete redirects to the dashboard instead of reopening it, and the two mutating routes (`seed-profiles`, `complete`) reject with `409` if called again after completion — enforced both in the router and on the server, not just by hiding the nav entry. Backed by 5 admin routes under `/setup/*` (see [Admin REST API](#admin-rest-api)).
+
 ---
 
 ## Storage Directory Structure
@@ -393,19 +447,17 @@ ${storage.path}/
           default.json     # copy of defaultLocale content (fallback)
         2/                 # version 2 written on next save
           …
-      ${complianceGroup}/  # hot-serve path (active profile only)
-        en.json
-        fr-FR.json
-        default.json
+      ${complianceGroup}/  # → symlink to the active profile's version dir (hot-serve path)
   logs/                    # reserved for future structured logging
 ```
 
 **Key rules:**
 - Every profile save writes to a new immutable version directory under `${profileId}/${version}/`
-- `${complianceGroup}/` only exists when a profile is **active** for that group
-- On **activate**: locale files are copied from `${profileId}/${currentVersion}/` → `${complianceGroup}/`
-- On **deactivate** / **delete**: `${complianceGroup}/` files are removed
+- `${complianceGroup}/` only exists when a profile is **active** for that group — it's a directory symlink (junction on Windows), not a copy
+- On **activate**: `${complianceGroup}/` is atomically repointed at `${profileId}/${version}/` — one filesystem rename, no window where it's missing or a mix of two versions, and no leftover files from a version whose locale set has since shrunk
+- On **deactivate** / **delete**: the `${complianceGroup}/` symlink is removed (the version directory it pointed to is untouched)
 - `default.json` = full resolved profile for `defaultLocale`; used as locale fallback (303 redirect)
+- Windows: symlinks are created as directory **junctions** — no admin rights or Developer Mode required, but the volume must be NTFS and `storage.path` must stay on the same drive
 
 **Backward compat:** If `storage.path` has a file extension (`.json`, `.db`), the parent directory is used and a deprecation warning is logged.
 
@@ -444,23 +496,35 @@ Cache headers: `public, max-age=3600, stale-while-revalidate=60` — suitable fo
 ### Resolve profile (for `compliance.type: 'auto'`)
 
 ```http
-GET /consenti/api/v1/resolve-profile?tz=Europe/Paris&lang=fr-FR&locale=fr-FR
+GET /consenti/api/v1/resolve-profile?data=<base64-encoded-GeoHints>
 ```
 
-For widgets using `compliance.type: 'auto'` — call this once on page load to discover which compliance group and locale the visitor should receive:
+For widgets using `compliance.type: 'auto'` — called once on page load to discover which compliance group and static profile file to serve. The widget sends browser geo hints encoded as base64 JSON:
+
+```js
+// Widget encodes automatically via encodeGeoHints()
+const data = btoa(JSON.stringify({
+  timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+  languages: navigator.languages,
+  language: navigator.language,
+  locale: 'fr-FR',
+}))
+```
+
+Response:
 
 ```json
 {
   "path": "/consenti/api/v1/profiles/default/opt-in/fr-FR",
-  "resolvedLocale": "fr-FR",
-  "resolvedComplianceGroup": "opt-in",
-  "profileId": "gdpr-profile-uuid",
-  "version": 3,
-  "warning": "locale_not_found"   // only present when locale was unavailable; path points to default
+  "complianceGroup": "opt-in",
+  "locale": "fr-FR",
+  "found": true
 }
 ```
 
-Query params: `tz` (IANA timezone), `lang` (Accept-Language value), `locale` (preferred BCP 47 locale).
+When `found` is `false` (no active profile for this tenant/group), `path` is `null` and the widget automatically falls back to the embedded profile for the resolved `complianceGroup`. This means the widget works even before you have seeded profiles for every compliance group.
+
+Legacy query params `?tz=`, `?lang=`, `?locale=` are still accepted for backward compatibility — the `data` param takes priority when both are present.
 
 ### Submit consent
 
@@ -476,12 +540,15 @@ Content-Type: application/json
     "marketing": "denied"
   },
   "visitorId": "uuid-v4",
-  "profileVersion": 3,
   "locale": "en",
   "gpcDetected": false,
-  "source": "banner"
+  "source": "banner",
+  "ageVerified": true,
+  "parentalConsentToken": "pcon_..."
 }
 ```
+
+`ageVerified`/`parentalConsentToken` are optional — only sent by the widget when `compliance.ageGate.enabled: true` (see the `@consenti/ui` README's "Age Gate" section). Both are stored as-is; this endpoint doesn't validate or enforce them.
 
 Response `201`:
 
@@ -490,7 +557,6 @@ Response `201`:
   "id": "record-uuid",
   "visitorId": "visitor-uuid",
   "profileId": "my-profile-id",
-  "profileVersion": 3,
   "locale": "en",
   "consentJson": { "necessary": "granted", "analytics": "granted", "marketing": "denied" },
   "gpcDetected": false,
@@ -510,9 +576,11 @@ GET /consenti/api/v1/consent/visitor-uuid/verify
 { "valid": true }
 
 // or, when stale:
-{ "valid": false, "reason": "profile_version_mismatch" }
-// other reasons: "consent_expired" | "missing_cookies"
+{ "valid": false, "reason": "profile_changed" }
+// other reasons: "consent_expired" | "hmac_invalid"
 ```
+
+`profile_changed` means the profile this consent was collected against is no longer the active profile for its compliance group (a newer edit has superseded it) — every profile edit mints a new id rather than mutating in place, so an id mismatch is what signals staleness now (there is no separate version counter).
 
 ---
 
@@ -529,6 +597,7 @@ Obtain a token via `POST /consenti/admin/auth/login`.
 | `POST` | `/auth/login`     | Authenticate — returns a JWT      |
 | `GET`  | `/auth/me`        | Get current authenticated user    |
 | `POST` | `/auth/logout`    | Invalidate session                |
+| `POST` | `/auth/refresh`   | Reissue a fresh token from the current one — extends the session |
 
 ```http
 POST /consenti/admin/auth/login
@@ -541,21 +610,27 @@ Content-Type: application/json
 { "token": "eyJhbGciOiJIUzI1NiJ9..." }
 ```
 
+**Session length**: admin tokens are valid for 30 minutes from issuance, not a flat expiry from
+login — the dashboard calls `POST /auth/refresh` on user activity (mouse/keyboard/scroll/touch) to
+extend it another 30 minutes, and proactively logs the user out the moment 30 minutes pass with no
+activity at all, rather than leaving the session to silently lapse in the background.
+
 ### Profiles
 
 | Method     | Path                             | Description                                                             |
 |------------|----------------------------------|-------------------------------------------------------------------------|
 | `GET`      | `/profiles`                      | List all profiles                                                       |
 | `GET`      | `/profiles?summary=1`            | List profiles as `ProfileSummary[]` (no blob, with template names)     |
-| `POST`     | `/profiles`                      | Create a profile — 422 on compliance errors; `{ conflict, requiresChoice: true }` when an active profile exists on the same `complianceGroup` |
+| `POST`     | `/profiles`                      | Create a profile — 422 on missing mandatory content or compliance errors; `{ conflict, requiresChoice: true }` when an active profile exists on the same `complianceGroup` |
 | `GET`      | `/profiles/:id`                  | Get a profile                                                           |
-| `PUT`      | `/profiles/:id`                  | Update a profile (auto-bumps version) — same compliance validation + conflict detection |
+| `PUT`      | `/profiles/:id`                  | Edit a profile — mutates the row **in place**, increments `version`; returned `id` always matches the URL's. Same mandatory-content + compliance validation + conflict detection |
 | `DELETE`   | `/profiles/:id`                  | Delete a profile                                                        |
+| `POST`     | `/profiles/:id/copy`             | Duplicate a profile as a new, always-inactive profile (`version` resets to 1). Optional `{ name }` body, defaults to `Copy of {name}` |
 | `POST`     | `/profiles/:id/activate`         | Activate a profile — writes locale JSON files to `${complianceGroup}/` |
 | `POST`     | `/profiles/:id/deactivate`       | Deactivate a profile — removes `${complianceGroup}/` locale files       |
-| `GET`      | `/profiles/:id/versions`         | List version history entries (`{ version, createdAt, locales[] }[]`)   |
-| `GET`      | `/profiles/:id/versions/:n`      | Read a specific version locale file (query: `?locale=en`)               |
-| `POST`     | `/profiles/validate`             | Validate cookie template against a compliance group (no save)           |
+| `GET`      | `/profiles/:id/versions`         | List every version snapshot on disk, newest first (`{ version, createdAt, locales[] }[]`) |
+| `GET`      | `/profiles/:id/versions/:entryId` | Read a specific version's locale file, `:entryId` is its `version` number (query: `?locale=en`) |
+| `POST`     | `/profiles/validate`             | Validate a consent template (`cookies` + `categories`) against a compliance group (no save) |
 | `GET`      | `/compliance-coverage`           | Active profile (or null) per compliance group — powers coverage panel   |
 
 #### Profile Save Conflict Detection
@@ -586,41 +661,44 @@ The dashboard profile editor shows a three-button popup when `requiresChoice: tr
   name: string
   defaultLocale: string
   complianceGroup: ComplianceGroupId | null
-  version: number
+  customComplianceGroup: string | null
   isActive: boolean
-  cookieTemplateName: string | null
+  consentTemplateName: string | null
   uiTemplateName: string | null
   createdAt: string
   updatedAt: string
 }
 ```
 
-### Cookie Templates
+### Consent Templates
+
+A Consent Template merges what used to be two concerns — the parameter (cookie) list and its categories — into one entity. Categories own legal basis; a parameter's effective legal basis is derived from whichever category lists it (a parameter must belong to exactly one category).
 
 | Method     | Path                                        | Description                                              |
 |------------|---------------------------------------------|----------------------------------------------------------|
-| `GET`      | `/cookie-templates`                         | List cookie templates                                    |
-| `GET`      | `/cookie-templates/:id`                     | Get a cookie template                                    |
-| `POST`     | `/cookie-templates`                         | Create a cookie template                                 |
-| `PUT`      | `/cookie-templates/:id`                     | Update a cookie template — 422 if removing cookies breaks compliance for a dependent profile |
-| `DELETE`   | `/cookie-templates/:id`                     | Delete a cookie template — 422 if any active profiles use it |
-| `POST`     | `/cookie-templates/:id/copy`                | Duplicate a cookie template                              |
-| `GET`      | `/cookie-templates/:id/profile-usage`       | List profiles using this template (`ProfileSummary[]`)   |
+| `GET`      | `/consent-templates`                        | List consent templates                                   |
+| `GET`      | `/consent-templates/:id`                    | Get a consent template                                    |
+| `POST`     | `/consent-templates`                        | Create a consent template — `{ name, cookies: CookieMap, categories: CategoryMap }` |
+| `PUT`      | `/consent-templates/:id`                    | Update a consent template — 422 if the change breaks compliance for a dependent profile |
+| `DELETE`   | `/consent-templates/:id`                    | Delete a consent template — 422 if any active profiles use it |
+| `POST`     | `/consent-templates/:id/copy`               | Duplicate a consent template                              |
+| `GET`      | `/consent-templates/:id/profile-usage`      | List profiles using this template (`ProfileSummary[]`)   |
 
-#### Cookie Template Safety Guards
+`CookieMap`/`CategoryMap` are keyed by id (`Record<string, Cookie>` / `Record<string, Category>`) — the id is the map key, not a field on the value.
 
-**Deletion guard:** `DELETE /cookie-templates/:id` returns `422` with `{ activeProfiles: ProfileSummary[] }` when one or more active profiles reference the template. Deactivate those profiles first, then delete.
+#### Consent Template Safety Guards
 
-**Cookie removal guard:** When updating a template (`PUT`), if cookies are removed, the backend checks all profiles using the template and runs compliance validation with the new cookie set. If any profile's `complianceGroup` requires a cookie that was removed, the response is `422` with:
+**Deletion guard:** `DELETE /consent-templates/:id` returns `422` with `{ profiles: ProfileSummary[] }` when one or more active profiles reference the template. Deactivate those profiles first, then delete.
+
+**Compliance guard:** When updating a template (`PUT`) with new `cookies` and/or `categories`, the backend re-runs compliance validation (using the *new* set) against every profile currently using the template. If any profile's `complianceGroup` rules would be violated, the response is `422` with:
 
 ```json
 {
-  "blockingProfiles": [{ "id": "...", "name": "...", "complianceGroup": "opt-in" }],
-  "removedCookieIds": ["analytics", "marketing"]
+  "blockingProfiles": [{ "id": "...", "name": "...", "complianceGroup": "opt-in" }]
 }
 ```
 
-Profiles listed in `blockingProfiles` must be updated (switch template or change complianceGroup) before the cookie removal can proceed.
+Profiles listed in `blockingProfiles` must be updated (switch template or change complianceGroup) before the change can be saved.
 
 ### UI Templates
 
@@ -660,13 +738,15 @@ Query params: `tenantId`, `profileId`, `complianceGroup`, `from` (ISO date), `to
 | `GET`    | `/consents/:visitorId`           | Get consent record for a visitor            |
 | `GET`    | `/consents/:visitorId/history`   | Get consent change history                  |
 
-Query params for `GET /consents`: `page`, `limit`, `profileId`, `from`, `to`.
+Query params for `GET /consents`: `page`, `limit` (max 500), `profileId`, `from`, `to`, `q` (**prefix** search across visitorId, profileId, locale, source — matches from the start of the field, not a substring anywhere in it). Response: `{ items, total, page, limit }`. List rows omit `consentJson`/`parentalConsentToken`/`tcfString`/`signature` — fetch `GET /consents/:visitorId` for the full record.
 
 ### Visitors
 
 | Method | Path           | Description                         |
 |--------|----------------|-------------------------------------|
 | `GET`  | `/visitors`    | List visitor records (paginated)    |
+
+Query params for `GET /visitors`: `page`, `limit` (max 500), `from`, `to`, `q` (**prefix** search across visitorId, country). Response: `{ items, total, page, limit }`.
 
 IPs are never stored raw — only SHA-256 hashes appear in the `ipHash` field.
 
@@ -706,11 +786,57 @@ The **Users** dashboard page includes an **Edit** button on each user row (visib
 
 ### API Keys
 
-| Method     | Path            | Description                                          |
-|------------|-----------------|------------------------------------------------------|
-| `GET`      | `/apikeys`      | List API keys                                        |
-| `POST`     | `/apikeys`      | Create an API key (raw key returned once — save it!) |
-| `DELETE`   | `/apikeys/:id`  | Revoke an API key                                    |
+| Method     | Path                       | Description                                                    |
+|------------|----------------------------|------------------------------------------------------------------|
+| `GET`      | `/apikeys`                 | List API keys                                                  |
+| `POST`     | `/apikeys`                 | Create an API key (raw key returned once — save it!)           |
+| `DELETE`   | `/apikeys/:id`             | Revoke an API key (soft — can be undone with `reactivate`)     |
+| `POST`     | `/apikeys/:id/reactivate`  | Re-enable a revoked key — same hash, no new secret to distribute |
+| `DELETE`   | `/apikeys/:id/permanent`   | Permanently delete the key row — cannot be undone              |
+
+### Settings
+
+Tenant-wide dashboard settings — the Public and Admin API origin allowlists shown on the API
+Config page (split into two panels, one per API).
+
+| Method   | Path        | Description                        |
+|----------|-------------|-------------------------------------|
+| `GET`    | `/settings` | Get this tenant's settings (`{}` if none set yet) |
+| `PATCH`  | `/settings` | Update settings (partial — only sends fields being changed) |
+
+```ts
+// GET /consenti/admin/settings
+{ "allowedOrigins": ["https://example.com"], "adminAllowedOrigins": ["https://dashboard.example.com"] }
+
+// PATCH /consenti/admin/settings
+{ "allowedOrigins": ["https://example.com", "https://foo.example.com"] }
+```
+
+**`allowedOrigins`** is the **fallback** used by `POST /consenti/api/v1/consent`'s origin check
+when the specific profile being submitted to doesn't set its own `profileJson.allowedOrigins`
+(profile-level, if present, always takes precedence). The public API has no auth token, so this
+is its only access gate.
+
+**`adminAllowedOrigins`** is an additional CORS-layer check on top of Bearer-token auth for
+browser-originated `/consenti/admin/*` requests (server-to-server callers without an `Origin`
+header are unaffected). Unauthenticated static assets (`widget.js`/`widget.css`) are exempt —
+they must stay embeddable from any origin. **Be careful**: if you configure this, include the
+dashboard's own origin or you'll lock yourself out of the dashboard along with everyone else.
+
+Both lists accept full origins (`https://example.com`) or a wildcard subdomain pattern
+(`*.example.com`). Empty/unset means no restriction — every origin is allowed.
+
+### Setup Wizard
+
+Backs the dashboard's one-time first-run wizard (see [First-Run Setup Wizard](#first-run-setup-wizard)). All routes require `settings:update`, same as Settings above.
+
+| Method | Path                          | Description                                                       |
+|--------|-------------------------------|--------------------------------------------------------------------|
+| `GET`  | `/setup/status`                | `{ completed: boolean }` — whether this tenant has finished/skipped the wizard |
+| `GET`  | `/setup/config`                | Resolved `ConsentiServerConfig` (secrets redacted) plus `usingJsonStorage`/`usingDefaultCredentials` readiness flags |
+| `GET`  | `/setup/compliance-groups`     | The 8 built-in compliance groups with label/description/regulation metadata |
+| `POST` | `/setup/seed-profiles`         | `{ groups: string[] }` — seeds default profiles for the given groups (subset of the 8 ids; 400 on an unknown id) |
+| `POST` | `/setup/complete`              | Marks the wizard complete — called on both finish and skip; never reset from the dashboard afterward |
 
 ### Stats & Reporting
 
@@ -728,9 +854,10 @@ The **Users** dashboard page includes an **Edit** button on each user row (visib
 
 ### Audit Log
 
-| Method | Path      | Description                                             |
-|--------|-----------|---------------------------------------------------------|
-| `GET`  | `/audit`  | Paginated audit log; filter by `action`, `resourceType`, date range |
+| Method | Path         | Description                                             |
+|--------|--------------|---------------------------------------------------------|
+| `GET`  | `/audit`     | Paginated audit log; filter by `action`, `resourceType`, date range, `q` (**prefix** search across action, resourceType, resourceId, userId). Response: `{ items, total, page, limit }`; list rows omit `oldData`/`newData` — fetch `GET /audit/:id` for the full entry. |
+| `GET`  | `/audit/:id` | Full audit log entry (`oldData`/`newData`) — list rows omit these for performance; fetch on demand |
 
 ### Multi-Tenant
 
@@ -750,7 +877,10 @@ Only active when `multiTenant.enabled: true`.
 | `GET`  | `/tcf/vendors`    | List IAB TCF vendors      |
 | `GET`  | `/tcf/purposes`   | List IAB TCF purposes     |
 
-Only active when `tcf.enabled: true`.
+Only active when `tcf.enabled: true`. `cmpId`/`cmpVersion` here must match the widget's own
+`compliance.tcf` config (`@consenti/ui` README, "TCF" section) — both sides encode the same
+simplified TC string. The widget installs `window.__tcfapi` itself; these two admin-only routes
+are for the dashboard's vendor/purpose pickers, not consumed by the public widget.
 
 ---
 
@@ -761,23 +891,27 @@ Served at `{basePath}/` when `dashboard: true`.
 | Section             | Description                                                              |
 |---------------------|--------------------------------------------------------------------------|
 | Dashboard           | Consent overview, timeline chart, country breakdown, GPC stats           |
+| Reports             | Opt-in trend and category/locale breakdowns, date-range filter, requires `stats:view` |
 | Profiles            | Create / edit / copy / delete / activate / deactivate consent profiles   |
-| Profile History     | Version history viewer — compare locale JSON per version                 |
-| Cookie Templates    | Reusable cookie/purpose definitions (blank by default + Load Defaults)   |
+| Profile History     | Edit history viewer — browse every past snapshot in a profile's lineage  |
+| Consent Templates   | Reusable parameter + category definitions (blank by default + Load Defaults) |
 | UI Templates        | Reusable banner + modal layout settings                                  |
-| Consents            | Browse, filter, export consent records; per-visitor history              |
-| Visitors            | Visitor list with geographic data                                        |
-| Users               | Admin user management with allowed-tenant scoping                        |
+| Consents            | Browse, filter, search, paginate, export consent records; per-visitor history; row click opens a detail modal with signature/consent-data breakdown |
+| Visitors            | Visitor list with geographic data; search, paginate; row click opens a detail modal including proof-of-notice history |
+| Users               | Admin user management with allowed-tenant scoping; search; local-auth password reset (`super_admin` only) |
 | Roles               | RBAC roles and fine-grained permission assignment                        |
 | Sites               | Multi-tenant site management **(superadmin only)**                       |
 | TCF Vendors         | IAB Global Vendor List                                                   |
-| Audit Log           | Immutable log of all admin actions                                       |
+| Audit Log           | Immutable log of all admin actions; search, paginate; row click opens a detail modal with old/new data diff |
 | Settings / API      | API keys, branding, OpenAPI docs **(superadmin only)**                   |
+| Setup Wizard        | One-time first-run welcome / config / default-profiles / confirmation flow — see [First-Run Setup Wizard](#first-run-setup-wizard) |
 
 ### Dashboard RBAC
 
-- **Sites** and **API** sections are visible only to users with `role: 'superadmin'`
+- **Sites** and **API** sections are visible only to users with the `super_admin` role
 - **TCF Vendors** is visible to all authenticated users
+- **Reports** requires the `stats:view` permission (granted by default to `super_admin`, `admin`, `compliance_officer`, and `viewer` roles)
+- **Password reset** in the Users edit modal is shown only to `super_admin` users, and only when `auth.mode === 'local'` (JWT/OIDC/SAML/custom auth manage credentials outside Consenti, so there is nothing to reset here)
 
 ### Profile Creation Wizard
 
@@ -788,50 +922,88 @@ Served at `{basePath}/` when `dashboard: true`.
 | `name`              | `string`                                             | Human-readable profile name                                                 |
 | `defaultLocale`     | `string` (BCP 47)                                    | Locale served when visitor locale is unavailable; written as `default.json` |
 | `complianceGroup`   | `ComplianceGroupId`                                  | Regulation group for geo-routing (e.g. `opt-in`, `opt-out-strict`)          |
+| `customComplianceGroup` | `string` (lower-kebab-case)                      | Required when `complianceGroup` is unset ("None / Custom") — it's the identifier the widget's `compliance.type` config uses to fetch this profile (see [Public REST API](#public-rest-api) hot-serve path). Drives activation, deactivation, and "one active profile per group" conflict detection the same way `complianceGroup` does; no `COMPLIANCE_GROUPS` validation rules or GPC defaults apply to it, since none exist for a free-form name. |
 | `gpcMode`           | `'ignore' \| 'honor' \| 'strict'`                   | GPC signal handling. Overrides group default.                               |
+| `expiryDays`        | `number` (default `365`)                             | Days until stored consent expires and the visitor is asked again. Profile-wide — replaces the old per-parameter expiry field. |
 | `darkMode`          | `boolean`                                            | Enable dark mode in the consent banner                                      |
-| `hidePoweredBy`     | `boolean`                                            | Hide "Powered by Consenti" branding link                                    |
+| `hidePoweredBy`     | `boolean` (default `true`)                           | Hide "Powered by Consenti" branding link. Defaults to checked/hidden in the dashboard, matching the widget's own default for a profile that never sets this field. |
 | `allowReceipt`      | `boolean`                                            | Allow visitors to download a PDF consent receipt                            |
 | `allowedOrigins`    | `string[]`                                           | Allowlisted domains for CORS on this profile's consent endpoints            |
-| `complianceConfig`  | `Record<string, string>`                             | Per-compliance extra config (e.g. DPDPA data fiduciary name). Only shown when the selected `complianceGroup` requires it; otherwise omitted. |
+| `complianceConfig`          | `Record<string, string>`                             | Per-compliance extra config (e.g. DPDPA data fiduciary name). Only shown when the selected `complianceGroup` requires it; otherwise omitted. |
+| `showFooterMetadata`        | `boolean`                                            | Show a metadata strip in the banner and modal footer with: Consent ID (visitor UUID), Consent Date, Profile Version, and a "Privacy Settings" link. |
+| `enhanceAccessibility`      | `boolean`                                            | Apply WCAG 2.1 AA enhancements: 44 px min button height, 3 px focus rings. Adds `.consenti--enhanced-a11y` class to the widget root. |
 
-**Step 2 — Cookie Template:** Define cookie IDs and their properties. Clicking **Next** at the bottom of Step 2 calls `POST /admin/profiles/validate` with the selected template's cookies and the chosen `complianceGroup`:
+**Step 2 — Consent Template:** Define parameters (cookies) and the categories that own their legal basis, edited together. Clicking **Next** at the bottom of Step 2 calls `POST /admin/profiles/validate` with the selected template's `cookies` + `categories` and the chosen `complianceGroup`:
 
-- **Compliance errors** (red panel): block advancing to Step 3 until resolved (e.g. template has no cookie with `listenGpc: true` but the group requires GPC support).
-- **Compliance warnings** (amber panel): show an acknowledgment checkbox; the user must check it before advancing. Warnings do not block save — they surface potential issues.
+- **Compliance errors** (red panel): block advancing to Step 3 until resolved (e.g. a category has no `legalBasis` set, or a marketing-purpose parameter is assigned to a `mandatory` category).
+- **Compliance warnings** (amber panel): show an acknowledgment checkbox; the user must check it before advancing. Warnings do not block save — they surface potential issues (e.g. `preGrant: true` on a strict opt-in profile).
+
+Parameter fields:
 
 | Field               | Type                                            | Description                                                               |
 |---------------------|-------------------------------------------------|---------------------------------------------------------------------------|
-| `id`                | `string`                                        | Unique identifier referenced in button arrays                             |
-| `legalBasis`        | `'mandatory' \| 'consent' \| 'legitimate_interest'` | Legal basis (replaces deprecated `mandatory`+`type` fields)           |
+| `id`                | `string` (map key)                              | Unique identifier referenced in button arrays and category `cookies[]`    |
+| `purpose`           | `'necessary' \| 'functional' \| 'preferences' \| 'analytics' \| 'marketing'` | What the parameter is for. Required — parameter IDs are free-form, so the purpose is what integrations and compliance checks rely on. Selecting a purpose pre-fills `listenGpc` and `cpraCategory` (still editable). Known Google Consent Mode IDs (`ad_storage`, `analytics_storage`, …) auto-detect their purpose. |
 | `listenGpc`         | `boolean`                                       | Auto-denied when GPC signal is active                                     |
-| `expiry`            | `number`                                        | Days until re-consent is required (0 = session)                           |
-| `tcfSpecialFeatures`| `number[]`                                      | IAB TCF special feature IDs (SF1, SF2) associated with this cookie        |
+| `preGrant`          | `boolean`                                       | Pre-grant this parameter's default consent. Only editable when its category's `legalBasis === 'consent'` — `mandatory`/`legitimate_interest` categories are already effectively pre-granted, so the checkbox is locked checked for those. |
+| `tcfVendorId` / `tcfPurposes` | `number` / `number[]`                 | IAB TCF vendor + purpose IDs associated with this parameter               |
+| `cpraCategory`      | `'sale' \| 'sharing' \| 'sensitive'`            | CPRA data category                                                        |
 
-**Step 3 — UI Template:** Configure banner and modal layout. New UI templates start **blank** (no prefilled buttons or categories). Click **Load Defaults** in the amber callout to populate a sensible starter structure.
+Category fields (own the legal basis for every parameter listed in `cookies[]` — a parameter must belong to **exactly one** category):
+
+| Field               | Type                                                 | Description                                                          |
+|---------------------|--------------------------------------------------------|--------------------------------------------------------------------|
+| `id`                | `string` (map key)                                    | Unique identifier                                                    |
+| `legalBasis`        | `'mandatory' \| 'consent' \| 'legitimate_interest'`   | Legal basis for every parameter in `cookies[]` — replaces the old per-parameter `legalBasis` field |
+| `cookies`           | `string[]`                                            | Parameter IDs belonging to this category                             |
+
+Purpose defaults (applied to the parameter when a purpose is selected, all overridable; the category's `legalBasis` is authored separately):
+
+| `purpose`     | Suggested category `legalBasis` | `listenGpc` | `cpraCategory` |
+|---------------|-----------------------------------|-------------|----------------|
+| `necessary`   | `mandatory`                       | `false`     | —              |
+| `functional`  | `legitimate_interest`             | `false`     | —              |
+| `preferences` | `legitimate_interest`             | `false`     | —              |
+| `analytics`   | `consent`                         | `true`      | —              |
+| `marketing`   | `consent`                         | `true`      | `sharing`      |
+
+**Per-profile parameter overrides:** `ProfileConfig.cookiesOverride?: Record<string, Partial<Cookie>>` lets a profile tune specific fields (e.g. `preGrant`) of a template-authored parameter without forking the whole Consent Template — deltas merge onto the resolved `cookies` map by parameter id at resolve time (`GET /profiles/:tenantId/:complianceGroup/:locale` and friends); a delta for a parameter id not present in the template is ignored. `categoriesOverride`/`uiOverride` exist on the type for a future phase but aren't applied yet.
+
+In the Step 2 parameter table, **Pre Grant** is editable per-profile (writes/removes a `cookiesOverride` delta) except for parameters whose category isn't `legalBasis: 'consent'` (locked checked-and-disabled, same rule as template authoring). Selecting a compliance group or Consent Template auto-defaults it: `opt-out`/`opt-out-strict` force it off (with an amber warning), every other group forces it on for parameters the template didn't already pre-grant — only where that differs from the template's authored value.
+
+**Step 3 — UI Template:** Configure banner and modal layout. New UI templates start **blank** (no prefilled buttons). Click **Load Defaults** in the amber callout to populate a sensible starter structure.
 
 - **Main Banner / GPC Banner:** `position`, `overlayOpacity`, `showClose`, `headingTag`, `buttons`
-- **Preference Modal:** `position`, `overlayOpacity`, `showClose`, `persistent`, `buttons`, `categories`
+- **Preference Modal:** `position`, `overlayOpacity`, `showClose`, `persistent`, `buttons` — categories are no longer edited here; they come from the Consent Template selected in Step 2.
+- Button `id`: a machine identifier (e.g. `accept-all`), **not** display text — UI templates own layout/behavior only. The visitor-facing label for each button is authored per-locale in Step 4, shown there as `id (action)` so authors know which button they're labeling.
 - Button `type`: `primary | secondary | text | reject | submit | manage | close`
 - Button `cookies`: `*` (grant all) · `!` (deny all) · comma-separated IDs
+
+Additional UI template fields:
+
+| Field | Scope | Type | Description |
+|-------|-------|------|-------------|
+| `stackButtonsOnBreakpoint` | Main Banner, GPC Banner | `number` | Below this viewport width (px) banner buttons stack vertically and stretch full-width. `0` or absent = disabled. Default when enabled: `576`. |
+| `trapFocus` | Preference Modal | `boolean` | Confine Tab / Shift+Tab keyboard navigation within the modal while it is open. `Escape` closes and restores prior focus. |
 
 **Step 4 — Content:** Enter localised copy with live preview:
 
 - Main Banner: heading, body HTML
 - GPC Banner: heading, body HTML
-- Preference Modal: heading, subheading, intro HTML, per-category heading + description
+- Preference Modal: heading, subheading, intro HTML, per-category heading + description, plus an optional legitimate-interest description (`legitimateInterestDescription`) shown only for categories with `legalBasis: 'legitimate_interest'` — the GDPR balancing-test justification, localized per profile alongside the rest of the category content
+- Consent receipt checkbox label + description (only shown when **Allow consent receipt** is enabled in Step 1) — `PreferenceModal.receiptLabel`/`receiptDescription`, authored and localized per profile instead of the widget's built-in default text
 
 **Adding locales:** Click **+ Add locale** to open a searchable `CountrySelecter` dropdown showing all BCP 47 locale options. Select a locale to add its tab instantly.
 
 **Default-locale placeholders:** When editing a non-default locale tab, all heading, subheading, and category-heading inputs show the default locale's value as placeholder text — so translators see the source copy without switching tabs.
 
-**Import / Export:**
+**Import / Export:** available above the wizard card on every content step (Main Banner / GPC Banner / Preference Modal) — not scoped to whichever step is active, since each covers the whole profile. `Load Defaults` stays inside each step's own card, scoped to that section only, and is sourced from `packages/utils/src/profiles` for whichever compliance group and active locale tab you're on (a custom, non-preset compliance group falls back to `general-privacy-consent`'s content); category text is matched to your Consent Template's own categories by cookie purpose, not by id.
 
 | Button | Action |
 |--------|--------|
-| **JSON** | Exports *all* locale tabs as a single `locales.json` file (`{ "en": {...}, "fr-FR": {...} }`) |
-| **CSV** | Exports the *current* locale tab as a `locale-{locale}.csv` file |
-| **Import** | Accepts either format — multi-locale JSON auto-creates missing locale tabs; skipped locales (invalid BCP 47 key) are listed in an amber callout after import |
+| **JSON** | Exports every locale the profile has content for as `locales.json`: `{ "en": { "mainBanner.heading": "...", "category.necessary.heading": "...", ... }, "fr-FR": {...} }` — one flat dot-path key/value map per locale. Button columns are keyed by the UI template's button id (e.g. `mainBanner.button.accept-all`); category columns by the consent template's category id. |
+| **CSV** | Exports `locales.csv` — one row per *every* BCP 47 locale in the `CountrySelecter` list (not just ones this profile already has), so translators never hand-type a locale code. Column A is the locale; the rest are the same dot-path keys as the JSON export, as column headers. Rows for locales the profile already has content for are pre-filled; the rest are blank, ready to fill in. |
+| **Import** | Accepts either format. The header row (JSON: none; CSV: row 1) is not user data. For CSV, rows where every content column is blank are skipped — so importing the full 70+ row template back doesn't create empty locale entries for locales you didn't fill in. Skipped/invalid locale keys are listed in an amber callout after import. |
 
 **Readability callouts:** Inline advisory warnings (yellow) appear beneath `heading` and body HTML fields when:
 - A heading exceeds 80 characters
@@ -840,35 +1012,76 @@ Served at `{basePath}/` when `dashboard: true`.
 
 These are informational only — the profile can still be saved.
 
+### Mandatory Content Validation
+
+`POST /profiles` and `PUT /profiles/:id` reject (`422`) a save where any locale is missing required
+content — this is what guarantees a profile can never end up with a blank banner. The dashboard
+wizard already blocks this client-side (hard stop on Next/Save, jumping to the offending locale
+tab); the backend check is the enforcement backstop for bulk CSV/JSON import, which bypasses the
+wizard's step-by-step gating entirely. Both use the same `hasVisibleText` check
+(`@consenti/utils`) so a rich-text field that *looks* non-empty by string length but renders no
+actual text (an empty paragraph node, for example) is still correctly caught as blank.
+
+Mandatory per locale (heading is always optional, everywhere):
+
+| Section | Field | Rule |
+|---|---|---|
+| Main Banner / GPC Banner | Body text (`htmlText`) | Required, non-blank |
+| Main Banner / GPC Banner | Every button's label | Required, non-blank |
+| Preference Modal | Heading | Required, non-blank |
+| Preference Modal | Every button's label | Required, non-blank |
+| Preference Modal | Every category's heading | Required, non-blank |
+
+GPC Banner rules only apply to a locale that actually submitted `gpcBanner` content — a profile
+with `gpcMode: 'ignore'`, or a locale nobody's authored a GPC variant for, simply omits it. A
+failing save returns:
+```json
+{ "error": "Profile content is missing required fields", "details": { "errors": [
+  { "locale": "hi", "section": "mainBanner", "field": "htmlText", "message": "Body text is required" }
+] } }
+```
+(`details` is only included outside `NODE_ENV=production`, same as the compliance-validation 422 above.)
+
 ### Profile Activation
 
 Profiles are **inactive** after creation. To serve them via geo-routing:
 
 1. Click **Activate** in the profile list or use `POST /admin/profiles/:id/activate`
-2. Consenti writes locale JSON files to `${storage.path}/profiles/${tenantId}/${complianceGroup}/`
+2. Consenti atomically repoints `${storage.path}/profiles/${tenantId}/${complianceGroup}/` (a symlink) at the profile's version directory
 3. The static file route starts serving these files immediately (zero DB on the hot path)
 
 Only one profile per `complianceGroup` can be active at a time. Activating a new profile automatically deactivates the existing one.
 
-### Profile Version History
+### Profile Edit History
 
-Every profile save creates an immutable snapshot at `${profileId}/${version}/`. The dashboard version history page (`#/banners/profiles/:id/history`) shows:
-- Left panel: list of all versions with dates
+`id` is stable across every edit — each save mutates the row in place and increments `version`, and writes a new resolved-JSON snapshot immutably to `${id}/${version}/`. There's no separate DB-level archive; that on-disk snapshot tree is the audit trail. The dashboard history page (`#/banners/profiles/:id/history`) shows:
+- Left panel: every version, newest first, by date
 - Right panel: prettified JSON for the selected version; locale switcher dropdown
 
 Via API:
 ```http
 GET /consenti/admin/profiles/:id/versions
-GET /consenti/admin/profiles/:id/versions/3?locale=fr-FR
+GET /consenti/admin/profiles/:id/versions/:entryId?locale=fr-FR
 ```
+
+`:id` is the profile's stable id. `:entryId` is one specific version's number, as returned by the `versions` list.
+
+### Archived Profiles
+
+`ProfileService.delete()` removes the DB row but never deletes the on-disk version-snapshot tree, so deleted profiles' history is still readable — it's just no longer reachable by browsing the Profiles list. The **Archived Profiles** page (`#/banners/profiles/archived`, linked from the Profiles list) lists every profile-id directory found on disk with no matching DB row, built from a directory listing only — id, version count, last-modified date — no file content is read until a specific version is opened. Clicking one opens the same version-history viewer used for active profiles.
+
+```http
+GET /consenti/admin/profiles/archived
+```
+Returns `{ id, versionCount, lastModified }[]`. `GET /profiles/:id/versions` and `GET /profiles/:id/versions/:entryId` (above) both work for archived ids too — they read the version-directory tree directly and were never actually gated on the DB row existing.
 
 ### Template Save Safety
 
-When saving a **Cookie Template** or **UI Template** that is used by one or more profiles, a confirmation dialog appears listing the affected profiles. You must confirm before changes are applied. Uses `GET /admin/cookie-templates/:id/profile-usage` or `GET /admin/ui-templates/:id/profile-usage` internally.
+When saving a **Consent Template** or **UI Template** that is used by one or more profiles, a confirmation dialog appears listing the affected profiles. You must confirm before changes are applied. Uses `GET /admin/consent-templates/:id/profile-usage` or `GET /admin/ui-templates/:id/profile-usage` internally.
 
-When **deleting** a Cookie Template used by active profiles, the delete is blocked with a 422 error listing those profiles. Deactivate the affected profiles before deleting the template.
+When **deleting** a Consent Template used by active profiles, the delete is blocked with a 422 error listing those profiles. Deactivate the affected profiles before deleting the template.
 
-When **removing cookies** from a Cookie Template, the backend checks whether the reduced cookie set satisfies the `complianceGroup` rules for every profile using the template. If any profile's compliance would break, the save is blocked with a 422 listing the `blockingProfiles` and `removedCookieIds` — see [Cookie Template Safety Guards](#cookie-template-safety-guards).
+When **changing parameters or categories** on a Consent Template, the backend re-runs compliance validation against every profile using the template. If any profile's compliance would break, the save is blocked with a 422 listing `blockingProfiles` — see [Consent Template Safety Guards](#consent-template-safety-guards).
 
 ---
 
@@ -884,10 +1097,10 @@ When **removing cookies** from a Cookie Template, the backend checks whether the
 | `consent.erased` | `{ visitorId: string }` | Visitor data erased (GDPR erasure) |
 | `visitor.created` | `Visitor` | New visitor record created |
 | `profile.created` | `Profile` | Profile created |
-| `profile.updated` | `{ previous, current: Profile }` | Profile updated (version bumped) |
+| `profile.updated` | `{ previous, current: Profile }` | Profile edited — `current.id` matches `previous.id`; `current.version` is incremented |
 | `profile.deleted` | `{ id: string, previous: Profile }` | Profile deleted |
-| `cache:warm` | `{ paths: string[], version: number }` | Fired after locale JSON files are written; paths to warm in CDN/cache |
-| `cache:purge` | `{ paths: string[], version: number }` | Fired after locale JSON files are removed; paths to purge from CDN/cache |
+| `cache:warm` | `{ paths: string[], profileId: string }` | Fired after locale JSON files are written; paths to warm in CDN/cache |
+| `cache:purge` | `{ paths: string[], profileId: string }` | Fired after locale JSON files are removed; paths to purge from CDN/cache |
 
 `cache:warm` and `cache:purge` mirror the `handleCache` config callback — use whichever suits your integration.
 
@@ -903,6 +1116,74 @@ eventBus.on('consent.erased', ({ visitorId }) => {
   myDmpClient.deleteVisitor(visitorId)
 })
 ```
+
+---
+
+## ConsentAction / CategoryAction
+
+Server-side counterparts to `@consenti/ui`'s `ConsentAction`/`CategoryAction` — thin wrappers around `consent.created`/`consent.updated` that fire `onGrant`/`onDeny` only on an actual status transition (not on every event), across every visitor's submissions. Prefer these over listening to the raw events directly when you only care about one parameter or one category — they handle the previous-vs-current comparison for you.
+
+There is no server equivalent of the widget's `ConsentScript`/`CategoryScript` — injecting a `<script>` tag only makes sense in a browser DOM the server doesn't have. `services.consent.create()`/`.update()` are already the server-side submit/update methods these hooks react to (see [ConsentService](#services)).
+
+### `ConsentAction`
+
+Watches a single cookie parameter.
+
+```ts
+import { createConsenti, ConsentAction } from '@consenti/api'
+
+const { eventBus } = createConsenti({ /* ... */ })
+
+new ConsentAction({
+  id: 'analytics_storage',           // cookie id to watch
+  eventBus,
+  onGrant: ({ visitorId, cookieId, status, record }) => crm.optIn(visitorId),
+  onDeny: ({ visitorId, cookieId, status, record }) => crm.optOut(visitorId),
+})
+```
+
+**Options** (`ConsentActionOptions`):
+
+| Option | Type | Description |
+|---|---|---|
+| `id` | `string` | The consent parameter (cookie) ID to watch |
+| `eventBus` | `EventEmitter` | The `eventBus` returned by `createConsenti()` |
+| `onGrant` | `(params: ConsentActionParams) => void` | Called when the parameter transitions to `'granted'` |
+| `onDeny` | `(params: ConsentActionParams) => void` | Called when the parameter transitions away from `'granted'` (`'denied'` or `'objected'`) |
+
+**Callback params** (`ConsentActionParams`): `{ visitorId: string, cookieId: string, status: ConsentStatus, record: ConsentDbRecord }`
+
+### `CategoryAction`
+
+Watches a whole category's rollup consent state — granted only when *every* cookie in the category is granted, matching the preference modal's tri-state rollup rule.
+
+```ts
+import { createConsenti, CategoryAction } from '@consenti/api'
+
+const { eventBus, services } = createConsenti({ /* ... */ })
+
+new CategoryAction({
+  categoryId: 'marketing',
+  eventBus,
+  profiles: services.profile,        // resolves the category's cookie ids per profile
+  onGrant: ({ visitorId, categoryId, status, record }) => adsPlatform.optIn(visitorId),
+  onDeny: ({ visitorId, categoryId, status, record }) => adsPlatform.optOut(visitorId),
+})
+```
+
+**Options** (`CategoryActionOptions`):
+
+| Option | Type | Description |
+|---|---|---|
+| `categoryId` | `string` | The category ID to watch |
+| `eventBus` | `EventEmitter` | The `eventBus` returned by `createConsenti()` |
+| `profiles` | `ProfileService` | The `services.profile` returned by `createConsenti()` — resolves which cookies belong to this category for the record's profile (categories are defined on the consent template) |
+| `onGrant` | `(params: CategoryActionParams) => void` | Called when every cookie in the category transitions to `'granted'` |
+| `onDeny` | `(params: CategoryActionParams) => void` | Called when the category transitions away from fully granted |
+
+**Callback params** (`CategoryActionParams`): `{ visitorId: string, categoryId: string, status: ConsentStatus, record: ConsentDbRecord }`
+
+Both classes expose `destroy()` to remove their event listeners when the hook is no longer needed.
 
 ---
 
@@ -981,6 +1262,22 @@ await consenti.destroy()
 | Stack traces              | Suppressed in `NODE_ENV=production` responses                                |
 | CORS                      | Explicit allowlist — never use `origins: '*'` in production                  |
 | Rate limiting             | Applied to all public API routes by default                                  |
+| Signed consent records    | Opt-in via `consentSigningKey` — HMAC-SHA256 (`node:crypto` `createHmac`) over each record's core fields, hex-encoded into `signature`. No-op and no schema burden when unset. |
+
+### Signed consent records (opt-in)
+
+Set `consentSigningKey` to have every consent record signed at create/update time — tamper-evidence for server-stored records, independent of the widget's own cookie-signing (`core.cookieSigningKey`, which protects the visitor's local cookie).
+
+```ts
+createConsenti({
+  consentSigningKey: process.env.CONSENTI_CONSENT_SIGNING_KEY,
+})
+```
+
+- The signature covers `tenantId`, `visitorId`, `profileId`, `locale`, and the sorted `consentJson` entries — not the DB-generated `id`/`createdAt`/`updatedAt`.
+- `GET /consent/:visitorId/verify` checks the signature when both a key is configured and the record has one, adding `hmac_invalid` to `reasons` on mismatch. Records signed before the key was configured (or never signed) never fail this check for its absence.
+- `signature` is included in CSV/JSON/XLSX exports (`GET /export/consents`) and shown in the dashboard's Consents detail view.
+- Hash-chaining between records (a full tamper-evident log, not just per-record integrity) is not implemented — out of scope for now.
 
 ---
 

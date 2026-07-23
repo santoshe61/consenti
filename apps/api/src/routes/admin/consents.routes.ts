@@ -1,5 +1,5 @@
 import type { StorageAdapter, AuthConfig, ConsentFilters } from '@consenti/types'
-import { json, getQueryParam, getQueryInt } from '../../utils/http'
+import { json, getQueryParam, getPagination } from '../../utils/http'
 import { errorResponse, withErrorHandler } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
 
@@ -23,15 +23,18 @@ export function buildAdminConsentRoutes(
         const profileId = getQueryParam(url, 'profileId')
         const from = getQueryParam(url, 'from')
         const to = getQueryParam(url, 'to')
-        const limit = getQueryInt(url, 'limit', 50)
-        if (limit > 500) return errorResponse(400, 'limit must not exceed 500')
+        const q = getQueryParam(url, 'q')
+        const pagination = getPagination(url)
+        if ('error' in pagination) return errorResponse(400, pagination.error)
+        const { page, limit } = pagination
         const filters: ConsentFilters = {
           tenantId: 'default',
-          page: getQueryInt(url, 'page', 1),
+          page,
           limit,
           ...(profileId !== undefined ? { profileId } : {}),
           ...(from !== undefined ? { from } : {}),
           ...(to !== undefined ? { to } : {}),
+          ...(q !== undefined ? { q } : {}),
         }
         const records = await storage.getConsents(filters)
         return json(200, records)

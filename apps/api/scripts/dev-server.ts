@@ -14,7 +14,8 @@ const consenti = createConsenti({
   compliance: { gdpr: true, ccpa: true, gpc: true },
   branding: {
     appName: "Consenti",
-    appLogoPath: "./logo-dark.svg"
+    appLogoPath: "./logo-dark.svg",
+    hidePoweredBy: false,
   },
   storage: {
     driver: 'json',

@@ -14,12 +14,12 @@ import type { ConsentReceipt, ConsentValue } from '../types'
 
 /** Parameters required to construct a consent receipt. */
 export interface ReceiptParams {
+  /** Censent version for the visitor. */
+  version: string
   /** Visitor UUID from the `consenti_uid` cookie. */
   visitorId: string
   /** Numeric profile ID. */
-  profileId: number
-  /** Profile schema version at the time of consent. */
-  profileVersion: number
+  profileId: string
   /** Locale active when consent was given. */
   locale: string
   /** The full consent map. */
@@ -36,11 +36,10 @@ export interface ReceiptParams {
  */
 export function generateReceipt(params: ReceiptParams): ConsentReceipt {
   const receipt: ConsentReceipt = {
-    version: '1.0',
+    version: params.version,
     issuedAt: new Date().toISOString(),
     visitorId: params.visitorId,
     profileId: params.profileId,
-    profileVersion: params.profileVersion,
     locale: params.locale,
     consent: params.consent,
   }

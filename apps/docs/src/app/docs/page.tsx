@@ -2,7 +2,27 @@ import Link from 'next/link'
 import type { Metadata } from 'next'
 import { Database, Layout, Plug, Rocket, Scale } from 'lucide-react'
 
-export const metadata: Metadata = { title: 'Documentation' }
+export const metadata: Metadata = {
+  title: 'Documentation',
+  description:
+    'Documentation for Consenti — the open-source, GDPR-compliant cookie consent and consent management platform.',
+  alternates: { canonical: '/docs' },
+  openGraph: {
+    title: 'Documentation',
+    description:
+      'Documentation for Consenti — the open-source, GDPR-compliant cookie consent and consent management platform.',
+    url: 'https://consenti.dev/docs',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Documentation',
+    description:
+      'Documentation for Consenti — the open-source, GDPR-compliant cookie consent and consent management platform.',
+    images: ['/og-image.jpg'],
+  },
+}
 
 const sections = [
   {
@@ -53,19 +73,19 @@ export default function DocsIndexPage() {
       <h1>Consenti Documentation</h1>
       <p>
         Consenti is an open-source, GDPR-compliant cookie consent and consent management platform.
-        The UI widget (<code>@consenti/ui</code>) is the core — install it and you have a
-        fully working consent banner with zero dependencies, no backend required. Consent is stored
-        in a signed browser cookie. That&apos;s all most projects need.
+        The UI widget (<code>@consenti/ui</code>) is the core — install it and you have a fully
+        working consent banner with zero dependencies, no backend required. Consent is stored in a
+        signed browser cookie. That&apos;s all most projects need.
       </p>
       <p>
-        The backend module (<code>@consenti/api</code>) is entirely optional. Add it if
-        you need server-side consent records, audit logs, or the built-in admin dashboard. The UI
-        widget also integrates with any custom REST API you already run — you don&apos;t have to use
-        the Consenti backend at all.
+        The backend module (<code>@consenti/api</code>) is entirely optional. Add it if you need
+        server-side consent records, audit logs, or the built-in admin dashboard. The UI widget also
+        integrates with any custom REST API you already run — you don&apos;t have to use the
+        Consenti backend at all.
       </p>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 not-prose mt-8">
-        {sections.map((s) => {
+        {sections.map(s => {
           const Icon = s.Icon
           return (
             <Link
@@ -73,10 +93,14 @@ export default function DocsIndexPage() {
               href={s.href}
               className="group block p-5 rounded-xl border border-slate-200 hover:border-brand-500 hover:shadow-md transition-all no-underline"
             >
-              <div className={`w-9 h-9 ${s.iconBg} rounded-lg flex items-center justify-center mb-3`}>
+              <div
+                className={`w-9 h-9 ${s.iconBg} rounded-lg flex items-center justify-center mb-3`}
+              >
                 <Icon size={18} className={s.iconColor} />
               </div>
-              <h3 className="font-bold text-slate-900 mb-1 group-hover:text-brand-500 transition-colors">{s.title}</h3>
+              <h3 className="font-bold text-slate-900 mb-1 group-hover:text-brand-500 transition-colors">
+                {s.title}
+              </h3>
               <p className="text-sm text-slate-500 leading-relaxed">{s.desc}</p>
             </Link>
           )
@@ -94,14 +118,22 @@ export default function DocsIndexPage() {
         </thead>
         <tbody>
           <tr>
-            <td><code>@consenti/ui</code></td>
+            <td>
+              <code>@consenti/ui</code>
+            </td>
             <td>Browser widget — banner, modal, GTM, GPC, i18n, signed cookie storage</td>
-            <td><strong>Always</strong> — this is the core package</td>
+            <td>
+              <strong>Always</strong> — this is the core package
+            </td>
           </tr>
           <tr>
-            <td><code>@consenti/api</code></td>
+            <td>
+              <code>@consenti/api</code>
+            </td>
             <td>Node.js backend — server-side consent records, admin dashboard, REST API</td>
-            <td><strong>Optional</strong> — only if you need audit logs or the dashboard</td>
+            <td>
+              <strong>Optional</strong> — only if you need audit logs or the dashboard
+            </td>
           </tr>
         </tbody>
       </table>
@@ -115,7 +147,9 @@ export default function DocsIndexPage() {
         <li>Browser: ES2020+ (Chrome 80+, Firefox 74+, Safari 13.1+) — for the UI widget</li>
         <li>npm 10 or later (or any npm-compatible package manager)</li>
         <li>TypeScript 5.8+ recommended (strict mode)</li>
-        <li>Node.js 24 LTS or later — only required if using <code>@consenti/api</code></li>
+        <li>
+          Node.js 24 LTS or later — only required if using <code>@consenti/api</code>
+        </li>
       </ul>
     </div>
   )

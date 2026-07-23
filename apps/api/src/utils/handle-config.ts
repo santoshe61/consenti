@@ -9,7 +9,7 @@
 
 import { copyFileSync, existsSync, mkdirSync } from 'node:fs'
 import { extname, join } from 'node:path'
-import type { BrandingConfig, ComplianceConfig, ConsentiRuntimeConfig } from '@consenti/types'
+import type { AuthConfig, BrandingConfig, ComplianceConfig, ConsentiRuntimeConfig } from '@consenti/types'
 
 function resolveappLogoPath(dashboardDir: string, branding: BrandingConfig): string | null {
   const { appLogoPath } = branding
@@ -39,6 +39,7 @@ export function buildConsentiRuntimeConfig(
   basePath: string,
   branding: BrandingConfig = {},
   compliance: ComplianceConfig = {},
+  authMode: AuthConfig['mode'] = 'local',
 ): ConsentiRuntimeConfig {
   const resolvedCompliance: ConsentiRuntimeConfig['compliance'] = {}
   if (compliance.type !== undefined) resolvedCompliance.type = compliance.type
@@ -50,6 +51,7 @@ export function buildConsentiRuntimeConfig(
     hidePoweredBy: branding.hidePoweredBy ?? false,
     basePath,
     compliance: resolvedCompliance,
+    authMode,
   }
 }
 

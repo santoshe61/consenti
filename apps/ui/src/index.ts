@@ -15,10 +15,17 @@ export { ConsentiSetup } from './core/consenti-setup'
 export { ConsentiPlugin } from './plugins/plugin.base'
 export { ConsentiProfile } from './profile/consenti-profile'
 export { ConsentScript } from './utils/consent-script'
-export { CookieTrigger } from './utils/cookie-trigger'
+export { ConsentAction } from './utils/consent-action'
+export { CategoryAction } from './utils/category-action'
+export { CategoryScript } from './utils/category-script'
+export { BannerTrigger } from './utils/banner-trigger'
+export { scanConsentScripts } from './utils/script-scanner'
 
 export type { ConsentScriptOptions } from './utils/consent-script'
-export type { CookieTriggerOptions } from './utils/cookie-trigger'
+export type { ConsentActionOptions, ConsentActionParams } from './utils/consent-action'
+export type { CategoryActionOptions, CategoryActionParams } from './utils/category-action'
+export type { CategoryScriptOptions } from './utils/category-script'
+export type { BannerTriggerOptions } from './utils/banner-trigger'
 
 export type {
   ConsentiConfig,
@@ -28,6 +35,7 @@ export type {
   UtilsConfig,
   ThemeConfig,
   Cookie,
+  CookieMap,
   Button,
   ButtonStyle,
   ButtonAction,
@@ -35,12 +43,15 @@ export type {
   GpcBanner,
   PreferenceModal,
   Category,
+  CategoryMap,
   ProfileConfig,
+  RegisterableProfileConfig,
   ProfileTranslations,
   LocaleTranslations,
   ConsentValue,
   ConsentStatus,
-  ConsentAction,
+  /** The 'accept_all' | 'reject_all' | 'custom' | 'update' submission classification — renamed on export to avoid colliding with the `ConsentAction` class above. */
+  ConsentAction as ConsentActionType,
   ConsentRecord,
   ConsentReceipt,
   ConsentEvent,
@@ -50,4 +61,8 @@ export type {
   ResolvedProfile,
   ConsentiWidgetAPI,
   ConsentiEventName,
+  ComplianceWidgetConfig,
+  AgeGateWidgetConfig,
+  TcfWidgetConfig,
+  ParentalConsentRequiredDetail,
 } from './types'

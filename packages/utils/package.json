@@ -12,10 +12,21 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./profiles": {
+      "types": "./dist/profiles/index.d.ts",
+      "import": "./dist/profiles/index.js",
+      "default": "./dist/profiles/index.js"
+    },
+    "./profiles/*": {
+      "types": "./dist/profiles/*.d.ts",
+      "import": "./dist/profiles/*.js",
+      "default": "./dist/profiles/*.js"
     }
   },
   "scripts": {
     "build": "tsc",
+    "watch": "tsc --watch",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {

@@ -234,6 +234,12 @@ export function SaasRequestBadge() {
                   >
                     {submitting ? 'Submitting…' : 'Submit Request'}
                   </button>
+                  <p className="text-[11px] text-gray-400 text-center">
+                    By submitting, you agree to our{' '}
+                    <a href="/privacy/" target="_blank" rel="noopener noreferrer" className="underline hover:text-gray-600">
+                      Privacy Policy
+                    </a>.
+                  </p>
                 </form>
               )}
             </div>

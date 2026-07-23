@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'preact/hooks'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
 import { Table } from '../components/Table'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { useT } from '../context/locale'
@@ -14,6 +14,7 @@ interface Tenant {
 
 export function TenantList({ current }: { current: string }) {
   const t = useT()
+  usePageTitle(t('sites.title'))
   const [tenants, setTenants] = useState<Tenant[]>([])
   const [loading, setLoading] = useState(true)
   const [creating, setCreating] = useState(false)
@@ -60,7 +61,7 @@ export function TenantList({ current }: { current: string }) {
   }
 
   return (
-    <Layout title={t('sites.title')} current={current}>
+    <>
       {dialog}
       <div class="mb-4 bg-white rounded-lg border border-gray-200 p-4">
         <p class="text-sm font-medium text-gray-700 mb-3">{t('sites.createNew')}</p>
@@ -119,6 +120,6 @@ export function TenantList({ current }: { current: string }) {
         ]}
         emptyText={t('sites.empty')}
       />
-    </Layout>
+    </>
   )
 }

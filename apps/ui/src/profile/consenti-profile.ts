@@ -13,31 +13,39 @@
  * import { ConsentiProfile, ConsentiSetup } from '@consenti/ui'
  *
  * const profile = new ConsentiProfile({
- *   cookies: [
- *     { id: 'necessary', mandatory: true },
- *     { id: 'analytics' },
- *   ],
+ *   cookies: {
+ *     necessary: {},
+ *     analytics: {},
+ *   },
  *   defaultLocale: 'en',
  *   translations: {
  *     en: {
  *       mainBanner: {
  *         position: 'bottom',
  *         htmlText: 'We use cookies.',
- *         buttons: [{ text: 'Accept All', type: 'primary', cookies: '*' }],
+ *         buttons: { 'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' } },
  *       },
  *       preferenceModal: {
- *         categories: [],
- *         buttons: [{ text: 'Save', type: 'submit' }],
+ *         categories: {
+ *           necessary: { heading: 'Necessary', htmlText: '...', legalBasis: 'mandatory', cookies: ['necessary'] },
+ *         },
+ *         buttons: { save: { text: 'Save', style: 'primary', action: 'submit' } },
  *       },
  *     },
  *   },
  * })
  *
- * const widget = new ConsentiSetup({ core: { profileId: profile.getId() } })
+ * const widget = new ConsentiSetup({ core: { profileId: profile.getType() } })
  * ```
+ *
+ * To instead patch one of Consenti's built-in profiles for a given `complianceGroup`
+ * (rather than defining a full standalone profile), pass `complianceGroup` and
+ * `deepMerge: true` with only the fields you want to override — see
+ * `RegisterableProfileConfig` and the `complianceGroup`/`deepMerge` resolver behavior
+ * in `profile-resolver.ts`.
  */
 
-import type { ProfileConfig } from '../types'
+import type { ProfileConfig, RegisterableProfileConfig } from '../types'
 import { registerProfile } from '../core/profile-resolver'
 
 /** Starting point for auto-assigned local profile IDs. */
@@ -47,23 +55,25 @@ let nextLocalId = 1000
  * Defines a local consent profile and registers it for use by `ConsentiSetup`.
  */
 export class ConsentiProfile {
-  private id: number
+  private type: Symbol
 
   /**
-   * @param config - Full profile configuration including cookies, locales, and UI text.
+   * @param config - Full profile configuration including cookies, locales, and UI text,
+   *                 or a `{ complianceGroup, deepMerge: true, ... }` partial overlay to
+   *                 patch a built-in profile instead of defining a standalone one.
    */
-  constructor(private config: ProfileConfig) {
-    this.id = nextLocalId++
-    registerProfile(this.id, config)
+  constructor(private config: RegisterableProfileConfig) {
+    this.type = Symbol((config as ProfileConfig).id ?? nextLocalId++)
+    registerProfile(this.type, config)
   }
 
   /** Returns the auto-assigned numeric profile ID. Pass this to `core.profileId`. */
-  getId(): number {
-    return this.id
+  getType(): Symbol {
+    return this.type
   }
 
-  /** Returns the raw `ProfileConfig` passed to the constructor. */
-  toJSON(): ProfileConfig {
+  /** Returns the raw config passed to the constructor. */
+  toJSON(): RegisterableProfileConfig {
     return this.config
   }
 }

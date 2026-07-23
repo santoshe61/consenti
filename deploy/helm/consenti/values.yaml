@@ -1,0 +1,62 @@
+replicaCount: 1
+
+image:
+  repository: node
+  tag: "22-alpine"
+  pullPolicy: IfNotPresent
+  # This chart does not build the image for you — see deploy/README.md. Point this at an image
+  # built from docker/Dockerfile (in this repo) and pushed to a registry your cluster can pull
+  # from, e.g. `your-registry.example.com/consenti-api:0.2.0`.
+
+service:
+  type: ClusterIP
+  port: 3000
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: consenti.example.com
+  tls:
+    enabled: false
+    secretName: ""
+
+# Admin credentials and JWT secret — never set these directly in values.yaml. Create the secret
+# yourself (kubectl create secret generic consenti-admin --from-literal=...) and reference its
+# name here. See deploy/README.md for the exact keys expected.
+existingSecret: ""
+
+config:
+  basePath: /consenti
+  adminEmail: admin@example.com
+  dbDriver: node:sqlite   # node:sqlite | postgresql | mysql | mongodb | json
+  # Only used when dbDriver is node:sqlite or json — ignored otherwise.
+  dbPath: /data/consenti-data
+  # Only used when dbDriver is postgresql/mysql — set via existingSecret or here for non-sensitive host/port.
+  dbHost: ""
+  dbPort: ""
+  dbDatabase: ""
+  # Only used when dbDriver is mongodb.
+  dbUri: ""
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClassName: ""
+  accessMode: ReadWriteOnce
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+podAnnotations: {}
+podSecurityContext: {}
+securityContext: {}

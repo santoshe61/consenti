@@ -5,6 +5,7 @@ const NODE_BUILTINS = [
   'node:events', 'node:url', 'node:http', 'node:https', 'node:stream',
   'node:buffer', 'node:util', 'node:os', 'node:net', 'node:tls',
   'node:child_process', 'node:worker_threads', 'node:module',
+  'node:sqlite',
 ]
 
 export default defineConfig({

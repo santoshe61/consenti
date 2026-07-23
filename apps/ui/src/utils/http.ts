@@ -29,7 +29,11 @@ export async function httpRequest<T>(
   if (authToken) {
     headers['Authorization'] = `Bearer ${authToken}`
   }
-  const res = await fetch(url, { ...options, headers })
+  // The consent API's visitor-ownership check (PUT/DELETE/verify) relies on a cookie the
+  // server set on the initial POST — since the widget's origin and the API's origin are
+  // typically different domains, that cookie only round-trips if every request opts into
+  // sending/receiving credentials cross-site.
+  const res = await fetch(url, { ...options, headers, credentials: options.credentials ?? 'include' })
   if (!res.ok) {
     throw new Error(`[Consenti] HTTP ${res.status} ${res.statusText} — ${url}`)
   }

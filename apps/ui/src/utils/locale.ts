@@ -54,38 +54,90 @@ export function resolveLocale(
  * Recursively merges `override` into `base`, returning a new object.
  *
  * Rules:
- * - `undefined` and `null` values in `override` are skipped (base values are kept).
- * - Arrays are replaced wholesale — individual array items are not merged.
+ * - `undefined` values in `override` are skipped (base values are kept).
+ * - `null` values in `override` delete the corresponding key from the merged
+ *   result (JSON Merge Patch / RFC 7396 semantics) — e.g. `{ marketing: null }`
+ *   removes the `marketing` entry from a `CategoryMap`/`CookieMap`.
+ * - Arrays are merged by index — individual array items are merged, not replaced wholesale.
  * - Plain objects are merged recursively.
  * - All other values are replaced by the override value.
  *
  * @param base     - The base object (default locale translations).
  * @param override - The partial override (requested locale translations).
  */
-export function deepMerge<T extends object>(base: T, override: DeepPartial<T>): T {
-  const result = { ...base } as Record<string, T[keyof T]>
+/**
+ * Returns the best locale match from `availableLocales` for the given browser language list.
+ * Uses the same 3-step algorithm as `resolveLocale`: exact → language-prefix → undefined.
+ */
+export function detectUserLocale(
+  browserLanguages: readonly string[],
+  availableLocales: string[],
+): string | undefined {
+  for (const lang of browserLanguages) {
+    if (availableLocales.includes(lang)) return lang
+    const prefix = lang.split('-')[0] ?? ''
+    const prefixMatch = availableLocales.find(l => l === prefix || l.startsWith(`${prefix}-`))
+    if (prefixMatch) return prefixMatch
+  }
+  return undefined
+}
 
-  for (const key in override) {
-    const overrideVal = override[key]
-    if (overrideVal === undefined || overrideVal === null) continue
+type Primitive = string | number | boolean | bigint | symbol | null | undefined
 
-    const baseVal = result[key]
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return (
+    typeof value === 'object' &&
+    value !== null &&
+    !Array.isArray(value)
+  )
+}
 
-    if (
-      typeof overrideVal === 'object' &&
-      !Array.isArray(overrideVal) &&
-      typeof baseVal === 'object' &&
-      baseVal !== null &&
-      !Array.isArray(baseVal)
-    ) {
-      result[key] = deepMerge(
-        baseVal as T[keyof T] & object,
-        overrideVal as DeepPartial<T[keyof T] & object>,
-      ) as T[keyof T]
-    } else {
-      result[key] = overrideVal as T[keyof T]
-    }
+function mergeValue(base: unknown, override: unknown): unknown {
+  if (override === undefined) {
+    return base
   }
 
-  return result as T
+  // JSON Merge Patch (RFC 7396): an explicit `null` deletes the key from the
+  // parent object — handled in the object-merge branch below, where the key
+  // can actually be removed from the result. Reaching here means `null` was
+  // passed as a top-level/array value with no parent key to delete, so it's
+  // treated as a plain override value.
+  if (override === null) {
+    return base
+  }
+
+  // Merge arrays by index
+  if (Array.isArray(base) && Array.isArray(override)) {
+    const length = Math.max(base.length, override.length)
+
+    return Array.from({ length }, (_, i) => {
+      if (i >= override.length) return base[i]
+      if (i >= base.length) return override[i]
+
+      return mergeValue(base[i], override[i])
+    })
+  }
+
+  // Merge plain objects
+  if (isPlainObject(base) && isPlainObject(override)) {
+    const result: Record<string, unknown> = { ...base }
+
+    for (const key of Object.keys(override)) {
+      const overrideValue = override[key]
+      if (overrideValue === null) {
+        delete result[key]
+        continue
+      }
+      result[key] = mergeValue(base[key], overrideValue)
+    }
+
+    return result
+  }
+
+  // Primitive or incompatible types -> override wins
+  return override
+}
+
+export function deepMerge<T>(base: T, override: DeepPartial<T>): T {
+  return mergeValue(base, override) as T
 }

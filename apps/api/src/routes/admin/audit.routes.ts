@@ -1,5 +1,5 @@
 import type { StorageAdapter, AuthConfig, AuditFilters } from '@consenti/types'
-import { json, getQueryParam, getQueryInt } from '../../utils/http'
+import { json, getQueryParam, getPagination } from '../../utils/http'
 import { errorResponse, withErrorHandler } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
 
@@ -24,19 +24,32 @@ export function buildAdminAuditRoutes(
         const resourceType = getQueryParam(url, 'resourceType')
         const from = getQueryParam(url, 'from')
         const to = getQueryParam(url, 'to')
-        const limit = getQueryInt(url, 'limit', 50)
-        if (limit > 500) return errorResponse(400, 'limit must not exceed 500')
+        const q = getQueryParam(url, 'q')
+        const pagination = getPagination(url)
+        if ('error' in pagination) return errorResponse(400, pagination.error)
+        const { page, limit } = pagination
         const filters: AuditFilters = {
           tenantId: 'default',
-          page: getQueryInt(url, 'page', 1),
+          page,
           limit,
           ...(action !== undefined ? { action } : {}),
           ...(resourceType !== undefined ? { resourceType } : {}),
           ...(from !== undefined ? { from } : {}),
           ...(to !== undefined ? { to } : {}),
+          ...(q !== undefined ? { q } : {}),
         }
         const logs = await storage.getLogs(filters)
         return json(200, logs)
+      }),
+
+    'GET /audit/:id': async (req: Request, p: Record<string, string>): Promise<Response> =>
+      withErrorHandler(async () => {
+        const { user, denied } = await auth(req, 'audit:view')
+        if (denied) return denied
+        if (user?.allowedTenants.length && !user.allowedTenants.includes('default')) return errorResponse(403, 'Forbidden')
+        const log = await storage.getAuditLogById(p['id'] ?? '')
+        if (!log || log.tenantId !== 'default') return errorResponse(404, 'Audit log entry not found')
+        return json(200, log)
       }),
   }
 }

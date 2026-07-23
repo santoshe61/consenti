@@ -89,6 +89,19 @@ new ConsentiSetup({
 })
 ```
 
+### Prefer Docker?
+
+```bash
+CONSENTI_ADMIN_PASSWORD=$(openssl rand -base64 24) \
+CONSENTI_ADMIN_JWT_SECRET=$(openssl rand -hex 32) \
+docker compose up
+```
+
+See [`docker/README.md`](./docker/README.md) for PostgreSQL/MongoDB alternatives and full config options.
+
+Deploying to Kubernetes? See [`deploy/`](./deploy/) for a community-reference Helm chart and
+Terraform module (not covered by CI/tests — see that folder's README before using either).
+
 ---
 
 ## Frontend Widget (`@consenti/ui`)
@@ -237,7 +250,7 @@ These are locked. Do not propose changes without explicit discussion.
 | Concern             | Choice                                              |
 |---------------------|-----------------------------------------------------|
 | Runtime             | Node 20+ (22 or 24 LTS recommended for production)  |
-| Default DB          | `node-sqlite3-wasm` (WASM, Node 20+); `node:sqlite` built-in (Node 22.5+); `better-sqlite3` (native, optional peer dep) |
+| Default DB          | `json` (file-based, zero install, works on every supported Node version) — `node:sqlite` (Node 22.5+), `node-sqlite3-wasm`, `better-sqlite3`, `pg`, `mysql`, `mongodb` are all opt-in via `storage.driver` |
 | Package manager     | npm workspaces                                      |
 | Monorepo            | Turborepo                                           |
 | Build (packages)    | tsup (ESM + UMD for ui; CJS + ESM for api)          |

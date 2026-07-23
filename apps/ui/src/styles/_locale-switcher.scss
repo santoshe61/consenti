@@ -11,7 +11,7 @@
   &__list {
     position: absolute;
     top: calc(100% + 4px);
-    right: 0;
+    inset-inline-end: 0;
     z-index: calc(var(--consenti-z-modal) + 1);
     background: var(--consenti-color-bg);
     border: 1px solid var(--consenti-color-border);
@@ -31,7 +31,7 @@
     display: block;
     width: 100%;
     padding: 6px 12px;
-    text-align: left;
+    text-align: start;
     font-size: var(--consenti-font-size-base);
     color: var(--consenti-color-text);
     background: none;
@@ -50,6 +50,6 @@
 
   // Modal variant: the list opens downward from the header controls
   &--modal &__list {
-    right: 0;
+    inset-inline-end: 0;
   }
 }

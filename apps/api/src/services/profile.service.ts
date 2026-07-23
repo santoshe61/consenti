@@ -1,95 +1,65 @@
-import type { Profile, CreateProfileInput, UpdateProfileInput, PublicProfileResponse, ProfileSummary, ProfileVersionEntry, StorageAdapter, LocaleTextContent, ServerUITemplate, LocaleTranslations, Cookie, S3ApiConfig } from '@consenti/types'
-import { resolveLocale } from '../core/profile-engine'
+import type { Profile, CreateProfileInput, UpdateProfileInput, PublicProfileResponse, ProfileSummary, ProfileVersionEntry, ArchivedProfileSummary, StorageAdapter, CookieMap, S3ApiConfig, MainBanner, GpcBanner, PreferenceModal, LocaleContentInput, StoredProfileJson } from '@consenti/types'
 import type { ProfileRepo } from '../repositories/profile.repo'
 import type { AuditRepo } from '../repositories/audit.repo'
 import type { EventEmitter } from 'node:events'
 import type { LocaleJsonCacheService } from './locale-json-cache.service'
-import { readdirSync, readFileSync, existsSync, statSync } from 'node:fs'
+import { readdirSync, readFileSync, existsSync, statSync, lstatSync } from 'node:fs'
+import type { Dirent } from 'node:fs'
 import { join } from 'node:path'
 import { runProfileJsonWrite } from '../workers/profile-json-worker-launcher.js'
 import type { WorkerMessage } from '../workers/profile-json-worker-core.js'
+import { randomUUID } from '../utils/crypto'
 
-function buildTranslations(template: ServerUITemplate, localeContents: Record<string, LocaleTextContent>): Record<string, LocaleTranslations> {
-  const result: Record<string, LocaleTranslations> = {}
-  for (const [locale, content] of Object.entries(localeContents)) {
-    result[locale] = {
-      mainBanner: {
-        position: template.mainBanner.position,
-        ...(template.mainBanner.overlayOpacity !== undefined ? { overlayOpacity: template.mainBanner.overlayOpacity } : {}),
-        ...(template.mainBanner.showClose !== undefined ? { showClose: template.mainBanner.showClose } : {}),
-        ...(template.mainBanner.showLocaleSwitcher !== undefined ? { showLocaleSwitcher: template.mainBanner.showLocaleSwitcher } : {}),
-        ...(template.mainBanner.headingTag !== undefined ? { headingTag: template.mainBanner.headingTag } : {}),
-        ...(content.mainBanner.heading !== undefined ? { heading: content.mainBanner.heading } : {}),
-        htmlText: content.mainBanner.htmlText,
-        buttons: template.mainBanner.buttons.map((btn, i) => ({
-          text: content.mainBanner.buttonLabels?.[i] ?? btn.text,
-          style: btn.style,
-          action: btn.action,
-          ...(btn.url !== undefined ? { url: btn.url } : {}),
-          ...(btn.type !== undefined ? { type: btn.type } : {}),
-          ...(btn.cookies !== undefined ? { cookies: btn.cookies } : {}),
-        })),
-      },
-      gpcBanner: {
-        position: template.gpcBanner.position,
-        ...(template.gpcBanner.overlayOpacity !== undefined ? { overlayOpacity: template.gpcBanner.overlayOpacity } : {}),
-        ...(template.gpcBanner.showClose !== undefined ? { showClose: template.gpcBanner.showClose } : {}),
-        ...(template.gpcBanner.showLocaleSwitcher !== undefined ? { showLocaleSwitcher: template.gpcBanner.showLocaleSwitcher } : {}),
-        ...(template.gpcBanner.headingTag !== undefined ? { headingTag: template.gpcBanner.headingTag } : {}),
-        ...(content.gpcBanner.heading !== undefined ? { heading: content.gpcBanner.heading } : {}),
-        htmlText: content.gpcBanner.htmlText,
-        buttons: template.gpcBanner.buttons.map((btn, i) => ({
-          text: content.gpcBanner.buttonLabels?.[i] ?? btn.text,
-          style: btn.style,
-          action: btn.action,
-          ...(btn.url !== undefined ? { url: btn.url } : {}),
-          ...(btn.type !== undefined ? { type: btn.type } : {}),
-          ...(btn.cookies !== undefined ? { cookies: btn.cookies } : {}),
-        })),
-      },
-      preferenceModal: {
-        ...(template.preferenceModal.position !== undefined ? { position: template.preferenceModal.position } : {}),
-        ...(template.preferenceModal.overlayOpacity !== undefined ? { overlayOpacity: template.preferenceModal.overlayOpacity } : {}),
-        ...(template.preferenceModal.showClose !== undefined ? { showClose: template.preferenceModal.showClose } : {}),
-        ...(template.preferenceModal.showLocaleSwitcher !== undefined ? { showLocaleSwitcher: template.preferenceModal.showLocaleSwitcher } : {}),
-        ...(template.preferenceModal.persistent !== undefined ? { persistent: template.preferenceModal.persistent } : {}),
-        ...(template.preferenceModal.headingTag !== undefined ? { headingTag: template.preferenceModal.headingTag } : {}),
-        ...(template.preferenceModal.mobileFullScreenBreakpoint !== undefined ? { mobileFullScreenBreakpoint: template.preferenceModal.mobileFullScreenBreakpoint } : {}),
-        heading: content.preferenceModal.heading ?? '',
-        ...(content.preferenceModal.subheading !== undefined ? { subheading: content.preferenceModal.subheading } : {}),
-        htmlText: content.preferenceModal.htmlText ?? '',
-        buttons: template.preferenceModal.buttons.map((btn, i) => ({
-          text: content.preferenceModal.buttonLabels?.[i] ?? btn.text,
-          style: btn.style,
-          action: btn.action,
-          ...(btn.url !== undefined ? { url: btn.url } : {}),
-          ...(btn.type !== undefined ? { type: btn.type } : {}),
-          ...(btn.cookies !== undefined ? { cookies: btn.cookies } : {}),
-        })),
-        categories: template.preferenceModal.categories.map(cat => {
-          const c = content.preferenceModal.categories.find(c => c.id === cat.id)
-          return {
-            id: cat.id,
-            heading: c?.heading ?? cat.id,
-            ...(cat.headingTag !== undefined ? { headingTag: cat.headingTag } : {}),
-            htmlText: c?.htmlText ?? '',
-            ...(cat.mandatory !== undefined ? { mandatory: cat.mandatory } : {}),
-            ...(cat.type !== undefined ? { type: cat.type } : {}),
-            ...(cat.legitimateInterest?.enabled ? { legitimateInterest: { enabled: true as const } } : {}),
-            cookies: cat.cookies,
-          }
-        }),
-      },
-    }
+/**
+ * Merges a profile's `cookiesOverride` deltas onto the template-resolved `CookieMap`. Deltas for
+ * a cookie id not present in `cookies` are ignored — overrides tune an existing template-authored
+ * parameter, they don't add new ones. `categoriesOverride`/`uiOverride` have no equivalent yet —
+ * they're stored on `ProfileConfig` but not applied here (reserved for a future phase).
+ */
+export function applyCookiesOverride(cookies: CookieMap, override?: Record<string, Partial<CookieMap[string]>>): CookieMap {
+  if (!override) return cookies
+  const result: CookieMap = { ...cookies }
+  for (const [id, delta] of Object.entries(override)) {
+    if (!result[id]) continue
+    result[id] = { ...result[id], ...delta }
   }
   return result
 }
 
-function normaliseCookieLegalBasis(cookie: Cookie): Cookie {
-  if (cookie.legalBasis) return cookie
-  if (cookie.mandatory) return { ...cookie, legalBasis: 'mandatory' }
-  if (cookie.type) return { ...cookie, legalBasis: cookie.type }
-  return cookie
+/** One locale's resolved banner/modal content — the unit both `StoredProfileJson`'s own
+ * `mainBanner`/`gpcBanner`/`preferenceModal` (default locale) and each non-default locale's
+ * on-disk version file store. */
+interface ResolvedLocaleContent {
+  mainBanner: MainBanner
+  gpcBanner?: GpcBanner
+  preferenceModal: PreferenceModal
+}
+
+/**
+ * Profile-wide settings (not locale-specific) that belong on every resolved response and every
+ * on-disk locale file — `getResolved()`'s DB-fallback path and `writeLocaleFiles()`'s worker
+ * input both need the exact same set, so this is the one place they're read off `pj`. Previously
+ * only `cookies`/`expiryDays` made this trip; `gpcMode`/`complianceGroup`/`darkMode`/`allowReceipt`/
+ * `enhanceAccessibility`/`showFooterMetadata`/`allowedOrigins`/`complianceConfig`/`dpdpa`/
+ * `hidePoweredBy` were silently dropped, so a dashboard-configured toggle never reached a real
+ * visitor's widget even on an active, API-backed profile.
+ */
+function profileWideFields(pj: StoredProfileJson): Pick<PublicProfileResponse,
+  'gpcMode' | 'complianceGroup' | 'darkMode' | 'allowReceipt' | 'enhanceAccessibility' |
+  'showFooterMetadata' | 'allowedOrigins' | 'complianceConfig' | 'dpdpa' | 'hidePoweredBy'
+> {
+  return {
+    ...(pj.gpcMode !== undefined ? { gpcMode: pj.gpcMode } : {}),
+    ...(pj.complianceGroup !== undefined ? { complianceGroup: pj.complianceGroup } : {}),
+    ...(pj.darkMode !== undefined ? { darkMode: pj.darkMode } : {}),
+    ...(pj.allowReceipt !== undefined ? { allowReceipt: pj.allowReceipt } : {}),
+    ...(pj.enhanceAccessibility !== undefined ? { enhanceAccessibility: pj.enhanceAccessibility } : {}),
+    ...(pj.showFooterMetadata !== undefined ? { showFooterMetadata: pj.showFooterMetadata } : {}),
+    ...(pj.allowedOrigins !== undefined ? { allowedOrigins: pj.allowedOrigins } : {}),
+    ...(pj.complianceConfig !== undefined ? { complianceConfig: pj.complianceConfig } : {}),
+    ...(pj.dpdpa !== undefined ? { dpdpa: pj.dpdpa } : {}),
+    ...(pj.hidePoweredBy !== undefined ? { hidePoweredBy: pj.hidePoweredBy } : {}),
+  }
 }
 
 export class ProfileService {
@@ -101,11 +71,12 @@ export class ProfileService {
     private eventBus?: EventEmitter,
     private localeCache?: LocaleJsonCacheService,
     private profilesDir?: string,
-    private handleCache?: (paths: string[], version: number, isPurge: boolean) => void,
+    private handleCache?: (paths: string[], profileId: string, isPurge: boolean) => void,
     private s3Config?: S3ApiConfig,
   ) { }
 
-  private profileDir(profileId: string): string {
+  /** Root directory holding every version snapshot of one logical profile, keyed by its stable id. */
+  private versionsRootDir(profileId: string): string {
     return join(this.profilesDir ?? '', this.tenantId, profileId)
   }
 
@@ -113,62 +84,185 @@ export class ProfileService {
     return join(this.profilesDir ?? '', this.tenantId, complianceGroup)
   }
 
+  /**
+   * The directory key used for activation/hot-serve writes and the "one active profile
+   * per group" conflict check — the real `complianceGroup` when set, otherwise the
+   * free-form `customComplianceGroup` (which the widget's `compliance.type` targets the
+   * same way). Compliance *validation* still only ever runs against a real `complianceGroup`.
+   */
+  private groupKey(pj: { complianceGroup?: string; customComplianceGroup?: string }): string {
+    return pj.complianceGroup || pj.customComplianceGroup || ''
+  }
+
   private profileFilePaths(complianceGroup: string, locales: string[]): string[] {
     const dir = this.complianceGroupDir(complianceGroup)
     return locales.map(l => join(dir, `${l}.json`)).concat(join(dir, 'default.json'))
   }
 
+  /** Resolves this profile's cookie map (consent-template lookup + `cookiesOverride` applied) —
+   * the one piece of content still resolved live rather than baked at save time, since cookies
+   * are small and never the source of the row-size problem `mainBanner`/`preferenceModal` were. */
+  private async resolveCookies(pj: { cookies?: CookieMap; consentTemplateId?: string; cookiesOverride?: Record<string, Partial<CookieMap[string]>> }): Promise<CookieMap> {
+    let cookies: CookieMap = pj.cookies ?? {}
+    if (pj.consentTemplateId && this.storage) {
+      const ct = await this.storage.getConsentTemplate(pj.consentTemplateId)
+      if (ct) cookies = ct.cookies
+    }
+    return applyCookiesOverride(cookies, pj.cookiesOverride)
+  }
+
+  /**
+   * Writes every locale's on-disk version file for one save (create or an edit) in a single
+   * atomic worker call — default locale content comes from `profile.profileJson` itself, every
+   * other touched locale from `localeContent`. A locale already in `profileJson.locales` but not
+   * present in `localeContent` (a tab the user never opened this session) is carried forward
+   * unchanged from `previousVersion` by the worker — never silently dropped.
+   */
+  private async writeLocaleFiles(
+    profile: Profile,
+    localeContent: Record<string, LocaleContentInput> | undefined,
+    complianceGroup: string,
+    previousVersion: number | undefined,
+  ): Promise<void> {
+    if (!this.profilesDir) return
+    const pj = profile.profileJson
+    const cookies = await this.resolveCookies(pj)
+    const locales = pj.locales?.length ? pj.locales : [profile.defaultLocale]
+
+    const allLocaleContent: Record<string, ResolvedLocaleContent> = {
+      [profile.defaultLocale]: {
+        mainBanner: pj.mainBanner,
+        ...(pj.gpcBanner ? { gpcBanner: pj.gpcBanner } : {}),
+        preferenceModal: pj.preferenceModal,
+      },
+      ...(localeContent ?? {}),
+    }
+
+    const isActive = pj.isActive ?? false
+    const action: WorkerMessage['action'] = isActive ? 'activate' : 'write'
+    const msg: WorkerMessage = {
+      action,
+      storagePath: join(this.profilesDir, '..'),
+      tenantId: this.tenantId,
+      profileId: profile.id,
+      version: profile.version,
+      complianceGroup,
+      profile: {
+        id: profile.id,
+        defaultLocale: profile.defaultLocale,
+        locales,
+        cookies,
+        ...(pj.expiryDays !== undefined ? { expiryDays: pj.expiryDays } : {}),
+        ...profileWideFields(pj),
+      },
+      localeContent: allLocaleContent,
+      ...(previousVersion !== undefined ? { previousVersion } : {}),
+      ...(this.s3Config?.enabled ? { s3Config: this.s3Config } : {}),
+    }
+    await runProfileJsonWrite(msg)
+
+    if (isActive) {
+      const paths = this.profileFilePaths(complianceGroup, locales)
+      this.handleCache?.(paths, profile.id, true)
+      this.eventBus?.emit('cache:purge', { paths, profileId: profile.id })
+    }
+  }
+
   async create(input: Omit<CreateProfileInput, 'tenantId'>): Promise<Profile> {
-    const profile = await this.profiles.create({ ...input, tenantId: this.tenantId })
+    const { localeContent, ...rest } = input
+    const profile = await this.profiles.create({ ...rest, tenantId: this.tenantId })
     await this.audit.log({
       tenantId: this.tenantId,
       action: 'profile.created',
       resourceType: 'profile',
       resourceId: profile.id,
-      newData: profile,
+      newData: { profileId: profile.id, version: profile.version, complianceGroup: this.groupKey(profile.profileJson) },
     })
     this.eventBus?.emit('profile.created', profile)
 
     if (this.profilesDir) {
-      const resolved = await this.getResolved(profile.id)
-      if (resolved) {
-        const complianceGroup = (profile.profileJson as { complianceGroup?: string }).complianceGroup ?? ''
-        await this.runWrite({ action: 'write', profile: resolved, profileId: profile.id, version: profile.version, complianceGroup })
-        const paths = this.profileFilePaths(complianceGroup, resolved.locales)
-        this.handleCache?.(paths, profile.version, false)
-        this.eventBus?.emit('cache:warm', { paths, version: profile.version })
-      }
+      const complianceGroup = this.groupKey(profile.profileJson)
+      await this.writeLocaleFiles(profile, localeContent, complianceGroup, undefined)
+      const locales = profile.profileJson.locales?.length ? profile.profileJson.locales : [profile.defaultLocale]
+      const paths = this.profileFilePaths(complianceGroup, locales)
+      this.handleCache?.(paths, profile.id, false)
+      this.eventBus?.emit('cache:warm', { paths, profileId: profile.id })
     }
     return profile
   }
 
+  /**
+   * Duplicates a profile as a brand new, always-inactive profile (own `id`, `version` starts at
+   * 1 again). Delegates to {@link create} rather than copying on-disk files directly — the
+   * resolved-JSON snapshot embeds its own `id`/`version`, so it has to be regenerated for the
+   * new profile rather than byte-copied from the source's. Non-default locale content is read
+   * back off the source's current version files so the copy carries every locale forward too.
+   */
+  async copy(id: string, name?: string): Promise<Profile> {
+    const src = await this.profiles.get(id)
+    if (!src) throw new Error(`Profile ${id} not found`)
+    const locales = src.profileJson.locales?.length ? src.profileJson.locales : [src.defaultLocale]
+    const localeContent: Record<string, LocaleContentInput> = {}
+    for (const locale of locales) {
+      if (locale === src.defaultLocale) continue
+      const raw = await this.getVersionFile(id, String(src.version), locale)
+      if (!raw) continue
+      try {
+        const parsed = JSON.parse(raw) as ResolvedLocaleContent
+        localeContent[locale] = {
+          mainBanner: parsed.mainBanner,
+          ...(parsed.gpcBanner ? { gpcBanner: parsed.gpcBanner } : {}),
+          preferenceModal: parsed.preferenceModal,
+        }
+      } catch { /* skip an unreadable/corrupt locale file — copy proceeds without it */ }
+    }
+    return this.create({
+      name: name ?? `Copy of ${src.name}`,
+      defaultLocale: src.defaultLocale,
+      profileJson: { ...src.profileJson, isActive: false },
+      ...(Object.keys(localeContent).length > 0 ? { localeContent } : {}),
+    })
+  }
+
+  /**
+   * Mutates the existing row in place — `id` is stable across every edit, `version` is
+   * incremented. The prior state isn't kept as a separate DB row; its resolved-JSON snapshot
+   * on disk (see {@link listVersions}) is the audit trail for that edit.
+   */
   async update(id: string, input: UpdateProfileInput): Promise<Profile> {
     const old = await this.profiles.get(id)
-    const profile = await this.profiles.update(id, input)
+    if (!old) throw new Error(`Profile ${id} not found`)
+    const { localeContent, ...rest } = input
+
+    // Activation is a dedicated action (activate()/deactivate()), never something the
+    // profile editor form sends — carry the old row's isActive forward unless the
+    // caller explicitly set it, so editing an active profile doesn't silently deactivate it.
+    const carriedIsActive = rest.profileJson?.isActive ?? old.profileJson.isActive
+    const profileJson = rest.profileJson
+      ? { ...rest.profileJson, ...(carriedIsActive !== undefined ? { isActive: carriedIsActive } : {}) }
+      : old.profileJson
+
+    const profile = await this.profiles.update(id, {
+      name: rest.name ?? old.name,
+      defaultLocale: rest.defaultLocale ?? old.defaultLocale,
+      profileJson,
+      version: old.version + 1,
+    })
     this.localeCache?.invalidate(id)
+
     await this.audit.log({
       tenantId: this.tenantId,
       action: 'profile.updated',
       resourceType: 'profile',
-      resourceId: id,
-      ...(old != null ? { oldData: old } : {}),
-      newData: profile,
+      resourceId: profile.id,
+      oldData: { profileId: old.id, version: old.version },
+      newData: { profileId: profile.id, version: profile.version, complianceGroup: this.groupKey(profile.profileJson) },
     })
     this.eventBus?.emit('profile.updated', { previous: old, current: profile })
 
     if (this.profilesDir) {
-      const resolved = await this.getResolved(profile.id)
-      if (resolved) {
-        const complianceGroup = (profile.profileJson as { complianceGroup?: string }).complianceGroup ?? ''
-        const isActive = (profile.profileJson as { isActive?: boolean }).isActive ?? false
-        const action: WorkerMessage['action'] = isActive ? 'activate' : 'write'
-        await this.runWrite({ action, profile: resolved, profileId: id, version: profile.version, complianceGroup })
-        if (isActive) {
-          const paths = this.profileFilePaths(complianceGroup, resolved.locales)
-          this.handleCache?.(paths, profile.version, true)
-          this.eventBus?.emit('cache:purge', { paths, version: profile.version })
-        }
-      }
+      const complianceGroup = this.groupKey(profile.profileJson)
+      await this.writeLocaleFiles(profile, localeContent, complianceGroup, old.version)
     }
     return profile
   }
@@ -182,20 +276,19 @@ export class ProfileService {
       action: 'profile.deleted',
       resourceType: 'profile',
       resourceId: id,
-      ...(old != null ? { oldData: old } : {}),
+      ...(old != null ? { oldData: { profileId: old.id, version: old.version } } : {}),
     })
     this.eventBus?.emit('profile.deleted', { id, previous: old })
 
     if (this.profilesDir && old) {
-      const complianceGroup = (old.profileJson as { complianceGroup?: string }).complianceGroup ?? ''
-      const wasActive = (old.profileJson as { isActive?: boolean }).isActive ?? false
+      const complianceGroup = this.groupKey(old.profileJson)
+      const wasActive = old.profileJson.isActive ?? false
       if (wasActive && complianceGroup) {
-        const resolved = await this.getResolved(id).catch(() => null)
-        const locales = resolved?.locales ?? []
-        await this.runWrite({ action: 'deactivate', profile: resolved ?? {} as PublicProfileResponse, profileId: id, version: old.version, complianceGroup })
+        const locales = old.profileJson.locales?.length ? old.profileJson.locales : [old.defaultLocale]
+        await this.runDeactivate(complianceGroup)
         const paths = this.profileFilePaths(complianceGroup, locales)
-        this.handleCache?.(paths, old.version, true)
-        this.eventBus?.emit('cache:purge', { paths, version: old.version })
+        this.handleCache?.(paths, id, true)
+        this.eventBus?.emit('cache:purge', { paths, profileId: id })
       }
     }
   }
@@ -203,20 +296,14 @@ export class ProfileService {
   async activate(id: string): Promise<Profile> {
     const profile = await this.profiles.get(id)
     if (!profile) throw new Error(`Profile ${id} not found`)
-    const pj = profile.profileJson as { complianceGroup?: string; isActive?: boolean }
+    const groupKey = this.groupKey(profile.profileJson)
     const updated = await this.profiles.update(id, {
       profileJson: { ...profile.profileJson, isActive: true },
     })
     this.localeCache?.invalidate(id)
 
-    if (this.profilesDir && pj.complianceGroup) {
-      const resolved = await this.getResolved(id)
-      if (resolved) {
-        await this.runWrite({ action: 'activate', profile: resolved, profileId: id, version: updated.version, complianceGroup: pj.complianceGroup })
-        const paths = this.profileFilePaths(pj.complianceGroup, resolved.locales)
-        this.handleCache?.(paths, updated.version, false)
-        this.eventBus?.emit('cache:warm', { paths, version: updated.version })
-      }
+    if (this.profilesDir && groupKey) {
+      await this.writeLocaleFiles(updated, undefined, groupKey, profile.version)
     }
     await this.audit.log({ tenantId: this.tenantId, action: 'profile.activated', resourceType: 'profile', resourceId: id })
     this.eventBus?.emit('profile.activated', updated)
@@ -226,96 +313,111 @@ export class ProfileService {
   async deactivate(id: string): Promise<Profile> {
     const profile = await this.profiles.get(id)
     if (!profile) throw new Error(`Profile ${id} not found`)
-    const pj = profile.profileJson as { complianceGroup?: string; isActive?: boolean }
+    const groupKey = this.groupKey(profile.profileJson)
     const updated = await this.profiles.update(id, {
       profileJson: { ...profile.profileJson, isActive: false },
     })
     this.localeCache?.invalidate(id)
 
-    if (this.profilesDir && pj.complianceGroup) {
-      const resolved = await this.getResolved(id)
-      const locales = resolved?.locales ?? []
-      await this.runWrite({ action: 'deactivate', profile: resolved ?? {} as PublicProfileResponse, profileId: id, version: profile.version, complianceGroup: pj.complianceGroup })
-      const paths = this.profileFilePaths(pj.complianceGroup, locales)
-      this.handleCache?.(paths, profile.version, true)
-      this.eventBus?.emit('cache:purge', { paths, version: profile.version })
+    if (this.profilesDir && groupKey) {
+      const locales = profile.profileJson.locales?.length ? profile.profileJson.locales : [profile.defaultLocale]
+      await this.runDeactivate(groupKey)
+      const paths = this.profileFilePaths(groupKey, locales)
+      this.handleCache?.(paths, id, true)
+      this.eventBus?.emit('cache:purge', { paths, profileId: id })
     }
     await this.audit.log({ tenantId: this.tenantId, action: 'profile.deactivated', resourceType: 'profile', resourceId: id })
     this.eventBus?.emit('profile.deactivated', updated)
     return updated
   }
 
-  private async runWrite(args: { action: WorkerMessage['action']; profile: PublicProfileResponse; profileId: string; version: number; complianceGroup: string }): Promise<void> {
+  private async runDeactivate(complianceGroup: string): Promise<void> {
     if (!this.profilesDir) return
     const msg: WorkerMessage = {
-      action: args.action,
-      profile: args.profile,
+      action: 'deactivate',
       storagePath: join(this.profilesDir, '..'),
       tenantId: this.tenantId,
-      profileId: args.profileId,
-      version: args.version,
-      complianceGroup: args.complianceGroup,
+      profileId: '',
+      version: 0,
+      complianceGroup,
+      profile: { id: '', defaultLocale: '', locales: [], cookies: {} },
+      localeContent: {},
       ...(this.s3Config?.enabled ? { s3Config: this.s3Config } : {}),
     }
     await runProfileJsonWrite(msg)
   }
 
-  async get(id: string, locale?: string): Promise<Profile | null> {
-    const profile = await this.profiles.get(id)
-    if (!profile) return null
-    if (!locale) return profile
-    const resolved = resolveLocale(profile.profileJson.translations ?? {}, locale, profile.defaultLocale)
-    return {
-      ...profile,
-      profileJson: {
-        ...profile.profileJson,
-        translations: { [locale]: resolved },
-      },
-    }
+  async get(id: string): Promise<Profile | null> {
+    return this.profiles.get(id)
   }
 
+  /**
+   * Resolves one locale's full public response. The default locale's content lives directly on
+   * the DB row (`profileJson.mainBanner`/`gpcBanner`/`preferenceModal`) — no template lookups, no
+   * live resolution. Any other locale's content lives only in that locale's on-disk version file;
+   * this reads it directly, falling back to the default locale's content if the file is missing
+   * (e.g. a locale listed but never actually authored yet). This method is not a hot path — the
+   * public `/profiles/:tenant/:group/:locale` route serves the static file directly and only
+   * falls back to this for previewing an inactive/versioned profile.
+   */
   async getResolved(id: string, locale?: string): Promise<PublicProfileResponse | null> {
     const profile = await this.profiles.get(id)
     if (!profile) return null
 
     const currentLocale = locale ?? profile.defaultLocale
 
-    // Fast path: locale JSON cache
     if (this.localeCache) {
       const cached = this.localeCache.read(id, currentLocale)
       if (cached) return cached
     }
 
     const pj = profile.profileJson
-    let cookies = pj.cookies ?? []
-    let translations = pj.translations ?? {}
+    const cookies = await this.resolveCookies(pj)
+    const locales = pj.locales?.length ? pj.locales : [profile.defaultLocale]
 
-    if (pj.cookieTemplateId && this.storage) {
-      const ct = await this.storage.getCookieTemplate(pj.cookieTemplateId)
-      if (ct) cookies = ct.cookies
+    const defaultContent: ResolvedLocaleContent = {
+      mainBanner: pj.mainBanner,
+      ...(pj.gpcBanner ? { gpcBanner: pj.gpcBanner } : {}),
+      preferenceModal: pj.preferenceModal,
     }
 
-    if (pj.uiTemplateId && pj.localeContents && this.storage) {
-      const ut = await this.storage.getUITemplate(pj.uiTemplateId)
-      if (ut) translations = buildTranslations(ut, pj.localeContents)
+    let content = defaultContent
+    if (currentLocale !== profile.defaultLocale) {
+      const raw = await this.getVersionFile(id, String(profile.version), currentLocale)
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw) as ResolvedLocaleContent
+          content = {
+            mainBanner: parsed.mainBanner,
+            ...(parsed.gpcBanner ? { gpcBanner: parsed.gpcBanner } : {}),
+            preferenceModal: parsed.preferenceModal,
+          }
+        } catch { /* corrupt/unreadable file — fall back to default locale content below */ }
+      }
     }
 
-    const localeKeys = pj.localeContents ? Object.keys(pj.localeContents) : Object.keys(translations)
-    const resolved = resolveLocale(translations, currentLocale, profile.defaultLocale)
     const response: PublicProfileResponse = {
       id: profile.id,
       version: profile.version,
       defaultLocale: profile.defaultLocale,
       currentLocale,
-      locales: localeKeys,
-      cookies: cookies.map(normaliseCookieLegalBasis),
-      mainBanner: resolved.mainBanner,
-      preferenceModal: resolved.preferenceModal,
-      ...(resolved.gpcBanner != null ? { gpcBanner: resolved.gpcBanner } : {}),
+      locales,
+      cookies,
+      ...(pj.expiryDays !== undefined ? { expiryDays: pj.expiryDays } : {}),
+      ...profileWideFields(pj),
+      ...content,
     }
 
     if (this.localeCache) {
-      try { this.localeCache.write(id, currentLocale, response) } catch { /* non-fatal */ }
+      try {
+        this.localeCache.write(id, currentLocale, response)
+      } catch (err) {
+        // Non-fatal: the fast-path cache is a read optimization, not the source of truth —
+        // getResolved() itself still returns the correct response either way. But a write
+        // failure here usually means isPublicProfileResponse() and this response shape have
+        // drifted apart, which is worth surfacing rather than silently degrading to zero cache.
+        console.warn(`[Consenti] locale cache write failed for ${id}/${currentLocale}:`, err)
+      }
     }
 
     return response
@@ -334,17 +436,23 @@ export class ProfileService {
     return this.storage.listProfilesSummary(this.tenantId)
   }
 
-  listVersions(profileId: string): ProfileVersionEntry[] {
+  /**
+   * Lists every version snapshot of `profileId` on disk (newest first), read straight from
+   * the version-directory tree — no DB query, `Profile.version` is just the current pointer.
+   * Works for archived profiles too (DB row deleted, files still on disk) — the directory
+   * tree is the only thing this reads.
+   */
+  async listVersions(profileId: string): Promise<ProfileVersionEntry[]> {
     if (!this.profilesDir) return []
-    const dir = this.profileDir(profileId)
+    const dir = this.versionsRootDir(profileId)
     if (!existsSync(dir)) return []
     const versions: ProfileVersionEntry[] = []
     try {
       const entries = readdirSync(dir, { withFileTypes: true })
       for (const entry of entries) {
         if (!entry.isDirectory()) continue
-        const ver = parseInt(entry.name, 10)
-        if (isNaN(ver)) continue
+        const version = Number(entry.name)
+        if (!Number.isInteger(version)) continue
         const vdir = join(dir, entry.name)
         const locales = readdirSync(vdir)
           .filter(f => f.endsWith('.json') && f !== 'default.json')
@@ -355,7 +463,7 @@ export class ProfileService {
         } catch {
           createdAt = new Date().toISOString()
         }
-        versions.push({ version: ver, createdAt, locales })
+        versions.push({ version, createdAt, locales })
       }
     } catch {
       return []
@@ -363,14 +471,125 @@ export class ProfileService {
     return versions.sort((a, b) => b.version - a.version)
   }
 
-  getVersionFile(profileId: string, version: number, locale: string): string | null {
+  /** Works for archived profiles too — see `listVersions()`. */
+  async getVersionFile(profileId: string, version: string, locale: string): Promise<string | null> {
     if (!this.profilesDir) return null
-    const filePath = join(this.profileDir(profileId), String(version), `${locale}.json`)
+    const dir = join(this.versionsRootDir(profileId), version)
+    const filePath = join(dir, `${locale}.json`)
     if (!existsSync(filePath)) {
-      const defaultPath = join(this.profileDir(profileId), String(version), 'default.json')
+      const defaultPath = join(dir, 'default.json')
       if (!existsSync(defaultPath)) return null
       return readFileSync(defaultPath, 'utf8')
     }
     return readFileSync(filePath, 'utf8')
+  }
+
+  /**
+   * Profile-id directories on disk with no matching DB row — deleted profiles whose version
+   * snapshots `delete()` never removes. Directory-only read (id, version count, last-modified
+   * mtime) — no file content is opened here; that only happens once a specific version is
+   * requested via `getVersionFile()`, which works for these ids too.
+   */
+  async listArchivedProfiles(): Promise<ArchivedProfileSummary[]> {
+    if (!this.profilesDir) return []
+    const root = join(this.profilesDir, this.tenantId)
+    if (!existsSync(root)) return []
+
+    const existingIds = new Set((await this.profiles.list(this.tenantId)).map(p => p.id))
+    const results: ArchivedProfileSummary[] = []
+    let entries: Dirent[]
+    try {
+      entries = readdirSync(root, { withFileTypes: true })
+    } catch {
+      return []
+    }
+    for (const entry of entries) {
+      // complianceGroup hot-serve dirs are symlinks (junctions) — never real profile dirs.
+      if (!entry.isDirectory() || existingIds.has(entry.name)) continue
+      const dirPath = join(root, entry.name)
+      if (lstatSync(dirPath).isSymbolicLink()) continue
+      let versionDirs: Dirent[]
+      try {
+        versionDirs = readdirSync(dirPath, { withFileTypes: true })
+      } catch {
+        continue
+      }
+      const versions = versionDirs.filter(v => v.isDirectory() && Number.isInteger(Number(v.name)))
+      if (versions.length === 0) continue // not a profile dir (no numbered version subdirs)
+      let lastModified = new Date(0).toISOString()
+      for (const v of versions) {
+        try {
+          const mtime = statSync(join(dirPath, v.name)).mtime.toISOString()
+          if (mtime > lastModified) lastModified = mtime
+        } catch { /* skip unreadable version dir */ }
+      }
+      results.push({ id: entry.name, versionCount: versions.length, lastModified })
+    }
+    return results.sort((a, b) => b.lastModified.localeCompare(a.lastModified))
+  }
+
+  /**
+   * Seeds a default profile for a compliance group from the embedded English profile in
+   * `@consenti/utils`, merged with locale text overlays for de/es/fr/ja. Every locale — including
+   * non-English ones — is passed through `create()`'s normal `localeContent` path, the same as an
+   * author-submitted profile; there is no separate "seeded profile" code path for locale content
+   * anymore, which is what previously let a locale silently never make it into the served file.
+   * Only creates the profile if no active profile already exists for the compliance group.
+   * Safe to call repeatedly (idempotent).
+   *
+   * @param complianceGroup - One of the 8 compliance group IDs.
+   */
+  async seedDefaultProfile(complianceGroup: string): Promise<void> {
+    const existing = await this.profiles.findActiveByComplianceGroup(this.tenantId, complianceGroup)
+    if (existing) return
+
+    const { DEFAULT_PROFILES, resolveLocaleTranslation } = await import('@consenti/utils/profiles')
+    const embedded = DEFAULT_PROFILES[complianceGroup as keyof typeof DEFAULT_PROFILES]
+    if (!embedded) return
+
+    const enTranslation = embedded.translations['en']
+    if (!enTranslation) return
+
+    const otherLocales = ['de', 'es', 'fr', 'ja']
+    const locales = ['en', ...otherLocales.filter(lang => resolveLocaleTranslation(complianceGroup, lang) !== undefined)]
+    const localeContent: Record<string, LocaleContentInput> = {}
+    for (const lang of otherLocales) {
+      const resolved = resolveLocaleTranslation(complianceGroup, lang)
+      if (resolved) {
+        localeContent[lang] = {
+          mainBanner: resolved.mainBanner as unknown as MainBanner,
+          ...(resolved.gpcBanner ? { gpcBanner: resolved.gpcBanner as unknown as GpcBanner } : {}),
+          preferenceModal: resolved.preferenceModal as unknown as PreferenceModal,
+        }
+      }
+    }
+
+    await this.create({
+      name: `Default — ${complianceGroup}`,
+      defaultLocale: embedded.defaultLocale,
+      profileJson: {
+        id: randomUUID(),
+        defaultLocale: embedded.defaultLocale,
+        complianceGroup: embedded.complianceGroup,
+        gpcMode: embedded.gpcMode,
+        cookies: embedded.cookies as unknown as CookieMap,
+        ...(embedded.expiryDays !== undefined ? { expiryDays: embedded.expiryDays } : {}),
+        locales,
+        mainBanner: enTranslation.mainBanner as unknown as MainBanner,
+        ...(enTranslation.gpcBanner ? { gpcBanner: enTranslation.gpcBanner as unknown as GpcBanner } : {}),
+        preferenceModal: enTranslation.preferenceModal as unknown as PreferenceModal,
+        isActive: true,
+      },
+      ...(Object.keys(localeContent).length > 0 ? { localeContent } : {}),
+    })
+  }
+
+  /**
+   * Seeds default profiles for all 8 compliance groups.
+   * Skips any group that already has an active profile (idempotent).
+   */
+  async seedAllDefaults(): Promise<void> {
+    const { COMPLIANCE_GROUP_IDS } = await import('@consenti/utils')
+    await Promise.all(COMPLIANCE_GROUP_IDS.map(g => this.seedDefaultProfile(g)))
   }
 }

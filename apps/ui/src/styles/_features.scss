@@ -1,0 +1,98 @@
+// ─── Footer Metadata Strip ────────────────────────────────────────────────────
+
+.consenti-meta-footer {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    font-size: 0.7rem;
+    color: var(--consenti-color-text);
+    opacity: 0.6;
+    border-top: 1px solid var(--consenti-color-border);
+    padding-top: 0.5rem;
+    margin-top: 0.75rem;
+}
+
+.consenti-meta-footer__item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+}
+
+.consenti-meta-footer__id {
+    font-family: monospace;
+    font-size: 0.65rem;
+}
+
+.consenti-meta-footer__settings {
+    background: none;
+    border: none;
+    padding: 0;
+    color: var(--consenti-color-primary);
+    cursor: pointer;
+    font-size: 0.7rem;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+
+    &:hover {
+        opacity: 0.8;
+    }
+}
+
+// ─── Enhanced Accessibility ───────────────────────────────────────────────────
+
+.consenti--enhanced-a11y {
+    .consenti-btn {
+        min-height: 44px;
+        min-width: 44px;
+    }
+
+    .consenti-category__toggle {
+        min-width: 52px;
+        min-height: 28px;
+    }
+
+    .consenti-category__param-toggle {
+        min-width: 44px;
+        min-height: 24px;
+    }
+
+    *:focus-visible {
+        outline: 3px solid var(--consenti-color-primary);
+        outline-offset: 2px;
+    }
+}
+
+// ─── Age Gate ──────────────────────────────────────────────────────────────────
+
+.consenti-age-gate {
+    position: fixed;
+    inset: 0;
+    z-index: var(--consenti-z-modal);
+    margin: auto;
+    width: min(400px, 90vw);
+    height: fit-content;
+    background: var(--consenti-color-bg);
+    color: var(--consenti-color-text);
+    border-radius: var(--consenti-border-radius);
+    box-shadow: var(--consenti-shadow);
+    padding: var(--consenti-spacing-lg);
+    font-family: var(--consenti-font-family);
+    font-size: var(--consenti-font-size-base);
+    line-height: var(--consenti-line-height);
+}
+
+.consenti-age-gate__heading {
+    font-size: var(--consenti-font-size-heading);
+    font-weight: var(--consenti-font-weight-heading);
+    margin-bottom: var(--consenti-spacing-sm);
+}
+
+.consenti-age-gate__text {
+    color: var(--consenti-color-text-muted);
+    margin-bottom: var(--consenti-spacing-md);
+}
+
+.consenti-age-gate__buttons {
+    display: flex;
+    gap: var(--consenti-spacing-sm);
+}

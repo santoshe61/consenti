@@ -9,6 +9,7 @@ const BARE_MODULES = [
   'events', 'url', 'http', 'https', 'stream',
   'buffer', 'util', 'os', 'net', 'tls',
   'child_process', 'worker_threads', 'module',
+  'sqlite',
 ]
 
 async function fixFile(filename) {
@@ -26,6 +27,14 @@ async function fixFile(filename) {
     const replacementRequire = `require("node:${mod}")`
     if (reRequire.test(src)) {
       src = src.replace(reRequire, replacementRequire)
+      changed = true
+    }
+    // Dynamic import() calls (e.g. node:sqlite's lazy-load in node-sqlite-builtin.adapter.ts)
+    // esbuild strips the "node:" prefix from these the same way it does static imports/requires.
+    const reDynamicImport = new RegExp(`import\\("(${mod.replace('/', '\\/')})"\\)`, 'g')
+    const replacementDynamicImport = `import("node:${mod}")`
+    if (reDynamicImport.test(src)) {
+      src = src.replace(reDynamicImport, replacementDynamicImport)
       changed = true
     }
   }

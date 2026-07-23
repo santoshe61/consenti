@@ -6,13 +6,14 @@
 :root {
   --consenti-color-bg: #ffffff;
   --consenti-color-text: #1a2e4a;
-  --consenti-color-primary: #1565c0;
+  --consenti-color-text-muted: #949dab;
+  --consenti-color-primary: #04111f;
   --consenti-color-primary-text: #ffffff;
   --consenti-color-secondary: #f0f4f8;
   --consenti-color-secondary-text: #1a2e4a;
   --consenti-color-border: #dbe4ee;
   --consenti-color-secondary-border: #1a2e4a;
-  --consenti-color-overlay: rgba(26, 52, 96, 0.55);
+  --consenti-color-overlay: #04111f;
   --consenti-color-accent: #d32f2f;
   --consenti-color-accent-text: #ffffff;
 
@@ -22,6 +23,7 @@
   --consenti-font-weight-heading: 600;
   --consenti-line-height: 1.5;
 
+  --consenti-spacing-xs: 5px;
   --consenti-spacing-sm: 8px;
   --consenti-spacing-md: 16px;
   --consenti-spacing-lg: 24px;
@@ -31,6 +33,7 @@
   --consenti-shadow: 0 4px 24px rgba(21, 101, 192, 0.14);
 
   --consenti-toggle-bg-on: #43a047;
+  --consenti-toggle-bg-partial: #97c098;
   --consenti-toggle-bg-off: #9ca3af;
   --consenti-toggle-knob: #ffffff;
   --consenti-toggle-width: 52px;
@@ -45,8 +48,9 @@
 .consenti-root--dark {
   --consenti-color-bg: #1e2535;
   --consenti-color-text: #e2e8f0;
-  --consenti-color-primary: #4a9eff;
-  --consenti-color-primary-text: #ffffff;
+  --consenti-color-text-muted: #a4acb9;
+  --consenti-color-primary: #e2e8f0;
+  --consenti-color-primary-text: #2a3447;
   --consenti-color-secondary: #2a3447;
   --consenti-color-secondary-text: #cbd5e1;
   --consenti-color-border: #374151;

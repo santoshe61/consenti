@@ -2,9 +2,32 @@ import { createHash, createHmac, randomUUID, scryptSync, randomBytes, timingSafe
 
 export { randomUUID }
 
-export function randomProfileId(): string {
-  return `prof_${randomBytes(20).toString('hex')}`
+// Prefixed resource IDs — the prefix identifies the resource type at a glance (in audit log
+// resourceId values, error messages, support tickets), the same idea as Stripe/GitHub-style IDs.
+//
+// 16 base62 characters is ~95 bits of randomness — collisions only become a realistic risk
+// (birthday bound) around 2^47 ≈ 140 trillion IDs of the *same type*, far beyond anything this
+// project will ever generate, while staying shorter than a bare UUID (36 chars) once the 5-char
+// prefix is added (21 chars total) — short enough to read out or paste into a support ticket.
+const BASE62 = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'
+const ID_SUFFIX_LEN = 16
+
+function randomBase62(length: number): string {
+  const bytes = randomBytes(length)
+  let out = ''
+  for (let i = 0; i < length; i++) out += BASE62[bytes[i]! % BASE62.length]
+  return out
 }
+
+function prefixedId(prefix: string): string {
+  return `${prefix}_${randomBase62(ID_SUFFIX_LEN)}`
+}
+
+export function randomProfileId(): string { return prefixedId('prof') }
+export function randomVisitorId(): string { return prefixedId('visi') }
+export function randomConsentId(): string { return prefixedId('cons') }
+export function randomConsentTemplateId(): string { return prefixedId('ctem') }
+export function randomUITemplateId(): string { return prefixedId('utem') }
 
 export function hashIp(ip: string): string {
   return createHash('sha256').update(ip).digest('hex')

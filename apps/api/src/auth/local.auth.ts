@@ -4,6 +4,11 @@ import { hashPassword, verifyPassword, signJwt, verifyJwt } from '../utils/crypt
 const LOCKOUT_WINDOW_MS = 15 * 60_000
 const MAX_FAILED_ATTEMPTS = 5
 
+/** Admin session TTL — the dashboard silently refreshes the token on user activity (POST
+ * /auth/refresh), so this fixed per-token lifetime is what actually implements "expires after
+ * 30 minutes of inactivity": each refresh just extends it another 30 minutes from now. */
+const SESSION_TTL_SECONDS = 30 * 60
+
 export class LocalAuth {
   private loginAttempts = new Map<string, { count: number; resetAt: number }>()
 
@@ -68,11 +73,12 @@ export class LocalAuth {
         allowedTenants: user.allowedTenants ?? [],
       },
       this.secret,
+      SESSION_TTL_SECONDS,
     )
   }
 
-  signToken(payload: { sub: string; email: string; roles: string[]; permissions: string[] }): string {
-    return signJwt(payload, this.secret)
+  signToken(payload: { sub: string; email: string; roles: string[]; permissions: string[]; allowedTenants?: string[] }): string {
+    return signJwt(payload, this.secret, SESSION_TTL_SECONDS)
   }
 
   verify(token: string): Record<string, unknown> | null {

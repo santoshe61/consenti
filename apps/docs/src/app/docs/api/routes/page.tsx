@@ -3,7 +3,27 @@ import Link from 'next/link'
 import { Callout } from '@/components/Callout'
 import { CodeBlock } from '@/components/CodeBlock'
 
-export const metadata: Metadata = { title: 'API Routes' }
+export const metadata: Metadata = {
+  title: 'API Routes',
+  description:
+    'Backend API routes split across two base paths, public and admin, both configurable via basePath in createConsenti().',
+  alternates: { canonical: '/docs/api/routes' },
+  openGraph: {
+    title: 'API Routes',
+    description:
+      'Backend API routes split across two base paths, public and admin, both configurable via basePath in createConsenti().',
+    url: 'https://consenti.dev/docs/api/routes',
+    siteName: 'Consenti Docs',
+    images: ['/og-image.jpg'],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'API Routes',
+    description:
+      'Backend API routes split across two base paths, public and admin, both configurable via basePath in createConsenti().',
+    images: ['/og-image.jpg'],
+  },
+}
 
 export default function APIRoutesPage() {
   return (
@@ -47,20 +67,24 @@ export default function APIRoutesPage() {
             Admin API Routes
           </p>
           <p className="text-xs text-slate-500 leading-relaxed">
-            JWT required. Profile management, consent records, users, roles, audit, stats, and exports.
+            JWT required. Profile management, consent records, users, roles, audit, stats, and
+            exports.
           </p>
         </Link>
       </div>
 
       <h2>Error format</h2>
       <p>All error responses share the same structure:</p>
-      <CodeBlock lang="json" code={`{
+      <CodeBlock
+        lang="json"
+        code={`{
   "error": "Profile not found"
-}`} />
+}`}
+      />
 
       <Callout type="info">
-        Stack traces are never included in production error responses (<code>NODE_ENV === &apos;production&apos;</code>).
-        They are logged server-side only.
+        Stack traces are never included in production error responses (
+        <code>NODE_ENV === &apos;production&apos;</code>). They are logged server-side only.
       </Callout>
 
       <h2>OpenAPI / Swagger</h2>
@@ -74,13 +98,19 @@ export default function APIRoutesPage() {
       </p>
 
       <h2>Rate limiting</h2>
-      <p>Rate limiting applies to public API routes only. Admin routes are exempt (they require JWT auth).</p>
-      <CodeBlock lang="typescript" code={`createConsenti({
+      <p>
+        Rate limiting applies to public API routes only. Admin routes are exempt (they require JWT
+        auth).
+      </p>
+      <CodeBlock
+        lang="typescript"
+        code={`createConsenti({
   rateLimit: {
     windowMs: 60_000,  // 1-minute window
     maxRequests: 60,   // max requests per IP per window
   },
-})`} />
+})`}
+      />
     </div>
   )
 }

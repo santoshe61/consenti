@@ -1,5 +1,6 @@
 import type {
-  StorageAdapter, ConsentDbRecord, CreateConsentInput, UpdateConsentInput, ConsentFilters,
+  StorageAdapter, ConsentDbRecord, ConsentSummary, CreateConsentInput, UpdateConsentInput,
+  ConsentFilters, PagedResult,
 } from '@consenti/types'
 
 export class ConsentRepo {
@@ -21,7 +22,7 @@ export class ConsentRepo {
     return this.adapter.getConsent(visitorId)
   }
 
-  list(filters: ConsentFilters): Promise<ConsentDbRecord[]> {
+  list(filters: ConsentFilters): Promise<PagedResult<ConsentSummary>> {
     return this.adapter.getConsents(filters)
   }
 }

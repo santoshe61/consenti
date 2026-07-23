@@ -1,0 +1,16 @@
+apiVersion: v2
+name: consenti
+description: Self-hosted Consenti (@consenti/api) — GDPR-compliant Cookie Consent + CMP backend
+type: application
+version: 0.1.0
+appVersion: "0.2.0"
+home: https://consenti.dev
+sources:
+  - https://github.com/santoshe61/consenti
+keywords:
+  - gdpr
+  - cmp
+  - cookie-consent
+  - privacy
+maintainers:
+  - name: Consenti (community reference chart — see deploy/README.md)

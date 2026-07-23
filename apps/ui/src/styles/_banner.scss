@@ -33,6 +33,13 @@
     }
   }
 
+  &--top,
+  &--bottom {
+    .consenti-banner__text-container {
+      min-width: 60vw;
+    }
+  }
+
   &--middle {
     top: 50%;
     transform: translateY(-50%);
@@ -41,6 +48,8 @@
     transform: translate(-50%, -50%);
     width: min(600px, 90vw);
     border-radius: var(--consenti-border-radius);
+    flex-direction: column;
+    align-items: flex-start;
   }
 
   &--left-bottom {
@@ -61,14 +70,22 @@
 
   &__text-container {
     flex: 1;
-    min-width: 500px;
+
+    a:not(.consenti-banner__link) {
+      color: var(--consenti-color-text);
+
+      &:hover {
+        color: var(--consenti-color-primary);
+      }
+    }
+
   }
 
   &__heading {
     font-size: var(--consenti-font-size-heading);
     font-weight: var(--consenti-font-weight-heading);
     margin: 0 0 var(--consenti-spacing-sm);
-    width: 100%;
+    width: calc(100% - 56px);
   }
 
   &__text {
@@ -83,7 +100,9 @@
   }
 
   &__link {
-    font-size: 0.85em;
+    font-size: 0.87em;
+    padding: var(--consenti-spacing-xs) var(--consenti-spacing-sm);
+    border-radius: var(--consenti-spacing-xs);
   }
 
   &__controls {
@@ -100,24 +119,21 @@
     flex-wrap: wrap;
     gap: var(--consenti-spacing-sm);
     align-items: center;
-    margin-block: var(--consenti-spacing-md);
+    margin-top: var(--consenti-spacing-sm);
   }
 
   &__close {
     // When inside __controls the close is no longer absolute-positioned itself
     // (the __controls wrapper handles placement). Remove the absolute fallback.
+    margin-top: -5px;
   }
 
-  &__powered-by {
-    position: absolute;
-    right: 10px;
-    bottom: 2px;
-    opacity: 0.2;
-    color: var(--consenti-color-primary);
+  .consenti__powered-by {
+    bottom: 0;
   }
 }
 
-// ── Mobile adjustments (≤ 576px) ───────────────────────────────────────────
+// ── Mobile adjustments (≤ 400px) ───────────────────────────────────────────
 @media (max-width: 576px) {
   .consenti-banner {
     padding: var(--consenti-spacing-md);
@@ -142,9 +158,8 @@
     // Stack buttons vertically
     &__buttons {
       width: 100%;
-      flex-direction: row;
+      flex-direction: column;
       align-items: stretch;
-      margin-bottom: var(--consenti-spacing-md);
     }
 
     // Text block should not have a minimum width that forces wrapping

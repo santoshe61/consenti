@@ -2,6 +2,7 @@ import { X } from 'lucide-react'
 import { HeadingTagInput } from './HeadingTagInput'
 import { OverlayOpacityInput } from './OverlayOpacityInput'
 import { ButtonsEditor } from './ButtonsEditor'
+import { useT } from '../context/locale'
 import type { TemplateBannerUI, BannerPosition } from '../utils/templates'
 
 const BANNER_POSITIONS: BannerPosition[] = ['top', 'bottom', 'middle', 'left-bottom', 'right-bottom']
@@ -14,6 +15,7 @@ interface BannerUIEditorProps {
 }
 
 export function BannerUIEditor({ label, value, onChange, cookieOptions }: BannerUIEditorProps) {
+  const t = useT()
   const set = <K extends keyof TemplateBannerUI>(k: K, v: TemplateBannerUI[K]) =>
     onChange({ ...value, [k]: v })
 
@@ -41,7 +43,20 @@ export function BannerUIEditor({ label, value, onChange, cookieOptions }: Banner
           <p class="text-xs text-gray-400 mt-0.5">0% = transparent (page still interactive) · 100% = darkened</p>
         </div>
 
-        <div class="flex items-end pb-1">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">{t('uiTemplates.editor.stackButtonsOnBreakpoint')}</label>
+          <input
+            type="number"
+            min="0"
+            max="2560"
+            class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+            value={value.stackButtonsOnBreakpoint ?? 576}
+            onChange={e => set('stackButtonsOnBreakpoint', parseInt((e.target as HTMLInputElement).value, 10) || 0)}
+          />
+          <p class="text-xs text-gray-400 mt-0.5">{t('uiTemplates.editor.stackButtonsOnBreakpointHint')}</p>
+        </div>
+
+        <div class="flex flex-col justify-center gap-4 pb-1">
           <label class="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer">
             <input
               type="checkbox"
@@ -51,9 +66,6 @@ export function BannerUIEditor({ label, value, onChange, cookieOptions }: Banner
             />
             Show <X size={10} className="inline-block mx-0.5" /> close button
           </label>
-        </div>
-
-        <div class="flex items-end pb-1">
           <label class="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer">
             <input
               type="checkbox"
@@ -63,6 +75,9 @@ export function BannerUIEditor({ label, value, onChange, cookieOptions }: Banner
             />
             🌐 Show locale switcher
           </label>
+        </div>
+
+        <div class="flex items-center pb-1">
         </div>
       </div>
 

@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
 import { SquarePen, Trash, Copy } from 'lucide-react'
-import { Layout } from '../components/Layout'
+import { usePageTitle } from '../context/pageTitle'
+import { Table } from '../components/Table'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { useT } from '../context/locale'
 import { uiTemplatesApi } from '../api/templates'
@@ -12,6 +13,7 @@ type BlockingProfile = { id: string; name: string; isActive: boolean }
 
 export function UITemplateList({ current }: { current: string }) {
   const t = useT()
+  usePageTitle(t('uiTemplates.title'))
   const [templates, setTemplates] = useState<ServerUITemplate[]>([])
   const [loading, setLoading] = useState(true)
   const [deleteBlockedBy, setDeleteBlockedBy] = useState<BlockingProfile[] | null>(null)
@@ -65,7 +67,7 @@ export function UITemplateList({ current }: { current: string }) {
     : t('uiTemplates.count', { n: count })
 
   return (
-    <Layout title={t('uiTemplates.title')} current={current}>
+    <>
       {dialog}
 
       {/* Delete blocked dialog */}
@@ -141,51 +143,73 @@ export function UITemplateList({ current }: { current: string }) {
         </a>
       </div>
 
-      {loading && <p class="text-sm text-gray-400" role="status" aria-live="polite">{t('common.loading')}</p>}
-
-      {!loading && templates.length === 0 && (
-        <div class="bg-white border border-gray-200 rounded-lg p-8 text-center">
-          <p class="text-gray-500 text-sm mb-2">{t('uiTemplates.empty.title')}</p>
-          <p class="text-gray-400 text-xs">{t('uiTemplates.empty.hint')}</p>
-        </div>
-      )}
-
-      {!loading && templates.length > 0 && (
-        <div class="space-y-3">
-          {templates.map(tmpl => (
-            <div key={tmpl.id} class="bg-white border border-gray-200 rounded-lg p-4 flex items-center justify-between gap-4">
-              <div class="flex-1 min-w-0">
-                <p class="font-medium text-sm text-gray-900">{tmpl.name}</p>
-                <div class="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
+      <Table
+        loading={loading}
+        keyFn={r => r['id'] as string}
+        rows={templates as unknown as Record<string, unknown>[]}
+        emptyText={t('uiTemplates.empty.title')}
+        search={{ placeholder: t('uiTemplates.search.placeholder'), keys: r => [r['name'] as string] }}
+        columns={[
+          {
+            key: 'name', label: t('uiTemplates.col.name'),
+            render: r => {
+              const tmpl = r as unknown as ServerUITemplate
+              return <span class="font-medium text-sm text-gray-900">{tmpl.name}</span>
+            },
+          },
+          {
+            key: 'positions', label: t('uiTemplates.col.positions'),
+            render: r => {
+              const tmpl = r as unknown as ServerUITemplate
+              return (
+                <div class="flex flex-wrap gap-3 text-xs text-gray-500">
                   <span>{t('uiTemplates.mainBanner')} <span class="text-gray-700">{tmpl.mainBanner.position}</span></span>
                   <span>{t('uiTemplates.gpcBanner')} <span class="text-gray-700">{tmpl.gpcBanner.position}</span></span>
                   <span>{t('uiTemplates.modal')} <span class="text-gray-700">{tmpl.preferenceModal.position}</span></span>
-                  <span>{t('uiTemplates.categories', { n: tmpl.preferenceModal.categories.length })}</span>
-                  <span>{t('common.updated')} {new Date(tmpl.updatedAt).toLocaleDateString()}</span>
                 </div>
-                <div class="flex flex-wrap gap-1 mt-2">
-                  {tmpl.mainBanner.buttons.map((b, i) => (
-                    <span key={i} class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
-                      {b.type}: {b.text}
+              )
+            },
+          },
+          {
+            key: 'buttons', label: t('uiTemplates.col.buttons'),
+            render: r => {
+              const tmpl = r as unknown as ServerUITemplate
+              return (
+                <div class="flex flex-wrap gap-1">
+                  {Object.entries(tmpl.mainBanner.buttons).map(([id, b]) => (
+                    <span key={id} class="text-xs px-2 py-0.5 bg-gray-100 text-gray-600 rounded-full">
+                      {b.type}: {id}
                     </span>
                   ))}
                 </div>
-              </div>
-              <div class="flex items-center gap-3 shrink-0">
-                <button onClick={() => handleCopy(tmpl.id, tmpl.name)} class="text-gray-400 hover:text-blue-600 transition-colors" title={t('common.duplicate')} aria-label={t('common.duplicate')}>
-                  <Copy size={14} aria-hidden="true" />
-                </button>
-                <button onClick={() => handleEditClick(tmpl.id, tmpl.name)} class="text-blue-600 hover:text-blue-800 transition-colors" title={t('common.edit')} aria-label={t('common.edit')}>
-                  <SquarePen size={14} aria-hidden="true" />
-                </button>
-                <button onClick={() => handleDelete(tmpl.id, tmpl.name)} class="text-red-400 hover:text-red-600 transition-colors" title={t('common.delete')} aria-label={t('common.delete')}>
-                  <Trash size={14} aria-hidden="true" />
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </Layout>
+              )
+            },
+          },
+          {
+            key: 'updatedAt', label: t('common.updated'),
+            render: r => <span class="text-xs text-gray-500">{new Date((r as unknown as ServerUITemplate).updatedAt).toLocaleDateString()}</span>,
+          },
+          {
+            key: 'actions', label: '',
+            render: r => {
+              const tmpl = r as unknown as ServerUITemplate
+              return (
+                <div class="flex items-center gap-3 justify-end">
+                  <button onClick={() => handleCopy(tmpl.id, tmpl.name)} class="text-gray-400 hover:text-blue-600 transition-colors" title={t('common.duplicate')} aria-label={t('common.duplicate')}>
+                    <Copy size={14} aria-hidden="true" />
+                  </button>
+                  <button onClick={() => handleEditClick(tmpl.id, tmpl.name)} class="text-blue-600 hover:text-blue-800 transition-colors" title={t('common.edit')} aria-label={t('common.edit')}>
+                    <SquarePen size={14} aria-hidden="true" />
+                  </button>
+                  <button onClick={() => handleDelete(tmpl.id, tmpl.name)} class="text-red-400 hover:text-red-600 transition-colors" title={t('common.delete')} aria-label={t('common.delete')}>
+                    <Trash size={14} aria-hidden="true" />
+                  </button>
+                </div>
+              )
+            },
+          },
+        ]}
+      />
+    </>
   )
 }

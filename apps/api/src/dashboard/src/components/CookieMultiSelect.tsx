@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
 import { Check, ChevronUp, ChevronDown } from 'lucide-react'
-import { cookieTemplatesApi } from '../api/templates'
-import type { ServerCookieTemplate } from '@consenti/types'
+import { consentTemplatesApi } from '../api/templates'
+import type { ServerConsentTemplate } from '@consenti/types'
 
 interface CookieMultiSelectProps {
   /** Current value: '*' | '!' | string[] | undefined */
@@ -39,12 +39,12 @@ export function CookieMultiSelect({
 }: CookieMultiSelectProps) {
   const [open, setOpen] = useState(false)
   const [dropPos, setDropPos] = useState<DropPos | null>(null)
-  const [cookieTemplates, setCookieTemplates] = useState<ServerCookieTemplate[]>([])
+  const [consentTemplates, setConsentTemplates] = useState<ServerConsentTemplate[]>([])
   const triggerRef = useRef<HTMLDivElement>(null)
   const dropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    cookieTemplatesApi.list().then(setCookieTemplates).catch(() => {})
+    consentTemplatesApi.list().then(setConsentTemplates).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -82,8 +82,8 @@ export function CookieMultiSelect({
     setOpen(o => !o)
   }
 
-  const fromTemplates = cookieTemplates.flatMap(t =>
-    t.cookies.map(c => ({ id: c.id, source: t.name }))
+  const fromTemplates = consentTemplates.flatMap(t =>
+    Object.keys(t.cookies).map(id => ({ id, source: t.name }))
   )
   const allOptions = [
     ...(extraCookies ?? []),
@@ -164,7 +164,7 @@ export function CookieMultiSelect({
             {allOptions.length === 0 ? (
               <p class="text-xs text-gray-400 px-3 pb-3">
                 No cookies defined yet.{' '}
-                <a href="#/banners/cookie-templates/new" class="text-blue-600 hover:underline" target="_blank">Create a template ↗</a>
+                <a href="#/banners/consent-templates/new" class="text-blue-600 hover:underline" target="_blank">Create a template ↗</a>
               </p>
             ) : allOptions.map(opt => (
               <button

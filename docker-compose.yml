@@ -1,0 +1,61 @@
+services:
+  # Default service — self-contained, SQLite-backed (Node's built-in node:sqlite driver, no
+  # native compilation, no extra service to run). Just set the two required env vars below and
+  # `docker compose up` works.
+  consenti:
+    build:
+      context: ./docker
+    ports:
+      - '3000:3000'
+    environment:
+      CONSENTI_ADMIN_EMAIL: admin@example.com
+      CONSENTI_ADMIN_PASSWORD: ${CONSENTI_ADMIN_PASSWORD:?set a real password, 16+ chars recommended}
+      CONSENTI_ADMIN_JWT_SECRET: ${CONSENTI_ADMIN_JWT_SECRET:?set a random secret, e.g. openssl rand -hex 32}
+      CONSENTI_DB_DRIVER: node:sqlite
+      CONSENTI_DB_PATH: /data/consenti-data
+    volumes:
+      - consenti-data:/data
+    restart: unless-stopped
+
+  # ── PostgreSQL alternative ────────────────────────────────────────────────────
+  # To use Postgres instead of SQLite:
+  #   1. Uncomment this service and the `postgres-data` volume below.
+  #   2. On the `consenti` service above, change CONSENTI_DB_DRIVER to `postgresql`, remove
+  #      CONSENTI_DB_PATH, and add:
+  #        CONSENTI_DB_HOST: postgres
+  #        CONSENTI_DB_DATABASE: consenti
+  #        CONSENTI_DB_USER: consenti
+  #        CONSENTI_DB_PASSWORD: ${POSTGRES_PASSWORD:?set a real password}
+  #   3. Add `depends_on: [postgres]` to the `consenti` service.
+  #
+  # postgres:
+  #   image: postgres:16-alpine
+  #   environment:
+  #     POSTGRES_DB: consenti
+  #     POSTGRES_USER: consenti
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set a real password}
+  #   volumes:
+  #     - postgres-data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+  # ── MongoDB alternative ───────────────────────────────────────────────────────
+  # To use MongoDB instead of SQLite:
+  #   1. Uncomment this service and the `mongo-data` volume below.
+  #   2. On the `consenti` service above, change CONSENTI_DB_DRIVER to `mongodb`, remove
+  #      CONSENTI_DB_PATH, and add:
+  #        CONSENTI_DB_URI: mongodb://consenti:${MONGO_PASSWORD:?set a real password}@mongodb:27017/consenti?authSource=admin
+  #   3. Add `depends_on: [mongodb]` to the `consenti` service.
+  #
+  # mongodb:
+  #   image: mongo:7
+  #   environment:
+  #     MONGO_INITDB_ROOT_USERNAME: consenti
+  #     MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD:?set a real password}
+  #   volumes:
+  #     - mongo-data:/data/db
+  #   restart: unless-stopped
+
+volumes:
+  consenti-data:
+  # postgres-data:
+  # mongo-data:

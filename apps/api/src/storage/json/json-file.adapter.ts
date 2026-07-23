@@ -1,10 +1,11 @@
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
+import { randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import type {
   StorageAdapter,
   StorageConfig,
   Profile,
-  ProfileConfig,
+  StoredProfileJson,
   ProfileSummary,
   OptInStats,
   OptInFilters,
@@ -12,6 +13,7 @@ import type {
   CreateProfileInput,
   UpdateProfileInput,
   ConsentDbRecord,
+  ConsentSummary,
   ConsentHistoryEntry,
   ConsentValue,
   CreateConsentInput,
@@ -29,6 +31,7 @@ import type {
   UpdateRoleInput,
   Permission,
   AuditLog,
+  AuditLogSummary,
   AuditFilters,
   CreateAuditLogInput,
   OverviewStats,
@@ -41,12 +44,16 @@ import type {
   CreateApiKeyInput,
   CreateTenantInput,
   UpdateTenantInput,
-  ServerCookieTemplate,
+  ServerConsentTemplate,
   ServerUITemplate,
-  CreateCookieTemplateInput,
-  UpdateCookieTemplateInput,
+  CreateConsentTemplateInput,
+  UpdateConsentTemplateInput,
   CreateUITemplateInput,
   UpdateUITemplateInput,
+  TenantSettings,
+  NoticeShownRecord,
+  CreateNoticeShownInput,
+  PagedResult,
 } from '@consenti/types'
 import { resolveStoragePaths } from '../../utils/storage-path'
 import {
@@ -74,9 +81,11 @@ interface JsonDb {
   user_roles: UserRole[]
   role_permissions: RolePermission[]
   audit_logs: AuditLog[]
-  cookie_templates: ServerCookieTemplate[]
+  consent_templates: ServerConsentTemplate[]
   ui_templates: ServerUITemplate[]
   api_keys: ApiKey[]
+  settings: Record<string, TenantSettings>
+  notice_shown: NoticeShownRecord[]
 }
 
 function emptyDb(): JsonDb {
@@ -93,20 +102,30 @@ function emptyDb(): JsonDb {
     user_roles: [],
     role_permissions: [],
     audit_logs: [],
-    cookie_templates: [],
+    consent_templates: [],
     ui_templates: [],
     api_keys: [],
+    settings: {},
+    notice_shown: [],
   }
-}
-
-function randomProfileId(): string {
-  return `prof_${randomUUID().replace(/-/g, '')}`
 }
 
 function page<T>(arr: T[], pageNum: number, limit: number): T[] {
   const l = Math.min(limit, MAX_PAGE_SIZE)
   const offset = (pageNum - 1) * l
   return arr.slice(offset, offset + l)
+}
+
+// The JSON driver holds everything in memory, so column projection saves no I/O here — these
+// exist purely to keep the wire response shape identical to the other 6 adapters.
+function toConsentSummary(c: ConsentDbRecord): ConsentSummary {
+  const { id, tenantId, visitorId, profileId, locale, gpcDetected, source, ageVerified, createdAt, updatedAt } = c
+  return { id, tenantId, visitorId, profileId, locale, gpcDetected, source, ...(ageVerified != null ? { ageVerified } : {}), createdAt, updatedAt }
+}
+
+function toAuditSummary(l: AuditLog): AuditLogSummary {
+  const { id, tenantId, userId, action, resourceType, resourceId, createdAt } = l
+  return { id, tenantId, action, resourceType, createdAt, ...(userId != null ? { userId } : {}), ...(resourceId != null ? { resourceId } : {}) }
 }
 
 export class JsonFileAdapter implements StorageAdapter {
@@ -134,7 +153,7 @@ export class JsonFileAdapter implements StorageAdapter {
     this.filePath = dbPath
     try {
       const raw = await readFile(this.filePath, 'utf8')
-      this.db = JSON.parse(raw) as JsonDb
+      this.db = { ...emptyDb(), ...JSON.parse(raw) as JsonDb }
     } catch {
       this.db = emptyDb()
     }
@@ -177,13 +196,14 @@ export class JsonFileAdapter implements StorageAdapter {
 
   async createProfile(data: CreateProfileInput): Promise<Profile> {
     const now = new Date().toISOString()
+    const id = randomProfileId()
     const profile: Profile = {
-      id: randomProfileId(),
+      id,
       tenantId: data.tenantId,
       name: data.name,
       defaultLocale: data.defaultLocale,
       version: 1,
-      profileJson: data.profileJson as ProfileConfig,
+      profileJson: data.profileJson as StoredProfileJson,
       createdAt: now,
       updatedAt: now,
     }
@@ -200,8 +220,8 @@ export class JsonFileAdapter implements StorageAdapter {
       ...existing,
       ...(data.name != null && { name: data.name }),
       ...(data.defaultLocale != null && { defaultLocale: data.defaultLocale }),
-      ...(data.profileJson != null && { profileJson: data.profileJson as ProfileConfig }),
-      version: existing.version + 1,
+      ...(data.profileJson != null && { profileJson: data.profileJson as StoredProfileJson }),
+      ...(data.version != null && { version: data.version }),
       updatedAt: new Date().toISOString(),
     }
     this.db.profiles[idx] = updated
@@ -226,7 +246,7 @@ export class JsonFileAdapter implements StorageAdapter {
   async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
     return this.db.profiles.find(p =>
       p.tenantId === tenantId &&
-      p.profileJson.complianceGroup === complianceGroup &&
+      (p.profileJson.complianceGroup === complianceGroup || (p.profileJson as { customComplianceGroup?: string }).customComplianceGroup === complianceGroup) &&
       p.profileJson.isActive
     ) ?? null
   }
@@ -235,17 +255,20 @@ export class JsonFileAdapter implements StorageAdapter {
 
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
     const now = new Date().toISOString()
-    const id = randomUUID()
+    const id = randomConsentId()
     const record: ConsentDbRecord = {
       id,
       tenantId: data.tenantId,
       visitorId: data.visitorId,
       profileId: data.profileId,
-      profileVersion: data.profileVersion,
       locale: data.locale,
       consentJson: data.consentJson as ConsentValue,
       gpcDetected: data.gpcDetected ?? false,
       source: data.source as ConsentDbRecord['source'],
+      ...(data.ageVerified != null && { ageVerified: data.ageVerified }),
+      ...(data.parentalConsentToken != null && { parentalConsentToken: data.parentalConsentToken }),
+      ...(data.tcfString != null && { tcfString: data.tcfString }),
+      ...(data.signature != null && { signature: data.signature }),
       createdAt: now,
       updatedAt: now,
     }
@@ -274,6 +297,7 @@ export class JsonFileAdapter implements StorageAdapter {
       consentJson: data.consentJson as ConsentValue,
       ...(data.locale != null && { locale: data.locale }),
       ...(data.gpcDetected != null && { gpcDetected: data.gpcDetected }),
+      ...(data.signature != null && { signature: data.signature }),
       updatedAt: now,
     }
     this.db.consents[idx] = updated
@@ -301,13 +325,25 @@ export class JsonFileAdapter implements StorageAdapter {
     return this.db.consents.find(c => c.visitorId === visitorId) ?? null
   }
 
-  async getConsents(filters: ConsentFilters): Promise<ConsentDbRecord[]> {
+  async getConsents(filters: ConsentFilters): Promise<PagedResult<ConsentSummary>> {
     let rows = this.db.consents.filter(c => c.tenantId === filters.tenantId)
     if (filters.profileId) rows = rows.filter(c => c.profileId === filters.profileId)
     if (filters.from) rows = rows.filter(c => c.createdAt >= filters.from!)
     if (filters.to) rows = rows.filter(c => c.createdAt <= filters.to!)
+    if (filters.q) {
+      // Prefix match, not substring — kept consistent with every other adapter's search
+      // semantics (which use a leading-wildcard-free query so they stay index-backed).
+      const q = filters.q.toLowerCase()
+      rows = rows.filter(c =>
+        c.visitorId.toLowerCase().startsWith(q) ||
+        c.profileId.toLowerCase().startsWith(q) ||
+        c.locale.toLowerCase().startsWith(q) ||
+        c.source.toLowerCase().startsWith(q))
+    }
     rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    return page(rows, filters.page ?? 1, filters.limit ?? 50)
+    const page_ = filters.page ?? 1
+    const limit = filters.limit ?? 50
+    return { items: page(rows, page_, limit).map(toConsentSummary), total: rows.length, page: page_, limit }
   }
 
   async *streamConsents(filters: ConsentFilters): AsyncIterable<ConsentDbRecord> {
@@ -320,12 +356,32 @@ export class JsonFileAdapter implements StorageAdapter {
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
   }
 
+  async createNoticeShown(data: CreateNoticeShownInput): Promise<NoticeShownRecord> {
+    const record: NoticeShownRecord = {
+      id: randomUUID(),
+      tenantId: data.tenantId,
+      visitorId: data.visitorId,
+      profileId: data.profileId,
+      locale: data.locale,
+      createdAt: new Date().toISOString(),
+    }
+    this.db.notice_shown.push(record)
+    this.scheduleWrite()
+    return record
+  }
+
+  async getNoticeShownForVisitor(visitorId: string): Promise<NoticeShownRecord[]> {
+    return this.db.notice_shown
+      .filter(n => n.visitorId === visitorId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+  }
+
   // ── Visitors ──────────────────────────────────────────────────────────────
 
   async createVisitor(data: CreateVisitorInput): Promise<Visitor> {
     const now = new Date().toISOString()
     const visitor: Visitor = {
-      id: randomUUID(),
+      id: randomVisitorId(),
       tenantId: data.tenantId,
       visitorId: data.visitorId,
       firstSeen: now,
@@ -366,12 +422,18 @@ export class JsonFileAdapter implements StorageAdapter {
     return this.db.visitors.find(v => v.visitorId === visitorId) ?? null
   }
 
-  async getVisitors(filters: VisitorFilters): Promise<Visitor[]> {
+  async getVisitors(filters: VisitorFilters): Promise<PagedResult<Visitor>> {
     let rows = this.db.visitors.filter(v => v.tenantId === filters.tenantId)
     if (filters.from) rows = rows.filter(v => v.firstSeen >= filters.from!)
     if (filters.to) rows = rows.filter(v => v.firstSeen <= filters.to!)
+    if (filters.q) {
+      const q = filters.q.toLowerCase()
+      rows = rows.filter(v => v.visitorId.toLowerCase().startsWith(q) || (v.country?.toLowerCase().startsWith(q) ?? false))
+    }
     rows.sort((a, b) => b.lastSeen.localeCompare(a.lastSeen))
-    return page(rows, filters.page ?? 1, filters.limit ?? 50)
+    const page_ = filters.page ?? 1
+    const limit = filters.limit ?? 50
+    return { items: page(rows, page_, limit), total: rows.length, page: page_, limit }
   }
 
   // ── Users ──────────────────────────────────────────────────────────────────
@@ -541,14 +603,28 @@ export class JsonFileAdapter implements StorageAdapter {
     this.scheduleWrite()
   }
 
-  async getLogs(filters: AuditFilters): Promise<AuditLog[]> {
+  async getLogs(filters: AuditFilters): Promise<PagedResult<AuditLogSummary>> {
     let rows = this.db.audit_logs.filter(l => l.tenantId === filters.tenantId)
     if (filters.action) rows = rows.filter(l => l.action === filters.action)
     if (filters.resourceType) rows = rows.filter(l => l.resourceType === filters.resourceType)
     if (filters.from) rows = rows.filter(l => l.createdAt >= filters.from!)
     if (filters.to) rows = rows.filter(l => l.createdAt <= filters.to!)
+    if (filters.q) {
+      const q = filters.q.toLowerCase()
+      rows = rows.filter(l =>
+        l.action.toLowerCase().startsWith(q) ||
+        l.resourceType.toLowerCase().startsWith(q) ||
+        (l.resourceId?.toLowerCase().startsWith(q) ?? false) ||
+        (l.userId?.toLowerCase().startsWith(q) ?? false))
+    }
     rows.sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    return page(rows, filters.page ?? 1, filters.limit ?? 50)
+    const page_ = filters.page ?? 1
+    const limit = filters.limit ?? 50
+    return { items: page(rows, page_, limit).map(toAuditSummary), total: rows.length, page: page_, limit }
+  }
+
+  async getAuditLogById(id: string): Promise<AuditLog | null> {
+    return this.db.audit_logs.find(l => l.id === id) ?? null
   }
 
   async *streamAuditLogs(filters: AuditFilters): AsyncIterable<AuditLog> {
@@ -663,6 +739,17 @@ export class JsonFileAdapter implements StorageAdapter {
     this.scheduleWrite()
   }
 
+  async getSettings(tenantId: string): Promise<TenantSettings> {
+    return this.db.settings[tenantId] ?? {}
+  }
+
+  async updateSettings(tenantId: string, data: Partial<TenantSettings>): Promise<TenantSettings> {
+    const updated = { ...(this.db.settings[tenantId] ?? {}), ...data }
+    this.db.settings[tenantId] = updated
+    this.scheduleWrite()
+    return updated
+  }
+
   async purgeExpiredConsents(olderThanDays: number): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
     const toDelete = new Set(
@@ -675,16 +762,29 @@ export class JsonFileAdapter implements StorageAdapter {
     return toDelete.size
   }
 
+  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
+    const before = this.db.audit_logs.length
+    this.db.audit_logs = this.db.audit_logs.filter(l => l.createdAt >= cutoff)
+    const removed = before - this.db.audit_logs.length
+    if (removed > 0) this.scheduleWrite()
+    return removed
+  }
+
   // ── API Keys ───────────────────────────────────────────────────────────────
 
   async createApiKey(data: CreateApiKeyInput): Promise<ApiKey> {
+    const now = new Date().toISOString()
     const key: ApiKey = {
       id: randomUUID(),
       tenantId: data.tenantId,
       keyHash: data.keyHash,
       name: data.name,
       isActive: true,
-      createdAt: new Date().toISOString(),
+      ...(data.createdBy !== undefined ? { createdBy: data.createdBy } : {}),
+      ...(data.expireBy !== undefined ? { expireBy: data.expireBy } : {}),
+      createdAt: now,
+      updatedAt: now,
     }
     this.db.api_keys.push(key)
     this.scheduleWrite()
@@ -697,7 +797,23 @@ export class JsonFileAdapter implements StorageAdapter {
 
   async revokeApiKey(id: string): Promise<void> {
     const key = this.db.api_keys.find(k => k.id === id)
-    if (key) { key.isActive = false; this.scheduleWrite() }
+    if (key) { key.isActive = false; key.updatedAt = new Date().toISOString(); this.scheduleWrite() }
+  }
+
+  async reactivateApiKey(id: string): Promise<void> {
+    const key = this.db.api_keys.find(k => k.id === id)
+    if (!key) return
+    key.isActive = true
+    if (key.expireBy && new Date(key.expireBy) <= new Date()) delete key.expireBy
+    key.updatedAt = new Date().toISOString()
+    this.scheduleWrite()
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    const idx = this.db.api_keys.findIndex(k => k.id === id)
+    if (idx === -1) return
+    this.db.api_keys.splice(idx, 1)
+    this.scheduleWrite()
   }
 
   async getApiKeys(tenantId: string): Promise<ApiKey[]> {
@@ -706,53 +822,54 @@ export class JsonFileAdapter implements StorageAdapter {
       .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
   }
 
-  // ── Cookie Templates ───────────────────────────────────────────────────────
+  // ── Consent Templates ──────────────────────────────────────────────────────
 
-  async createCookieTemplate(data: CreateCookieTemplateInput): Promise<ServerCookieTemplate> {
+  async createConsentTemplate(data: CreateConsentTemplateInput): Promise<ServerConsentTemplate> {
     const now = new Date().toISOString()
-    const tpl: ServerCookieTemplate = {
-      id: randomUUID(), tenantId: data.tenantId, name: data.name,
-      cookies: data.cookies, createdAt: now, updatedAt: now,
+    const tpl: ServerConsentTemplate = {
+      id: randomConsentTemplateId(), tenantId: data.tenantId, name: data.name,
+      cookies: data.cookies, categories: data.categories, createdAt: now, updatedAt: now,
     }
-    this.db.cookie_templates.push(tpl)
+    this.db.consent_templates.push(tpl)
     this.scheduleWrite()
     return tpl
   }
 
-  async updateCookieTemplate(id: string, data: UpdateCookieTemplateInput): Promise<ServerCookieTemplate> {
-    const idx = this.db.cookie_templates.findIndex(t => t.id === id)
-    if (idx === -1) throw new Error('Cookie template not found')
+  async updateConsentTemplate(id: string, data: UpdateConsentTemplateInput): Promise<ServerConsentTemplate> {
+    const idx = this.db.consent_templates.findIndex(t => t.id === id)
+    if (idx === -1) throw new Error('Consent template not found')
     const now = new Date().toISOString()
-    const updated: ServerCookieTemplate = {
-      ...this.db.cookie_templates[idx]!,
+    const updated: ServerConsentTemplate = {
+      ...this.db.consent_templates[idx]!,
       ...(data.name !== undefined && { name: data.name }),
       ...(data.cookies !== undefined && { cookies: data.cookies }),
+      ...(data.categories !== undefined && { categories: data.categories }),
       updatedAt: now,
     }
-    this.db.cookie_templates[idx] = updated
+    this.db.consent_templates[idx] = updated
     this.scheduleWrite()
     return updated
   }
 
-  async deleteCookieTemplate(id: string): Promise<void> {
-    this.db.cookie_templates = this.db.cookie_templates.filter(t => t.id !== id)
+  async deleteConsentTemplate(id: string): Promise<void> {
+    this.db.consent_templates = this.db.consent_templates.filter(t => t.id !== id)
     this.scheduleWrite()
   }
 
-  async getCookieTemplate(id: string): Promise<ServerCookieTemplate | null> {
-    return this.db.cookie_templates.find(t => t.id === id) ?? null
+  async getConsentTemplate(id: string): Promise<ServerConsentTemplate | null> {
+    return this.db.consent_templates.find(t => t.id === id) ?? null
   }
 
-  async getCookieTemplates(tenantId: string): Promise<ServerCookieTemplate[]> {
-    return this.db.cookie_templates
+  async getConsentTemplates(tenantId: string): Promise<ServerConsentTemplate[]> {
+    return this.db.consent_templates
       .filter(t => t.tenantId === tenantId)
       .sort((a, b) => a.name.localeCompare(b.name))
   }
 
-  async copyCookieTemplate(id: string, newName: string): Promise<ServerCookieTemplate> {
-    const src = await this.getCookieTemplate(id)
-    if (!src) throw new Error('Cookie template not found')
-    return this.createCookieTemplate({ tenantId: src.tenantId, name: newName, cookies: src.cookies })
+  async copyConsentTemplate(id: string, newName: string): Promise<ServerConsentTemplate> {
+    const src = await this.getConsentTemplate(id)
+    if (!src) throw new Error('Consent template not found')
+    return this.createConsentTemplate({ tenantId: src.tenantId, name: newName, cookies: src.cookies, categories: src.categories })
   }
 
   // ── UI Templates ───────────────────────────────────────────────────────────
@@ -760,7 +877,7 @@ export class JsonFileAdapter implements StorageAdapter {
   async createUITemplate(data: CreateUITemplateInput): Promise<ServerUITemplate> {
     const now = new Date().toISOString()
     const { tenantId, name, ...settings } = data
-    const tpl = { id: randomUUID(), tenantId, name, ...settings, createdAt: now, updatedAt: now } as ServerUITemplate
+    const tpl = { id: randomUITemplateId(), tenantId, name, ...settings, createdAt: now, updatedAt: now } as ServerUITemplate
     this.db.ui_templates.push(tpl)
     this.scheduleWrite()
     return tpl
@@ -814,17 +931,17 @@ export class JsonFileAdapter implements StorageAdapter {
   // ── Profile summaries ──────────────────────────────────────────────────────
 
   private profileToSummary(p: Profile): ProfileSummary {
-    const json = p.profileJson as ProfileConfig & { complianceGroup?: string; isActive?: boolean; cookieTemplateId?: string; uiTemplateId?: string }
-    const ct = json.cookieTemplateId ? this.db.cookie_templates.find(t => t.id === json.cookieTemplateId) : null
+    const json = p.profileJson as StoredProfileJson & { complianceGroup?: string; customComplianceGroup?: string; isActive?: boolean; consentTemplateId?: string; uiTemplateId?: string }
+    const ct = json.consentTemplateId ? this.db.consent_templates.find(t => t.id === json.consentTemplateId) : null
     const ut = json.uiTemplateId ? this.db.ui_templates.find(t => t.id === json.uiTemplateId) : null
     return {
       id: p.id,
       name: p.name,
       defaultLocale: p.defaultLocale,
       complianceGroup: (json.complianceGroup ?? null) as ComplianceGroupId | null,
-      version: p.version,
+      customComplianceGroup: json.customComplianceGroup ?? null,
       isActive: json.isActive ?? false,
-      cookieTemplateName: ct?.name ?? null,
+      consentTemplateName: ct?.name ?? null,
       uiTemplateName: ut?.name ?? null,
       createdAt: p.createdAt,
       updatedAt: p.updatedAt,
@@ -838,11 +955,11 @@ export class JsonFileAdapter implements StorageAdapter {
       .map(p => this.profileToSummary(p))
   }
 
-  async findProfilesUsingCookieTemplate(templateId: string): Promise<ProfileSummary[]> {
+  async findProfilesUsingConsentTemplate(templateId: string): Promise<ProfileSummary[]> {
     return this.db.profiles
       .filter(p => {
-        const json = p.profileJson as { cookieTemplateId?: string }
-        return json.cookieTemplateId === templateId
+        const json = p.profileJson as { consentTemplateId?: string }
+        return json.consentTemplateId === templateId
       })
       .sort((a, b) => a.name.localeCompare(b.name))
       .map(p => this.profileToSummary(p))

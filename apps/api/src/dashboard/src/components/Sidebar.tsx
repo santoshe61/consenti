@@ -2,7 +2,7 @@ import { useState } from 'preact/hooks'
 import {
   LayoutDashboard, ClipboardList, Cookie, Palette, ShieldCheck,
   Users, Key, Shield, Globe, SatelliteDish, ScrollText, Settings,
-  LogOut, Plug, SlidersHorizontal, BookOpen,
+  LogOut, Plug, BarChart3,
   ChevronDown, TicketSlash, HelpCircle
 } from 'lucide-react'
 import type { LucideIcon } from 'lucide-react'
@@ -33,13 +33,14 @@ type NavEntry = NavItem | NavGroup
 
 const NAV: NavEntry[] = [
   { key: 'nav.dashboard', hash: '#/', Icon: LayoutDashboard },
+  { key: 'nav.reports', hash: '#/reports', Icon: BarChart3, perm: 'stats:view' },
   {
     type: 'group',
     key: 'nav.consentBanners',
     baseHash: '#/banners',
     Icon: TicketSlash,
     children: [
-      { key: 'nav.cookieTemplates', hash: '#/banners/cookie-templates', Icon: Cookie },
+      { key: 'nav.consentTemplates', hash: '#/banners/consent-templates', Icon: Cookie },
       { key: 'nav.uiTemplates', hash: '#/banners/ui-templates', Icon: Palette },
       { key: 'nav.profiles', hash: '#/banners/profiles', Icon: ClipboardList },
     ],
@@ -51,17 +52,7 @@ const NAV: NavEntry[] = [
   { key: 'nav.sites', hash: '#/tenants', Icon: Globe, perm: 'settings:update', superadminOnly: true },
   { key: 'nav.vendors', hash: '#/vendors', Icon: SatelliteDish, perm: 'consent:view' },
   { key: 'nav.audit', hash: '#/audit', Icon: ScrollText, perm: 'audit:view' },
-  {
-    type: 'group',
-    key: 'nav.api',
-    baseHash: '#/api',
-    Icon: Plug,
-    superadminOnly: true,
-    children: [
-      { key: 'nav.apiConfig', hash: '#/api/config', Icon: SlidersHorizontal },
-      { key: 'nav.apiDocs', hash: '#/api/docs', Icon: BookOpen },
-    ],
-  },
+  { key: 'nav.api', hash: '#/api/config', Icon: Plug, perm: 'settings:update' },
   { key: 'nav.settings', hash: '#/settings', Icon: Settings },
   { key: 'nav.howItWorks', hash: '#/how-it-works', Icon: HelpCircle },
 ]
@@ -74,7 +65,7 @@ interface Props {
 
 export function Sidebar({ current, collapsed, onToggle: _onToggle }: Props) {
   const { user, logout } = useAuth()
-  const { appName, appLogoPath, poweredBy } = useBranding()
+  const { appName, appLogoPath, hidePoweredBy } = useBranding()
   const t = useT()
 
   const [openGroups, setOpenGroups] = useState<Set<string>>(() => {
@@ -102,7 +93,7 @@ export function Sidebar({ current, collapsed, onToggle: _onToggle }: Props) {
   const isGroupActive = (entry: NavGroup) =>
     current.startsWith(entry.baseHash)
 
-  const isSuperadmin = user?.roles.includes('superadmin') ?? false
+  const isSuperadmin = user?.roles.includes('super_admin') ?? false
   const canSee = (perm?: string, superadminOnly?: boolean) =>
     (!superadminOnly || isSuperadmin) && (!perm || user?.permissions.includes(perm))
 
@@ -222,11 +213,15 @@ export function Sidebar({ current, collapsed, onToggle: _onToggle }: Props) {
       <div class={`px-3 py-4 border-t border-gray-700 ${collapsed ? 'flex justify-center' : ''}`}>
         {!collapsed && (
           <>
-            <p class="text-xs text-gray-400 truncate">{user?.email}</p>
-            {poweredBy && (
+            <p class="text-xs text-gray-400 truncate">
+              {user?.email}
+              <br />
+              <i class="text-gray-500">{user?.roles}</i>
+            </p>
+            {!hidePoweredBy && (
               <p class="text-[10px] text-gray-600 mt-2">
                 {t('layout.poweredBy')}{' '}
-                <a href="https://consenti.dev" target="_blank" rel="noopener noreferrer" class="hover:text-gray-400 transition-colors">
+                <a href="https://consenti.dev/?utm_source=dashboard&utm_medium=powered-by&utm_campaign=consenti-api" target="_blank" rel="noopener noreferrer" class="hover:text-gray-400 transition-colors">
                   Consenti
                 </a>
               </p>

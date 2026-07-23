@@ -21,6 +21,7 @@ import { ThemeProvider } from '@/contexts/theme-context'
 import { Navbar } from '@/components/Navbar'
 import { Footer } from '@/components/Footer'
 import { SaasRequestBadge } from '@/components/SaasRequestBadge'
+import { ScrollToTop } from '@/components/ScrollToTop'
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -251,13 +252,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           type="application/ld+json"
           dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
         />
-        <link rel="canonical" href="https://consenti.dev" />
         <link rel="alternate" type="text/plain" title="Consenti Documentation for AI / LLMs" href="https://consenti.dev/llms-full.txt" />
       </head>
       <body>
         <ThemeProvider>
           <DocsMenuProvider>
             <ConsentiProvider />
+            <ScrollToTop />
             <Navbar />
             {children}
             <Footer />

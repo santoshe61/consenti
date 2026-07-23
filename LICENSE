@@ -182,3 +182,30 @@
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
+
+   ============================================================================
+   ADDITIONAL DISCLAIMER — COMPLIANCE & LEGAL USE
+   ============================================================================
+
+   This notice supplements, and does not modify, the Apache License 2.0 terms
+   above (in particular Section 7, "Disclaimer of Warranty", and Section 8,
+   "Limitation of Liability").
+
+   Consenti is a software toolkit for building a cookie/consent management
+   flow. It is NOT legal advice, and installing or configuring it does not,
+   by itself, make any website, product, or organization compliant with
+   GDPR, CCPA/CPRA, TCF, DPDPA, LGPD, PIPL, or any other privacy law or
+   regulation in any jurisdiction. Whether a given deployment is actually
+   compliant depends entirely on how it is configured — the compliance
+   group selected, the cookies/categories/legal bases defined, the accuracy
+   of the banner and policy text, and the jurisdiction(s) actually served.
+
+   The Licensor and Contributors bear no responsibility for legal or
+   regulatory outcomes, fines, or other consequences arising from the use,
+   misuse, or misconfiguration of this software. Operators are solely
+   responsible for configuring Consenti correctly for their own
+   jurisdiction(s) and should consult qualified legal counsel before relying
+   on it for compliance purposes. Because Consenti is open source, anyone
+   who finds a gap, inaccuracy, or missing jurisdiction is free to modify
+   the software to address it — see CONTRIBUTING guidance in the project
+   repository.

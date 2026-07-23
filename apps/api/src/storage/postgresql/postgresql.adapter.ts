@@ -1,42 +1,56 @@
 import type { Pool, PoolClient, QueryResult } from 'pg'
-import { randomUUID } from '../../utils/crypto'
+import { randomUUID, randomProfileId, randomVisitorId, randomConsentId } from '../../utils/crypto'
 import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_POSTGRES } from '../seed-data'
+import { likePrefix } from '../../utils/sql-search'
 import type {
-  StorageAdapter, StorageConfig, Profile, ProfileConfig,
+  StorageAdapter, StorageConfig, Profile, StoredProfileJson,
   CreateProfileInput, UpdateProfileInput,
-  ConsentDbRecord, ConsentHistoryEntry, ConsentValue, ConsentFilters,
+  ConsentDbRecord, ConsentSummary, ConsentHistoryEntry, ConsentValue, ConsentFilters,
   CreateConsentInput, UpdateConsentInput,
   Visitor, VisitorFilters, CreateVisitorInput, UpdateVisitorInput,
   AdminUser, CreateUserInput, UpdateUserInput,
   Role, CreateRoleInput, UpdateRoleInput,
-  Permission, AuditLog, AuditFilters, CreateAuditLogInput,
+  Permission, AuditLog, AuditLogSummary, AuditFilters, CreateAuditLogInput,
   OverviewStats, CategoryStats, TimelineEntry,
   CountryStat, GpcStats, Tenant, ApiKey, CreateApiKeyInput,
-  CreateTenantInput, UpdateTenantInput,
+  CreateTenantInput, UpdateTenantInput, TenantSettings,
+  NoticeShownRecord, CreateNoticeShownInput, PagedResult,
 } from '@consenti/types'
 
 // ── Raw row shapes ─────────────────────────────────────────────────────────────
 
 interface RowProfile {
   id: string; tenant_id: string; name: string; default_locale: string
-  version: number; profile_json: string
+  // pg auto-parses json/jsonb columns into JS values — never raw text, so these are typed as
+  // the parsed shape, not `string`. Do NOT JSON.parse() these in the mappers below.
+  version: number; profile_json: StoredProfileJson
   created_at: string; updated_at: string
 }
 interface RowConsent {
   id: string; tenant_id: string; visitor_id: string; profile_id: string
-  profile_version: number; locale: string; consent_json: string
+  locale: string; consent_json: ConsentValue
   gpc_detected: boolean; source: string; created_at: string; updated_at: string
   age_verified?: boolean; parental_consent_token?: string | null; tcf_string?: string | null
+  signature?: string | null
+}
+interface RowConsentSummary {
+  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; gpc_detected: boolean; source: string
+  age_verified?: boolean; created_at: string; updated_at: string
 }
 interface RowConsentHistory {
   id: string; tenant_id: string; consent_record_id: string; visitor_id: string
-  old_json: string | null; new_json: string; action: string; created_at: string
+  old_json: ConsentValue | null; new_json: ConsentValue; action: string; created_at: string
 }
 interface RowVisitor {
   id: string; tenant_id: string; visitor_id: string
   country: string | null; region: string | null; city: string | null
   ip_hash: string | null; user_agent_hash: string | null
   first_seen: string; last_seen: string
+}
+interface RowNoticeShown {
+  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  locale: string; created_at: string
 }
 interface RowUser {
   id: string; tenant_id: string; name: string; email: string
@@ -48,14 +62,21 @@ interface RowPermission { id: string; name: string; description: string | null }
 interface RowAuditLog {
   id: string; tenant_id: string; user_id: string | null; action: string
   resource_type: string; resource_id: string | null
-  old_data: string | null; new_data: string | null; created_at: string
+  old_data: unknown; new_data: unknown; created_at: string
+}
+interface RowAuditLogSummary {
+  id: string; tenant_id: string; user_id: string | null; action: string
+  resource_type: string; resource_id: string | null; created_at: string
 }
 interface RowCount { total: string }
 interface RowStatus { status: string; count: string }
 interface RowDateCount { date: string; count: string }
 interface RowCookieStatus { cookie_id: string; status: string; count: string }
 interface RowCountry { country: string; count: string }
-interface RowApiKey { id: string; tenant_id: string; key_hash: string; name: string; is_active: boolean; created_at: string }
+interface RowApiKey {
+  id: string; tenant_id: string; key_hash: string; name: string; is_active: boolean
+  created_by: string | null; expire_by: string | null; created_at: string; updated_at: string | null
+}
 interface RowTenant { id: string; name: string; slug: string; created_at: string; updated_at: string }
 
 // ── Mappers ────────────────────────────────────────────────────────────────────
@@ -64,7 +85,7 @@ function mapProfile(r: RowProfile): Profile {
   return {
     id: r.id, tenantId: r.tenant_id, name: r.name,
     defaultLocale: r.default_locale, version: r.version,
-    profileJson: JSON.parse(r.profile_json) as ProfileConfig,
+    profileJson: r.profile_json,
     createdAt: r.created_at, updatedAt: r.updated_at,
   }
 }
@@ -72,13 +93,25 @@ function mapProfile(r: RowProfile): Profile {
 function mapConsent(r: RowConsent): ConsentDbRecord {
   return {
     id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id,
-    profileVersion: r.profile_version, locale: r.locale,
-    consentJson: JSON.parse(r.consent_json) as ConsentValue,
+    locale: r.locale,
+    consentJson: r.consent_json,
     gpcDetected: r.gpc_detected, source: r.source as ConsentDbRecord['source'],
     createdAt: r.created_at, updatedAt: r.updated_at,
     ...(r.age_verified != null ? { ageVerified: r.age_verified } : {}),
     ...(r.parental_consent_token != null ? { parentalConsentToken: r.parental_consent_token } : {}),
     ...(r.tcf_string != null ? { tcfString: r.tcf_string } : {}),
+    ...(r.signature != null ? { signature: r.signature } : {}),
+  }
+}
+
+const CONSENT_SUMMARY_COLS = 'id, tenant_id, visitor_id, profile_id, locale, gpc_detected, source, age_verified, created_at, updated_at'
+
+function mapConsentSummary(r: RowConsentSummary): ConsentSummary {
+  return {
+    id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id,
+    locale: r.locale, gpcDetected: r.gpc_detected, source: r.source as ConsentDbRecord['source'],
+    createdAt: r.created_at, updatedAt: r.updated_at,
+    ...(r.age_verified != null ? { ageVerified: r.age_verified } : {}),
   }
 }
 
@@ -86,8 +119,8 @@ function mapHistory(r: RowConsentHistory): ConsentHistoryEntry {
   return {
     id: r.id, tenantId: r.tenant_id, consentRecordId: r.consent_record_id,
     visitorId: r.visitor_id,
-    oldJson: r.old_json ? JSON.parse(r.old_json) as ConsentValue : null,
-    newJson: JSON.parse(r.new_json) as ConsentValue,
+    oldJson: r.old_json,
+    newJson: r.new_json,
     action: r.action as ConsentHistoryEntry['action'], createdAt: r.created_at,
   }
 }
@@ -133,8 +166,19 @@ function mapAuditLog(r: RowAuditLog): AuditLog {
     id: r.id, tenantId: r.tenant_id, action: r.action, resourceType: r.resource_type,
     ...(r.user_id != null ? { userId: r.user_id } : {}),
     ...(r.resource_id != null ? { resourceId: r.resource_id } : {}),
-    ...(r.old_data != null ? { oldData: JSON.parse(r.old_data) as unknown } : {}),
-    ...(r.new_data != null ? { newData: JSON.parse(r.new_data) as unknown } : {}),
+    ...(r.old_data != null ? { oldData: r.old_data } : {}),
+    ...(r.new_data != null ? { newData: r.new_data } : {}),
+    createdAt: r.created_at,
+  }
+}
+
+const AUDIT_SUMMARY_COLS = 'id, tenant_id, user_id, action, resource_type, resource_id, created_at'
+
+function mapAuditSummary(r: RowAuditLogSummary): AuditLogSummary {
+  return {
+    id: r.id, tenantId: r.tenant_id, action: r.action, resourceType: r.resource_type,
+    ...(r.user_id != null ? { userId: r.user_id } : {}),
+    ...(r.resource_id != null ? { resourceId: r.resource_id } : {}),
     createdAt: r.created_at,
   }
 }
@@ -165,6 +209,11 @@ export class PostgreSQLAdapter implements StorageAdapter {
         password: cfg.password ?? '',
         database: cfg.database ?? 'consenti',
       }
+    // Bounded by default (10, matching pg's own default — made explicit/tunable). Timeouts stay
+    // unset unless configured: see StorageConfig.statementTimeoutMs's doc comment for why.
+    poolCfg['max'] = cfg.poolMax ?? 10
+    if (cfg.statementTimeoutMs != null) poolCfg['statement_timeout'] = cfg.statementTimeoutMs
+    if (cfg.idleInTransactionTimeoutMs != null) poolCfg['idle_in_transaction_session_timeout'] = cfg.idleInTransactionTimeoutMs
     this.pool = new PgPool(poolCfg)
     await this.migrate()
   }
@@ -174,6 +223,10 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async migrate(): Promise<void> {
+    // No installations predate this schema, so a fresh connect always creates the full current
+    // table set in one pass — no incremental/versioned steps needed. `schema_version` is kept
+    // as the hook for whenever a *real* future migration is needed: add `if (version < N)`
+    // blocks below the initial creation, the same shape as the removed historical ones.
     const client: PoolClient = await this.pool.connect()
     try {
       let version = 0
@@ -191,39 +244,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
             await client.query(stmt)
           }
           await this.seedTx(client)
-          await client.query('INSERT INTO schema_version (version) VALUES (2) ON CONFLICT DO NOTHING')
-          await client.query('COMMIT')
-        } catch (err) {
-          await client.query('ROLLBACK')
-          throw err
-        }
-        return
-      }
-
-      if (version < 2) {
-        await client.query('BEGIN')
-        try {
-          const alters = [
-            'ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS age_verified BOOLEAN NOT NULL DEFAULT FALSE',
-            'ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS parental_consent_token TEXT',
-            'ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS tcf_string TEXT',
-            'ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT',
-            'ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_enabled BOOLEAN NOT NULL DEFAULT FALSE',
-          ]
-          for (const stmt of alters) await client.query(stmt)
-          await client.query('INSERT INTO schema_version (version) VALUES (2) ON CONFLICT DO NOTHING')
-          await client.query('COMMIT')
-        } catch (err) {
-          await client.query('ROLLBACK')
-          throw err
-        }
-      }
-
-      if (version < 3) {
-        await client.query('BEGIN')
-        try {
-          await client.query('ALTER TABLE user_roles ADD COLUMN IF NOT EXISTS tenant_id TEXT NOT NULL DEFAULT \'default\'')
-          await client.query('INSERT INTO schema_version (version) VALUES (3) ON CONFLICT DO NOTHING')
+          await client.query('INSERT INTO schema_version (version) VALUES (1) ON CONFLICT DO NOTHING')
           await client.query('COMMIT')
         } catch (err) {
           await client.query('ROLLBACK')
@@ -263,11 +284,11 @@ export class PostgreSQLAdapter implements StorageAdapter {
   // ── Profiles ─────────────────────────────────────────────────────────────────
 
   async createProfile(data: CreateProfileInput): Promise<Profile> {
-    const id = randomUUID()
+    const id = randomProfileId()
     const rows = await this.q<RowProfile>(
-      `INSERT INTO profiles (id, tenant_id, name, default_locale, profile_json)
-       VALUES ($1,$2,$3,$4,$5::jsonb) RETURNING *`,
-      [id, data.tenantId, data.name, data.defaultLocale, JSON.stringify(data.profileJson)],
+      `INSERT INTO profiles (id, tenant_id, name, default_locale, version, profile_json)
+       VALUES ($1,$2,$3,$4,$5,$6::json) RETURNING *`,
+      [id, data.tenantId, data.name, data.defaultLocale, 1, JSON.stringify(data.profileJson)],
     )
     const row = rows[0]
     if (!row) throw new Error('Profile creation failed')
@@ -275,12 +296,13 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async updateProfile(id: string, data: UpdateProfileInput): Promise<Profile> {
-    const sets: string[] = ['version = version + 1', 'updated_at = NOW()']
+    const sets: string[] = ['updated_at = NOW()']
     const vals: (string | number | boolean | null)[] = []
     let idx = 1
     if (data.name != null) { sets.push(`name=$${idx++}`); vals.push(data.name) }
     if (data.defaultLocale != null) { sets.push(`default_locale=$${idx++}`); vals.push(data.defaultLocale) }
-    if (data.profileJson != null) { sets.push(`profile_json=$${idx++}::jsonb`); vals.push(JSON.stringify(data.profileJson)) }
+    if (data.profileJson != null) { sets.push(`profile_json=$${idx++}::json`); vals.push(JSON.stringify(data.profileJson)) }
+    if (data.version != null) { sets.push(`version=$${idx++}`); vals.push(data.version) }
     vals.push(id)
     const rows = await this.q<RowProfile>(
       `UPDATE profiles SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
@@ -307,18 +329,22 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   async findActiveProfileByComplianceGroup(tenantId: string, complianceGroup: string): Promise<Profile | null> {
     const profiles = await this.getProfiles(tenantId)
-    return profiles.find(p => p.profileJson.complianceGroup === complianceGroup && p.profileJson.isActive) ?? null
+    return profiles.find(p =>
+      (p.profileJson.complianceGroup === complianceGroup || (p.profileJson as { customComplianceGroup?: string }).customComplianceGroup === complianceGroup) &&
+      p.profileJson.isActive
+    ) ?? null
   }
 
   // ── Consents ─────────────────────────────────────────────────────────────────
 
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
-    const id = randomUUID()
+    const id = randomConsentId()
     const rows = await this.q<RowConsent>(
-      `INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, profile_version, locale, consent_json, gpc_detected, source)
-       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9) RETURNING *`,
-      [id, data.tenantId, data.visitorId, data.profileId, data.profileVersion,
-        data.locale, JSON.stringify(data.consentJson), data.gpcDetected, data.source],
+      `INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, signature)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      [id, data.tenantId, data.visitorId, data.profileId,
+        data.locale, JSON.stringify(data.consentJson), data.gpcDetected, data.source,
+        data.ageVerified ?? false, data.parentalConsentToken ?? null, data.tcfString ?? null, data.signature ?? null],
     )
     const row = rows[0]
     if (!row) throw new Error('Consent creation failed')
@@ -334,6 +360,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     let idx = 2
     if (data.locale != null) { sets.push(`locale=$${idx++}`); vals.push(data.locale) }
     if (data.gpcDetected != null) { sets.push(`gpc_detected=$${idx++}`); vals.push(data.gpcDetected) }
+    if (data.signature != null) { sets.push(`signature=$${idx++}`); vals.push(data.signature) }
     vals.push(visitorId)
     const rows = await this.q<RowConsent>(
       `UPDATE consent_records SET ${sets.join(',')} WHERE visitor_id=$${idx} RETURNING *`,
@@ -355,31 +382,39 @@ export class PostgreSQLAdapter implements StorageAdapter {
     return rows[0] ? mapConsent(rows[0]) : null
   }
 
-  async getConsents(filters: ConsentFilters): Promise<ConsentDbRecord[]> {
-    const { sql, params, nextIdx } = this.buildConsentQuery(filters)
+  async getConsents(filters: ConsentFilters): Promise<PagedResult<ConsentSummary>> {
+    const { where, params, nextIdx } = this.buildConsentWhere(filters)
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const rows = await this.q<RowConsent>(
-      `${sql} ORDER BY created_at DESC LIMIT $${nextIdx} OFFSET $${nextIdx + 1}`,
-      [...params, limit, (page - 1) * limit],
-    )
-    return rows.map(mapConsent)
+    const [rows, countRows] = await Promise.all([
+      this.q<RowConsentSummary>(
+        `SELECT ${CONSENT_SUMMARY_COLS} ${where} ORDER BY created_at DESC LIMIT $${nextIdx} OFFSET $${nextIdx + 1}`,
+        [...params, limit, (page - 1) * limit],
+      ),
+      this.q<RowCount>(`SELECT COUNT(*)::int AS total ${where}`, params),
+    ])
+    return { items: rows.map(mapConsentSummary), total: Number(countRows[0]?.total ?? 0), page, limit }
   }
 
   async *streamConsents(filters: ConsentFilters): AsyncIterable<ConsentDbRecord> {
-    const { sql, params } = this.buildConsentQuery(filters)
-    const rows = await this.q<RowConsent>(`${sql} ORDER BY created_at ASC`, params)
+    const { where, params } = this.buildConsentWhere(filters)
+    const rows = await this.q<RowConsent>(`SELECT * ${where} ORDER BY created_at ASC`, params)
     for (const r of rows) yield mapConsent(r)
   }
 
-  private buildConsentQuery(f: ConsentFilters): { sql: string; params: (string | number | boolean | null)[]; nextIdx: number } {
-    let sql = 'SELECT * FROM consent_records WHERE tenant_id=$1'
+  private buildConsentWhere(f: ConsentFilters): { where: string; params: (string | number | boolean | null)[]; nextIdx: number } {
+    let where = 'FROM consent_records WHERE tenant_id=$1'
     const params: (string | number | boolean | null)[] = [f.tenantId]
     let idx = 2
-    if (f.profileId != null) { sql += ` AND profile_id=$${idx++}`; params.push(f.profileId) }
-    if (f.from != null) { sql += ` AND created_at>=$${idx++}`; params.push(f.from) }
-    if (f.to != null) { sql += ` AND created_at<=$${idx++}`; params.push(f.to) }
-    return { sql, params, nextIdx: idx }
+    if (f.profileId != null) { where += ` AND profile_id=$${idx++}`; params.push(f.profileId) }
+    if (f.from != null) { where += ` AND created_at>=$${idx++}`; params.push(f.from) }
+    if (f.to != null) { where += ` AND created_at<=$${idx++}`; params.push(f.to) }
+    if (f.q) {
+      where += ` AND (visitor_id ILIKE $${idx} OR profile_id ILIKE $${idx} OR locale ILIKE $${idx} OR source ILIKE $${idx}) ESCAPE '\\'`
+      params.push(likePrefix(f.q))
+      idx++
+    }
+    return { where, params, nextIdx: idx }
   }
 
   private async writeHistory(
@@ -402,10 +437,32 @@ export class PostgreSQLAdapter implements StorageAdapter {
     return rows.map(mapHistory)
   }
 
+  async createNoticeShown(data: CreateNoticeShownInput): Promise<NoticeShownRecord> {
+    const id = randomUUID()
+    const rows = await this.q<RowNoticeShown>(
+      `INSERT INTO notice_shown (id, tenant_id, visitor_id, profile_id, locale)
+       VALUES ($1,$2,$3,$4,$5) RETURNING *`,
+      [id, data.tenantId, data.visitorId, data.profileId, data.locale],
+    )
+    const r = rows[0]!
+    return { id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id, locale: r.locale, createdAt: r.created_at }
+  }
+
+  async getNoticeShownForVisitor(visitorId: string): Promise<NoticeShownRecord[]> {
+    const rows = await this.q<RowNoticeShown>(
+      'SELECT * FROM notice_shown WHERE visitor_id=$1 ORDER BY created_at DESC',
+      [visitorId],
+    )
+    return rows.map(r => ({
+      id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id,
+      profileId: r.profile_id, locale: r.locale, createdAt: r.created_at,
+    }))
+  }
+
   // ── Visitors ─────────────────────────────────────────────────────────────────
 
   async createVisitor(data: CreateVisitorInput): Promise<Visitor> {
-    const id = randomUUID()
+    const id = randomVisitorId()
     const rows = await this.q<RowVisitor>(
       `INSERT INTO visitors (id, tenant_id, visitor_id, country, region, city, ip_hash, user_agent_hash)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
@@ -444,19 +501,27 @@ export class PostgreSQLAdapter implements StorageAdapter {
     return rows[0] ? mapVisitor(rows[0]) : null
   }
 
-  async getVisitors(filters: VisitorFilters): Promise<Visitor[]> {
-    let sql = 'SELECT * FROM visitors WHERE tenant_id=$1'
+  async getVisitors(filters: VisitorFilters): Promise<PagedResult<Visitor>> {
+    let where = 'FROM visitors WHERE tenant_id=$1'
     const params: (string | number | boolean | null)[] = [filters.tenantId]
     let idx = 2
-    if (filters.from != null) { sql += ` AND first_seen>=$${idx++}`; params.push(filters.from) }
-    if (filters.to != null) { sql += ` AND first_seen<=$${idx++}`; params.push(filters.to) }
+    if (filters.from != null) { where += ` AND first_seen>=$${idx++}`; params.push(filters.from) }
+    if (filters.to != null) { where += ` AND first_seen<=$${idx++}`; params.push(filters.to) }
+    if (filters.q) {
+      where += ` AND (visitor_id ILIKE $${idx} OR country ILIKE $${idx}) ESCAPE '\\'`
+      params.push(likePrefix(filters.q))
+      idx++
+    }
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const rows = await this.q<RowVisitor>(
-      `${sql} ORDER BY first_seen DESC LIMIT $${idx} OFFSET $${idx + 1}`,
-      [...params, limit, (page - 1) * limit],
-    )
-    return rows.map(mapVisitor)
+    const [rows, countRows] = await Promise.all([
+      this.q<RowVisitor>(
+        `SELECT * ${where} ORDER BY first_seen DESC LIMIT $${idx} OFFSET $${idx + 1}`,
+        [...params, limit, (page - 1) * limit],
+      ),
+      this.q<RowCount>(`SELECT COUNT(*)::int AS total ${where}`, params),
+    ])
+    return { items: rows.map(mapVisitor), total: Number(countRows[0]?.total ?? 0), page, limit }
   }
 
   // ── Stats ─────────────────────────────────────────────────────────────────────
@@ -689,32 +754,45 @@ export class PostgreSQLAdapter implements StorageAdapter {
     )
   }
 
-  async getLogs(filters: AuditFilters): Promise<AuditLog[]> {
-    const { sql, params, nextIdx } = this.buildAuditQuery(filters)
+  async getLogs(filters: AuditFilters): Promise<PagedResult<AuditLogSummary>> {
+    const { where, params, nextIdx } = this.buildAuditWhere(filters)
     const page = filters.page ?? 1
     const limit = filters.limit ?? 50
-    const rows = await this.q<RowAuditLog>(
-      `${sql} ORDER BY created_at DESC LIMIT $${nextIdx} OFFSET $${nextIdx + 1}`,
-      [...params, limit, (page - 1) * limit],
-    )
-    return rows.map(mapAuditLog)
+    const [rows, countRows] = await Promise.all([
+      this.q<RowAuditLogSummary>(
+        `SELECT ${AUDIT_SUMMARY_COLS} ${where} ORDER BY created_at DESC LIMIT $${nextIdx} OFFSET $${nextIdx + 1}`,
+        [...params, limit, (page - 1) * limit],
+      ),
+      this.q<RowCount>(`SELECT COUNT(*)::int AS total ${where}`, params),
+    ])
+    return { items: rows.map(mapAuditSummary), total: Number(countRows[0]?.total ?? 0), page, limit }
+  }
+
+  async getAuditLogById(id: string): Promise<AuditLog | null> {
+    const rows = await this.q<RowAuditLog>('SELECT * FROM audit_logs WHERE id=$1', [id])
+    return rows[0] ? mapAuditLog(rows[0]) : null
   }
 
   async *streamAuditLogs(filters: AuditFilters): AsyncIterable<AuditLog> {
-    const { sql, params } = this.buildAuditQuery(filters)
-    const rows = await this.q<RowAuditLog>(`${sql} ORDER BY created_at ASC`, params)
+    const { where, params } = this.buildAuditWhere(filters)
+    const rows = await this.q<RowAuditLog>(`SELECT * ${where} ORDER BY created_at ASC`, params)
     for (const r of rows) yield mapAuditLog(r)
   }
 
-  private buildAuditQuery(f: AuditFilters): { sql: string; params: (string | number | boolean | null)[]; nextIdx: number } {
-    let sql = 'SELECT * FROM audit_logs WHERE tenant_id=$1'
+  private buildAuditWhere(f: AuditFilters): { where: string; params: (string | number | boolean | null)[]; nextIdx: number } {
+    let where = 'FROM audit_logs WHERE tenant_id=$1'
     const params: (string | number | boolean | null)[] = [f.tenantId]
     let idx = 2
-    if (f.action != null) { sql += ` AND action=$${idx++}`; params.push(f.action) }
-    if (f.resourceType != null) { sql += ` AND resource_type=$${idx++}`; params.push(f.resourceType) }
-    if (f.from != null) { sql += ` AND created_at>=$${idx++}`; params.push(f.from) }
-    if (f.to != null) { sql += ` AND created_at<=$${idx++}`; params.push(f.to) }
-    return { sql, params, nextIdx: idx }
+    if (f.action != null) { where += ` AND action=$${idx++}`; params.push(f.action) }
+    if (f.resourceType != null) { where += ` AND resource_type=$${idx++}`; params.push(f.resourceType) }
+    if (f.from != null) { where += ` AND created_at>=$${idx++}`; params.push(f.from) }
+    if (f.to != null) { where += ` AND created_at<=$${idx++}`; params.push(f.to) }
+    if (f.q) {
+      where += ` AND (action ILIKE $${idx} OR resource_type ILIKE $${idx} OR resource_id ILIKE $${idx} OR user_id ILIKE $${idx}) ESCAPE '\\'`
+      params.push(likePrefix(f.q))
+      idx++
+    }
+    return { where, params, nextIdx: idx }
   }
 
   // ── Stats extensions ───────────────────────────────────────────────────────────
@@ -747,31 +825,51 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   // ── API Keys ──────────────────────────────────────────────────────────────────
 
+  private mapApiKey(r: RowApiKey): ApiKey {
+    return {
+      id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active,
+      ...(r.created_by !== null ? { createdBy: r.created_by } : {}),
+      ...(r.expire_by !== null ? { expireBy: r.expire_by } : {}),
+      createdAt: r.created_at,
+      ...(r.updated_at !== null ? { updatedAt: r.updated_at } : {}),
+    }
+  }
+
   async createApiKey(data: CreateApiKeyInput): Promise<ApiKey> {
     const id = randomUUID()
     const rows = await this.q<RowApiKey>(
-      'INSERT INTO api_keys (id, tenant_id, key_hash, name) VALUES ($1,$2,$3,$4) RETURNING *',
-      [id, data.tenantId, data.keyHash, data.name],
+      'INSERT INTO api_keys (id, tenant_id, key_hash, name, created_by, expire_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      [id, data.tenantId, data.keyHash, data.name, data.createdBy ?? null, data.expireBy ?? null],
     )
     const r = rows[0]
     if (!r) throw new Error('Failed to create API key')
-    return { id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active, createdAt: r.created_at }
+    return this.mapApiKey(r)
   }
 
   async getApiKeyByHash(keyHash: string): Promise<ApiKey | null> {
     const rows = await this.q<RowApiKey>('SELECT * FROM api_keys WHERE key_hash=$1 AND is_active=TRUE', [keyHash])
     const r = rows[0]
-    if (!r) return null
-    return { id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active, createdAt: r.created_at }
+    return r ? this.mapApiKey(r) : null
   }
 
   async revokeApiKey(id: string): Promise<void> {
-    await this.q('UPDATE api_keys SET is_active=FALSE WHERE id=$1', [id])
+    await this.q('UPDATE api_keys SET is_active=FALSE, updated_at=NOW() WHERE id=$1', [id])
+  }
+
+  async reactivateApiKey(id: string): Promise<void> {
+    await this.q(
+      "UPDATE api_keys SET is_active=TRUE, updated_at=NOW(), expire_by=CASE WHEN expire_by <= NOW() THEN NULL ELSE expire_by END WHERE id=$1",
+      [id],
+    )
+  }
+
+  async deleteApiKey(id: string): Promise<void> {
+    await this.q('DELETE FROM api_keys WHERE id=$1', [id])
   }
 
   async getApiKeys(tenantId: string): Promise<ApiKey[]> {
     const rows = await this.q<RowApiKey>('SELECT * FROM api_keys WHERE tenant_id=$1 ORDER BY created_at DESC', [tenantId])
-    return rows.map(r => ({ id: r.id, tenantId: r.tenant_id, keyHash: r.key_hash, name: r.name, isActive: r.is_active, createdAt: r.created_at }))
+    return rows.map(r => this.mapApiKey(r))
   }
 
   async createTenant(data: CreateTenantInput): Promise<Tenant> {
@@ -806,6 +904,25 @@ export class PostgreSQLAdapter implements StorageAdapter {
     await this.q('DELETE FROM tenants WHERE id=$1', [id])
   }
 
+  async getSettings(tenantId: string): Promise<TenantSettings> {
+    const rows = await this.q<{ allowed_origins_json: string[]; admin_allowed_origins_json: string[]; setup_completed: boolean }>(
+      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed FROM tenant_settings WHERE tenant_id=$1', [tenantId],
+    )
+    const r = rows[0]
+    return r ? { allowedOrigins: r.allowed_origins_json, adminAllowedOrigins: r.admin_allowed_origins_json, setupCompleted: r.setup_completed } : {}
+  }
+
+  async updateSettings(tenantId: string, data: Partial<TenantSettings>): Promise<TenantSettings> {
+    const current = await this.getSettings(tenantId)
+    const merged = { ...current, ...data }
+    await this.q(
+      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, updated_at) VALUES ($1,$2::jsonb,$3::jsonb,$4,NOW())
+       ON CONFLICT (tenant_id) DO UPDATE SET allowed_origins_json=$2::jsonb, admin_allowed_origins_json=$3::jsonb, setup_completed=$4, updated_at=NOW()`,
+      [tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ?? false],
+    )
+    return this.getSettings(tenantId)
+  }
+
   async purgeExpiredConsents(olderThanDays: number): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
     const visitorRows = await this.q<{ visitor_id: string }>(
@@ -819,13 +936,20 @@ export class PostgreSQLAdapter implements StorageAdapter {
     return ids.length
   }
 
+  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
+    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
+    const rows = await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM audit_logs WHERE created_at < $1', [cutoff])
+    await this.q('DELETE FROM audit_logs WHERE created_at < $1', [cutoff])
+    return Number(rows[0]?.total ?? 0)
+  }
+
   // Template methods — not yet implemented for PostgreSQL adapter
-  async createCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async updateCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async deleteCookieTemplate(): Promise<void> { throw new Error('Not implemented') }
-  async getCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async getCookieTemplates(): Promise<never> { throw new Error('Not implemented') }
-  async copyCookieTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async createConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async updateConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async deleteConsentTemplate(): Promise<void> { throw new Error('Not implemented') }
+  async getConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
+  async getConsentTemplates(): Promise<never> { throw new Error('Not implemented') }
+  async copyConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
   async createUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async updateUITemplate(): Promise<never> { throw new Error('Not implemented') }
   async deleteUITemplate(): Promise<void> { throw new Error('Not implemented') }
@@ -835,7 +959,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   // Profile summary / analytics — not yet implemented for PostgreSQL adapter
   async listProfilesSummary(): Promise<never[]> { return [] }
-  async findProfilesUsingCookieTemplate(): Promise<never[]> { return [] }
+  async findProfilesUsingConsentTemplate(): Promise<never[]> { return [] }
   async findProfilesUsingUITemplate(): Promise<never[]> { return [] }
   async getOptInStats(): Promise<never> { throw new Error('Not implemented') }
 }

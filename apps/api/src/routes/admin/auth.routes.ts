@@ -69,6 +69,25 @@ export function buildAdminAuthRoutes(
     'POST /auth/logout': async (_req: Request, _p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => json(200, { success: true })),
 
+    /** Reissues a fresh token from the current (still-valid) one, extending the session another
+     * `SESSION_TTL_SECONDS` — called by the dashboard on user activity to implement a sliding
+     * inactivity timeout rather than a flat expiry from login. 401s the same as any other
+     * authenticated route if the current token is already invalid/expired — by design, since the
+     * dashboard only ever calls this proactively, before expiry. */
+    'POST /auth/refresh': async (req: Request, _p: Record<string, string>): Promise<Response> =>
+      withErrorHandler(async () => {
+        const user = await authenticate(req, storage, authConfig, secret)
+        if (!user) return errorResponse(401, 'Unauthorized')
+        const token = localAuth.signToken({
+          sub: user.sub,
+          email: user.email,
+          roles: user.roles,
+          permissions: user.permissions,
+          allowedTenants: user.allowedTenants,
+        })
+        return json(200, { token })
+      }),
+
     // ── OIDC ────────────────────────────────────────────────────────────────────
 
     'GET /auth/oidc/authorize': async (_req: Request, _p: Record<string, string>): Promise<Response> =>

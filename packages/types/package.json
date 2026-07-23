@@ -13,6 +13,7 @@
   },
   "scripts": {
     "build": "tsc",
+    "watch": "tsc --watch",
     "typecheck": "tsc --noEmit"
   },
   "devDependencies": {
