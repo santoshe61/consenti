@@ -65,7 +65,7 @@
     "preact": "^10.29.7",
     "tailwindcss": "^4.3.3",
     "tsup": "^8.5.0",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "vite": "^8.1.5"
   },
   "peerDependencies": {
