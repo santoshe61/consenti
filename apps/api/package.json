@@ -61,7 +61,7 @@
     "mysql2": "^3.23.1",
     "node-sqlite3-wasm": "^0.8.59",
     "pg": "^8.0.0",
-    "postcss": "^8.5.20",
+    "postcss": "^8.5.22",
     "preact": "^10.29.7",
     "tailwindcss": "^4.3.3",
     "tsup": "^8.5.0",
