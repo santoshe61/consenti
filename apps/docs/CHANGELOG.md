@@ -1,5 +1,18 @@
 # @consenti/docs
 
+## 0.3.0
+
+### Minor Changes
+
+- ee33430: consent-authoring revamp, profile history, and TCF/RTL/age-gate widget features (0.3.0)
+
+### Patch Changes
+
+- Updated dependencies [ee33430]
+  - @consenti/utils@0.3.0
+  - @consenti/api@0.3.0
+  - @consenti/ui@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
