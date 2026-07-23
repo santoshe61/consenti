@@ -32,7 +32,7 @@
     "npm-run-all": "^4.1.5",
     "tsx": "^4.23.0",
     "turbo": "^2.10.5",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "overrides": {
     "postcss": "^8.5.20"

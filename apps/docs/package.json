@@ -30,7 +30,7 @@
     "autoprefixer": "^10.5.4",
     "postcss": "^8.5.20",
     "tailwindcss": "^4.3.1",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "packageManager": "npm@10.9.2",
   "engines": {
