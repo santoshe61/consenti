@@ -1,5 +1,11 @@
 # @consenti/types
 
+## 0.3.0
+
+### Minor Changes
+
+- ee33430: consent-authoring revamp, profile history, and TCF/RTL/age-gate widget features (0.3.0)
+
 ## 0.2.0
 
 ### Minor Changes
