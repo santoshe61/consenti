@@ -56,7 +56,7 @@
     "@types/node": "^26.1.1",
     "@types/pg": "^8.11.0",
     "autoprefixer": "^10.5.4",
-    "lucide-react": "^1.25.0",
+    "lucide-react": "^1.26.0",
     "mongodb": "^7.5.0",
     "mysql2": "^3.23.1",
     "node-sqlite3-wasm": "^0.8.59",
