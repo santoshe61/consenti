@@ -59,7 +59,7 @@
     "lucide-react": "^1.25.0",
     "mongodb": "^7.5.0",
     "mysql2": "^3.23.1",
-    "node-sqlite3-wasm": "^0.8.59",
+    "node-sqlite3-wasm": "^0.8.60",
     "pg": "^8.0.0",
     "postcss": "^8.5.20",
     "preact": "^10.29.7",
@@ -73,7 +73,7 @@
     "geoip-lite": ">=1.4.0",
     "mongodb": ">=6.0.0",
     "mysql2": ">=3.0.0",
-    "node-sqlite3-wasm": "^0.8.59",
+    "node-sqlite3-wasm": "^0.8.60",
     "pg": ">=8.0.0"
   },
   "peerDependenciesMeta": {
