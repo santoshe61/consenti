@@ -36,7 +36,7 @@
     "@consenti/types": "*",
     "@types/node": "^26.1.1",
     "@types/pngjs": "^6.0.5",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "packageManager": "npm@10.9.2",
   "engines": {
