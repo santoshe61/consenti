@@ -18,7 +18,7 @@
   },
   "devDependencies": {
     "@consenti/utils": "*",
-    "typescript": "^6.0.3"
+    "typescript": "^7.0.2"
   },
   "packageManager": "npm@10.9.2",
   "engines": {
