@@ -5,7 +5,8 @@ import { CodeBlock } from '@/components/CodeBlock'
 export const metadata: Metadata = {
   title: 'UI Widget',
   description:
-    '@consenti/ui is a zero-dependency TypeScript library that owns the complete frontend consent lifecycle.',
+    '@consenti/ui is a zero-dependency TypeScript library that owns the complete frontend consent lifecycle — a GDPR cookie banner for React, Vue, Angular, and vanilla JS.',
+  keywords: ['GDPR cookie banner React', 'Vue cookie consent', 'cookie consent widget'],
   alternates: { canonical: '/docs/ui' },
   openGraph: {
     title: 'UI Widget',
@@ -97,14 +98,20 @@ export default function UIOverviewPage() {
 
       <h3>2. Config — how the widget behaves</h3>
       <p>
-        <code>ConsentiSetup</code> accepts one config object with five top-level keys:
+        <code>ConsentiSetup</code> accepts one config object with six top-level keys:
       </p>
       <ul>
         <li>
           <strong>
+            <code>compliance</code>
+          </strong>{' '}
+          — pin a compliance group with <code>type</code> instead of auto-detecting, TCF options
+        </li>
+        <li>
+          <strong>
             <code>core</code>
           </strong>{' '}
-          — regulation, locale, storage mode, GPC handling, cookie signing, theme tokens
+          — locale, storage mode, cookie signing, theme tokens
         </li>
         <li>
           <strong>
@@ -128,7 +135,7 @@ export default function UIOverviewPage() {
           <strong>
             <code>profileOverride</code>
           </strong>{' '}
-          — runtime profile patches
+          — runtime profile patches, including per-profile GPC handling (<code>gpcMode</code>)
         </li>
       </ul>
       <p>

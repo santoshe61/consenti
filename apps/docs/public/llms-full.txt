@@ -1,8 +1,8 @@
 # Consenti — Full Documentation
 
-> Open-source Cookie Consent & Consent Management Platform (CMP). Zero external runtime dependencies. Apache 2.0 license.
+> Open-source, GDPR-style opt-in Cookie Consent & Consent Management Platform (CMP) toolkit. Zero external runtime dependencies. Apache 2.0 license.
 
-Consenti is a full-featured CMP built for developers. It ships as two independent npm packages and is a self-hosted, open-source alternative to enterprise CMPs like OneTrust, Cookiebot, and Syrenis Cassie.
+Consenti is a self-hosted, open-source consent toolkit built for developers — browser-first, with an optional backend for durable storage, dashboard authoring, and an audit log. It ships as two independent npm packages. It is not a hosted enterprise CMP like OneTrust or Cookiebot, which include dedicated legal/compliance teams and infrastructure Consenti does not replicate.
 
 - Source: https://github.com/santoshe61/consenti
 - npm UI: https://www.npmjs.com/package/@consenti/ui
@@ -14,8 +14,9 @@ Consenti is a full-featured CMP built for developers. It ships as two independen
 
 ## Packages
 
-- `@consenti/ui` — Browser widget. Renders the consent banner and preference modal. CSS is auto-injected at runtime — no separate CSS import needed. Handles GPC signal detection, cross-tab sync via BroadcastChannel, Google Consent Mode v2, GTM integration, i18n (locale resolution), and accessibility (WCAG AAA, focus trap, ARIA roles).
-- `@consenti/api` — Node.js backend module. Records consent to SQLite, MongoDB, PostgreSQL, or MySQL via a StorageAdapter interface. Serves a built-in Preact admin dashboard at `/consenti/`. Provides a REST API. Implements RBAC, multiple auth modes (local, OIDC, SAML), immutable audit logs, and GDPR right-to-erasure endpoint.
+- `@consenti/ui` — Browser widget. Renders the consent banner and preference modal. CSS is auto-injected at runtime — no separate CSS import needed. Handles GPC signal detection, cross-tab sync via BroadcastChannel, Google Consent Mode v2, GTM integration, i18n (locale resolution), and accessibility (focus trap, ARIA roles, targeting WCAG 2.x AA).
+- `@consenti/api` — Node.js backend module. Records consent to SQLite, MongoDB, PostgreSQL, or MySQL via a StorageAdapter interface. Serves a built-in Preact admin dashboard at `/consenti/`. Provides a REST API. Implements RBAC, multiple auth modes (local, OIDC, SAML), an append-only audit log (never deleted by Consenti, under any configuration), and a GDPR right-to-erasure endpoint.
+- `@consenti/scanner` — Local CLI, not published to npm. Crawls a site under none/reject-all/accept-all consent states and reports undeclared third-party trackers with confidence-scored classification, fully offline.
 
 ---
 
@@ -25,7 +26,7 @@ Consenti is a full-featured CMP built for developers. It ships as two independen
 - UI zero external runtime deps: `document.cookie`, `BroadcastChannel`, `crypto.subtle`, `fetch`, `localStorage`
 - API zero external runtime deps: `node:sqlite` (Node 22.5+), `node:crypto`, `node:fs`, `node:path`
 - Build: tsup (ESM + UMD for UI; CJS + ESM for API), Turborepo monorepo, npm workspaces
-- Security: IPs stored as SHA-256 hashes only, passwords via scrypt (native), JWT via HMAC-SHA256 (native), signed consent cookies using HMAC
+- Security: IPs masked (last octet/80 bits zeroed) and salted before SHA-256 hashing, passwords via scrypt (native), JWT via HMAC-SHA256 (native), signed consent cookies using HMAC (server-side verification via `@consenti/api`'s `dataSigningHash`; standalone `@consenti/ui`-only signing is tamper-evidence, not tamper-proof — see SECURITY.md)
 - User IDs: `crypto.randomUUID()` — no PII stored
 - License: Apache 2.0
 - Language: TypeScript strict mode throughout
@@ -34,30 +35,37 @@ Consenti is a full-featured CMP built for developers. It ships as two independen
 
 ## Compliance Coverage
 
-| Regulation | Jurisdiction | Mode | Status |
+Status reflects how confidently Consenti tracks ongoing legal changes, not just whether code exists — same
+tiers as `ECOSYSTEM.md`. Maintained = actively tracked as the law changes. In development = supported today,
+rollout still being finished. Supported = code is complete and stable, but not tracked as closely as the
+Maintained tier. Partial = infrastructure provided; your own config/legal review finishes the specifics.
+Routing-only = the country is mapped to a compliance-group default, but not individually legal-maintained.
+
+| Regulation | Jurisdiction | Auto-resolves to | Status |
 |---|---|---|---|
-| GDPR | EU / EEA | Opt-in | Full |
-| UK GDPR | United Kingdom | Opt-in | Full |
-| CCPA / CPRA | California, USA | Opt-out | Full |
-| VCDPA / CPA / CTDPA | Virginia, Colorado, Connecticut | Opt-out | Full |
-| LGPD | Brazil | Opt-in | Full |
-| PIPL | China | Opt-in | Full |
-| PDPA | Thailand | Opt-in | Full |
-| APPI | Japan | Opt-in | Full |
-| DPDPA | India | Opt-in | Full |
-| POPIA | South Africa | Opt-in | Full |
-| PIPEDA / Law 25 | Canada / Quebec | Opt-in | Full |
-| KVKK | Turkey | Opt-in | Full |
-| TCF v2.2 | IAB / Global | Vendor consent | Full |
-| GPC | Global | Signal detection | Full |
-| COPPA | USA (children) | Age gate | Partial |
-| Notice-only | Any | Informational | Full |
+| GDPR | EU / EEA | `opt-in` | Maintained |
+| UK GDPR | United Kingdom | `opt-in` | Maintained |
+| CCPA / CPRA | California, USA | `opt-out-strict` | Maintained |
+| VCDPA / CPA / CTDPA | Virginia, Colorado, Connecticut | `opt-out` | Maintained |
+| LGPD | Brazil | `opt-in-brazil` | Maintained |
+| DPDPA | India | `opt-in-dpdpa` | In development — tracking India's phased 2025-2027 rules rollout |
+| PIPEDA / Law 25 | Canada / Quebec | `general-privacy-consent` (Quebec: `opt-in`) | Supported |
+| POPIA | South Africa | `general-privacy-consent` | Supported |
+| PDPA | Thailand | `opt-in` | Supported |
+| APPI | Japan | `general-privacy-consent` | Supported |
+| KVKK | Turkey | `opt-in` | Supported |
+| PIPL | China | `opt-in-china` | Routing-only — UX-template routing, not individually legal-maintained |
+| TCF v2.3 | IAB / Global | Vendor consent (`general-privacy-consent`) | Partial — spec-correct binary encoding needs `publisherCC` config + optional `@iabtechlabtcf/core`; simplified format otherwise. Registration only needed for programmatic/RTB ad monetization |
+| GPP (US National section) | Global (programmatic, US MSPA) | n/a | Partial — spec-correct binary encoding needs optional `@iabgpp/cmpapi`; simplified format otherwise. Same registration-only-for-programmatic-ads caveat as TCF |
+| COPPA | USA (children) | Age gate | Partial — age-gate widget included; parental verification requires your backend |
+| GPC | Global | Signal detection | Built-in feature, not a regulation |
+| Notice-only | Any | Informational | Built-in compliance group, not a regulation |
 
 ---
 
 ## Introduction
 
-Consenti is an open-source, zero-dependency Consent Management Platform (CMP). It handles the complete consent lifecycle — banner display, preference management, GPC detection, GTM / Google Consent Mode v2 integration, and compliance for GDPR, CCPA, CPRA, and ten other regulations.
+Consenti is an open-source Consent Management Platform (CMP) with zero required runtime dependencies. It handles the complete consent lifecycle — banner display, preference management, GPC detection, GTM / Google Consent Mode v2 integration, and GDPR-style opt-in flows for GDPR, CCPA, CPRA, and other regulations at varying tiers of legal currency (see Compliance Coverage above).
 
 ### Frontend-only vs Full-stack
 
@@ -179,8 +187,8 @@ new ConsentiSetup({ compliance: { type: 'opt-in' } })
 // CCPA opt-out
 new ConsentiSetup({ compliance: { type: 'opt-out' } })
 
-// TCF v2.2
-new ConsentiSetup({ compliance: { type: 'tcf' } })
+// TCF v2.3 — enabled server-side via @consenti/api's compliance.tcf.enabled, not a widget compliance.type value
+new ConsentiSetup({ compliance: { type: 'general-privacy-consent' }, api: { enabled: true } })
 ```
 
 ---
@@ -530,7 +538,7 @@ auth: {
   mode: 'local',
   adminEmail: 'admin@example.com',
   adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
-  jwtSecret: process.env.CONSENTI_JWT_SECRET!,  // optional, auto-generated if omitted
+  masterSecret: process.env.CONSENTI_MASTER_SECRET!,  // optional, auto-generated if omitted
 }
 ```
 
@@ -602,7 +610,7 @@ Consenti is built from the ground up around GDPR requirements (Regulation (EU) 2
 | Informed | `htmlText` on categories, `legitimateInterest.description` for LI basis |
 | Unambiguous | No pre-ticked boxes; all non-mandatory cookies default to `'denied'` |
 | Easy to withdraw | `DELETE /consenti/api/v1/consent/:visitorId` (same prominence as granting) |
-| Records kept | Immutable `consent_history` table; `audit_logs` for admin actions |
+| Records kept | `consent_history` table (retained per `compliance.dataRetention.purgeAfterDays`, deleted on erasure); `audit_logs` for admin actions (append-only, never deleted by Consenti) |
 
 ### Right to erasure (Article 17)
 
@@ -614,8 +622,8 @@ This deletes all entries in `consent_records`, `consent_history`, and the `visit
 
 ### Data minimisation (Article 5(1)(c))
 
-- IP addresses are stored as SHA-256 hashes only
-- User agents are stored as SHA-256 hashes only
+- IP addresses are masked (last IPv4 octet / last 80 bits of IPv6 zeroed) and salted with `compliance.dataSigningHash` before SHA-256 hashing — masking alone still leaves a small, enumerable address space; salting is what makes the hash irreversible
+- User agent strings are stored as unsalted SHA-256 hashes (no masking needed — unlike IPs, the input space isn't small enough to be brute-forceable)
 - Consent records contain only: visitor UUID, profile ID, consent choices, timestamp, source
 
 ### Consent records as evidence
@@ -624,7 +632,7 @@ Every consent record includes:
 - `profileId` — the exact profile consented under. A new id is minted on every profile edit (the previous row is archived as history), so this alone identifies which cookie policy version was in effect — no separate version counter
 - `created_at` / `updated_at` — exact ISO 8601 timestamps
 - `source` — `'banner'`, `'api'`, or `'import'`
-- `consent_history` — immutable append-only log of every change
+- `consent_history` — a change-log of every update to the record; retained per `compliance.dataRetention.purgeAfterDays` and deleted along with the record on erasure (this is distinct from `audit_logs`, which is append-only and never deleted by Consenti)
 
 ### Legitimate Interest (Article 6(1)(f))
 
@@ -659,7 +667,7 @@ Profiles have no in-place version counter — every edit mints a new `Profile.id
 
 ## CCPA / US State Privacy Laws
 
-Consenti supports opt-out consent models required by CCPA, VCDPA, CPA, CTDPA, TDPSA, and similar US state laws.
+Consenti supports opt-out Compliance Groups required by CCPA, VCDPA, CPA, CTDPA, TDPSA, and similar US state laws.
 
 ### Opt-out model vs. GDPR opt-in
 
@@ -709,25 +717,42 @@ The `'!'` action sets all non-mandatory cookies to `'denied'` and writes the con
 
 ---
 
-## TCF v2.2 (IAB Transparency & Consent Framework)
+## TCF v2.3 & GPP (IAB / MSPA Registration) — Partial
 
-TCF v2.2 is required for publishers using programmatic advertising via the IAB's vendor ecosystem.
+TCF v2.3 and GPP (US National section) are only relevant if you monetize through programmatic/RTB ad
+exchanges (header bidding, Google Ad Manager EU consent mode, any IAB Global Vendor List vendor). If
+you only collect consent for first-party analytics/marketing tools, Consenti is fully compliant without
+either — skip this section.
+
+TCF v2.3 is required for publishers using programmatic advertising via the IAB's vendor ecosystem. Consenti
+is an open-source implementation of the TCF/GPP technical specs — it is not itself a registered CMP; you must
+register your own `cmpId` with IAB Europe (TCF) or attest one via MSPA (GPP) independently before going live.
+Consenti's self-registration flow (config + one-time dashboard confirmation, fail-closed by default) handles
+the rest — see the [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration).
 
 ```ts
+// Widget side — TCF rides on the general-privacy-consent group, not a separate compliance.type value
 new ConsentiSetup({
-  compliance: { type: 'tcf' },
-  tcf: {
-    publisherCC: 'DE',     // your country code
-    purposeOneTreatment: false,
+  compliance: { type: 'general-privacy-consent' },
+  api: { enabled: true, baseUrl: 'https://your-api.example.com' },
+})
+```
+
+```ts
+// @consenti/api server config — publisherCC and cmpId/cmpVersion are configured here, not on the widget
+createConsenti({
+  compliance: {
+    tcf: { enabled: true, cmpId: 9999, cmpVersion: 1, publisherCC: 'DE' },
   },
 })
 ```
 
-Consenti generates a valid TCF consent string (TC string) and exposes the `__tcfapi` JavaScript API required by ad tech vendors.
-
-### Stacks
-
-TCF v2.2 supports "stacks" — pre-grouped purposes that simplify the consent UI. Consenti supports all 11 official IAB stacks.
+Consenti's widget always exposes the `__tcfapi` JavaScript API required by ad tech vendors. The TC string
+itself is spec-correct binary encoding only when `publisherCC` is set on the server *and* the optional
+`@iabtechlabtcf/core` peer dependency is installed — otherwise it falls back to a simplified,
+non-spec-compliant format. Registration governance (IAB CMP-List validation, a required
+registration-confirmation step before the TC string is served) is built in and fails closed until
+confirmed.
 
 ---
 
@@ -830,7 +855,7 @@ createConsenti({
 - [POPIA South Africa Guide](https://consenti.dev/docs/compliance/popia/)
 - [PIPEDA Canada Guide](https://consenti.dev/docs/compliance/pipeda/)
 - [KVKK Turkey Guide](https://consenti.dev/docs/compliance/kvkk/)
-- [TCF v2.2 Guide](https://consenti.dev/docs/compliance/tcf/)
+- [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration/)
 - [COPPA Guide](https://consenti.dev/docs/compliance/coppa/)
 - [Interactive Playground](https://consenti.dev/demo-playground/frontend)
 - [GitHub Repository](https://github.com/santoshe61/consenti)

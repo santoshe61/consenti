@@ -1,12 +1,22 @@
 /**
- * Client-side `window.__tcfapi` stub — the standard IAB TCF v2.2 entry point third-party
+ * Client-side `window.__tcfapi` stub — the standard IAB TCF v2.3 entry point third-party
  * ad-tech scripts call to read consent (`ping`, `getTCData`, `addEventListener`,
  * `removeEventListener`).
  *
- * Simplified, like the server-side TC string this reads (`@consenti/utils`'s `encodeTcString`):
- * `tcString` is a base64url-encoded JSON payload, not the full IAB binary bitfield encoding.
- * Vendor list data (`gvlVersion`, `publisherCC`) isn't fetched client-side, so those fields are
- * placeholders. For full IAB TCF v2.2 compliance, use the `iabtcf-core` npm package instead.
+ * Simplified, like the server-side fallback TC string this reads (`@consenti/utils`'s
+ * `encodeTcString`): `tcString` is a base64url-encoded JSON payload, not the full IAB binary
+ * bitfield encoding. This is intentional here, not just unfinished — the widget never fetches
+ * the Global Vendor List itself (multi-megabyte, and IAB policy requires CMPs to cache their own
+ * copy rather than have every visitor's browser re-fetch it), so `gvlVersion`/`publisherCC`
+ * are operator-supplied via `TcfWidgetConfig` rather than derived, and default to explicit
+ * "not configured" placeholders when left unset. `gdprApplies` is derived from the resolved
+ * profile's compliance group.
+ *
+ * Spec-correct binary TC-string encoding is available when running with the `@consenti/api`
+ * backend (`compliance.tcf.publisherCC` there, via the optional `@iabtechlabtcf/core`
+ * dependency — see `apps/api/src/tcf/real-tc-string.ts`), since that's where the GVL is
+ * actually fetched and cached. Fully standalone (no-backend) deployments keep this simplified
+ * encoding.
  *
  * Only one CMP may own `window.__tcfapi` per page — if it's already set (a real CMP, or another
  * `ConsentiSetup` instance in a multi-profile page), this stub does not overwrite it.
@@ -20,8 +30,12 @@ type TcfCommand = 'ping' | 'getTCData' | 'addEventListener' | 'removeEventListen
 type TcfCallback = (data: unknown, success: boolean) => void
 type QueuedCall = [TcfCommand, number, TcfCallback, unknown?]
 
-const TCF_POLICY_VERSION = 4
-const API_VERSION = '2.2'
+// Policy version 5 = TCF v2.3 (mandatory since 2026-03-01; 4 was v2.2, 3 was v2.1, 2 was v2.0).
+// The spec-correct encoder (`real-tc-string.ts`) derives this from the fetched GVL's own
+// `tcfPolicyVersion` instead — this constant only backs the simplified standalone encoding,
+// which has no GVL to read a live value from.
+const TCF_POLICY_VERSION = 5
+const API_VERSION = '2.3'
 
 export interface TcfState {
   profile: ResolvedProfile | null
@@ -71,13 +85,13 @@ export function installTcfStub(getState: () => TcfState): void {
     const { profile, consent, tcfConfig: cfg } = getState()
     const tcfConfig = cfg ?? { enabled: false, cmpId: 0, cmpVersion: 0 }
     const { purposeConsents, vendorConsents } = buildPurposeAndVendorConsents(profile, consent)
-    const gdprApplies = true
+    const gdprApplies = profile?.complianceGroup === 'opt-in'
     const tcString = encodeTcString({
       cmpId: tcfConfig.cmpId,
       cmpVersion: tcfConfig.cmpVersion,
       consentScreen: 1,
       consentLanguage: 'en',
-      vendorListVersion: 0,
+      vendorListVersion: tcfConfig.vendorListVersion ?? 0,
       purposeConsents,
       vendorConsents,
     })
@@ -91,7 +105,7 @@ export function installTcfStub(getState: () => TcfState): void {
       cmpStatus: 'loaded',
       isServiceSpecific: true,
       useNonStandardStacks: false,
-      publisherCC: 'AA',
+      publisherCC: tcfConfig.publisherCC ?? 'AA',
       purposeOneTreatment: false,
       ...(listenerId !== undefined ? { listenerId } : {}),
       purpose: {
@@ -114,16 +128,16 @@ export function installTcfStub(getState: () => TcfState): void {
   function handleCommand(command: TcfCommand, _version: number, callback: TcfCallback, parameter?: unknown): void {
     switch (command) {
       case 'ping': {
-        const { consent, tcfConfig } = getState()
+        const { profile, consent, tcfConfig } = getState()
         callback({
-          gdprApplies: true,
+          gdprApplies: profile?.complianceGroup === 'opt-in',
           cmpLoaded: true,
           cmpStatus: 'loaded',
           displayStatus: consent ? 'hidden' : 'visible',
           apiVersion: API_VERSION,
           cmpVersion: tcfConfig?.cmpVersion ?? 0,
           cmpId: tcfConfig?.cmpId ?? 0,
-          gvlVersion: 0,
+          gvlVersion: tcfConfig?.gvlVersion ?? 0,
           tcfPolicyVersion: TCF_POLICY_VERSION,
         }, true)
         return

@@ -53,8 +53,8 @@ function isCategoryGranted(consent: ConsentValue, cookieIds: string[]): boolean 
 }
 
 /**
- * Watches a category's rollup consent status across every incoming `consent.created`/
- * `consent.updated` event and fires `onGrant`/`onDeny` on transitions. Call
+ * Watches a category's rollup consent status across every incoming `consent:created`/
+ * `consent:updated` event and fires `onGrant`/`onDeny` on transitions. Call
  * {@link CategoryAction.destroy} to remove the event listeners when no longer needed.
  */
 export class CategoryAction {
@@ -64,8 +64,8 @@ export class CategoryAction {
   }
 
   constructor(private readonly options: CategoryActionOptions) {
-    options.eventBus.on('consent.created', this.onCreated)
-    options.eventBus.on('consent.updated', this.onUpdated)
+    options.eventBus.on('consent:created', this.onCreated)
+    options.eventBus.on('consent:updated', this.onUpdated)
   }
 
   private async fire(record: ConsentDbRecord, previous: ConsentDbRecord | undefined): Promise<void> {
@@ -84,7 +84,7 @@ export class CategoryAction {
 
   /** Removes the event listeners. Call when the hook is no longer needed. */
   destroy(): void {
-    this.options.eventBus.off('consent.created', this.onCreated)
-    this.options.eventBus.off('consent.updated', this.onUpdated)
+    this.options.eventBus.off('consent:created', this.onCreated)
+    this.options.eventBus.off('consent:updated', this.onUpdated)
   }
 }

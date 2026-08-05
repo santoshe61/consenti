@@ -1,4 +1,4 @@
-Contact: mailto:santoshe61@gmail.com
+Contact: mailto:support@consenti.dev
 Contact: https://github.com/santoshe61/consenti/security/advisories/new
 Expires: 2027-07-07T00:00:00.000Z
 Canonical: https://consenti.dev/.well-known/security.txt

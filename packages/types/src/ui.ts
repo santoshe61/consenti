@@ -41,13 +41,24 @@ export interface ConsentCookieData {
    * consented. Empty string if unknown (e.g. a migrated legacy-format cookie).
    */
   l: string
+  /**
+   * Compliance group active at the moment consent was recorded. Lets a returning visitor's next
+   * `resolveProfile()` call skip the `/resolve-profile` geo round-trip and fetch
+   * `/profiles/{tenantId}/{group}/{locale}` directly — the group is already known, no need to
+   * re-derive it from IP/timezone/language on every load. Empty string if unknown (e.g. a
+   * migrated legacy-format cookie, or a local/embedded profile with no server-resolved group).
+   */
+  k: string
 }
 
 /**
  * Output format for getConsent(type).
- * 'default'           → raw ConsentValue (existing behaviour)
+ * 'default'           → raw ConsentValue, keyed by every cookie parameter ID in the profile (existing behaviour)
  * 'google-gtm'        → Google Consent Mode v2 keys + ads_data_redaction, url_passthrough
- * 'category'          → consent per CookiePurpose category
+ * 'purpose'           → consent per the fixed CookiePurpose taxonomy (necessary/functional/preferences/analytics/marketing)
+ * 'category'          → consent per the tenant's own authored preference-modal category, keyed by category ID.
+ *                        'granted' only when every member parameter is granted; 'denied'/'objected' otherwise
+ *                        (same ConsentStatus values as everything else — see getCategoryConsent for the exact rule)
  * 'adobe'             → { analytics, target, manager, optimizer }
  * 'meta'              → { pixel, api, plugins, facebookLogin }
  * 'microsoft-clarity' → { session, heatmaps, performance }
@@ -56,6 +67,7 @@ export interface ConsentCookieData {
 export type ConsentType =
   | 'default'
   | 'google-gtm'
+  | 'purpose'
   | 'category'
   | 'adobe'
   | 'meta'
@@ -164,6 +176,17 @@ export interface PreferenceModal extends Omit<MainBanner, "position"> {
   receiptLabel?: string
   /** Description shown beneath the consent-receipt checkbox. Falls back to a default when omitted. */
   receiptDescription?: string
+  /**
+   * Renders a "Forget me" control in the modal body, below the categories — only shown to
+   * visitors who already have a stored consent decision (nothing to erase otherwise). Wired to
+   * the same `DELETE /consent/:visitorId` erasure endpoint as `widget.deleteConsent()`, giving
+   * visitors self-service access to GDPR Art. 17 / CCPA-CPRA / LGPD Art. 18 / UK GDPR / DPDPA /
+   * KVKK / POPIA / PDPA-TH / APPI erasure-equivalent rights without the host wiring a link
+   * themselves. See the "Right to erasure" guide for the full compliance mapping.
+   */
+  showForgetMe?: boolean
+  /** Label for the "Forget me" button (shown when `showForgetMe` is true). Falls back to a default when omitted. */
+  forgetMeLabel?: string
 }
 
 /**
@@ -203,12 +226,17 @@ export interface TemplateModalDef extends Omit<TemplateBannerDef, 'position'> {
   persistent?: boolean
   hasSubheading?: boolean
   mobileFullScreenBreakpoint?: number
+  /** Renders a "Forget me" control below the categories, for visitors who already have a stored
+   * consent decision. See {@link PreferenceModal.showForgetMe}. */
+  showForgetMe?: boolean
 }
 
 export interface LocaleTranslations {
   mainBanner: DeepPartial<MainBanner>
   gpcBanner?: DeepPartial<GpcBanner>
   preferenceModal: DeepPartial<PreferenceModal>
+  /** Only meaningful when the profile's `ageGate.enabled` is true. */
+  ageGateModal?: DeepPartial<AgeGateModalContent>
 }
 
 export interface ProfileTranslations {
@@ -219,6 +247,31 @@ export interface DpdpaConfig {
   dataFiduciary: string
   grievanceEmail: string
   purposeDescription?: string
+}
+
+/**
+ * Per-profile age gate — GDPR Art. 8's consent age varies 13–16 by EU member state and DPDPA has
+ * its own child-data age rules, so one global age (the old `ConsentiServerConfig.ageGate`) was
+ * wrong for a multi-region deployment. Mirrors `dpdpa` exactly: profile-scoped, not global.
+ */
+export interface AgeGateConfig {
+  enabled: boolean
+  minimumAge: number
+  requireParentalConsent?: boolean
+}
+
+/** Per-locale age-gate modal text — translated the same way `mainBanner`/`preferenceModal`
+ * content is, unlike the widget's own hardcoded UI chrome (close button, locale switcher). */
+export interface AgeGateModalContent {
+  heading?: string
+  htmlText: string
+  confirmButtonLabel: string
+  denyButtonLabel: string
+  parentalConsent: {
+    heading?: string
+    htmlText: string
+    confirmButtonLabel: string
+  }
 }
 
 export interface LocaleTextContent {
@@ -243,7 +296,11 @@ export interface LocaleTextContent {
     categories: Record<string, { heading: string; htmlText: string; legitimateInterestDescription?: string }>
     receiptLabel?: string
     receiptDescription?: string
+    /** Per-locale override of `PreferenceModal.forgetMeLabel`; only meaningful when `showForgetMe` is true. */
+    forgetMeLabel?: string
   }
+  /** Only meaningful when the profile's `ageGate.enabled` is true. */
+  ageGateModal?: AgeGateModalContent
 }
 
 export interface ProfileConfig {
@@ -259,6 +316,12 @@ export interface ProfileConfig {
   darkMode?: boolean
   allowedOrigins?: string[]
   dpdpa?: DpdpaConfig
+  ageGate?: AgeGateConfig
+  /** Default locale's age-gate modal text — mirrors `mainBanner`/`preferenceModal` (inline,
+   * required-shape-when-present), not `dpdpa` (which has no locale text at all). Every other
+   * locale's `ageGateModal` lives in `localeContents`/`LocaleContentInput` like the rest of
+   * that locale's content. */
+  ageGateModal?: AgeGateModalContent
   regulation?: 'gdpr' | 'ccpa' | 'cpra' | 'dpdpa' | 'uk-gdpr' | 'lgpd' | 'pipeda' | 'popia' | 'pdpa-th' | 'appi' | 'kvkk'
   regulations?: string[]
   consentTemplateId?: string
@@ -394,6 +457,8 @@ export interface PublicProfileResponse {
   allowReceipt?: boolean
   darkMode?: boolean
   dpdpa?: DpdpaConfig
+  ageGate?: AgeGateConfig
+  ageGateModal?: AgeGateModalContent
   showFooterMetadata?: boolean
   enhanceAccessibility?: boolean
   createdAt?: string
@@ -415,9 +480,21 @@ export interface ResolvedProfile {
   preferenceModal: PreferenceModal
   cookieSigningKey?: string
   dpdpa?: DpdpaConfig
+  ageGate?: AgeGateConfig
+  ageGateModal?: AgeGateModalContent
   darkMode?: boolean
   gpcMode?: GpcMode
-  complianceGroup?: ComplianceGroupId
+  /** One of the 8 built-in groups, or a custom group id (via `customComplianceGroup` /
+   * `ComplianceType`'s string passthrough) — this is the join key `complianceGroupsOverride`
+   * looks up by, so it must reflect whichever group this profile actually resolved against,
+   * built-in or custom. */
+  complianceGroup?: ComplianceGroupId | (string & {})
+  /** Set when the geo-resolved region carries a `requiresSensitiveOptIn` carve-out (e.g.
+   * Colorado under `opt-out`) — cookies tagged `cpraCategory: 'sensitive'` default to denied
+   * even though the rest of `complianceGroup`'s cookies default to granted. Only ever set by
+   * server-side geo resolution (`api.enabled: true` + a geoip/maxmind provider); the
+   * client-only timezone heuristic never resolves a region, so this is always unset there. */
+  requiresSensitiveOptIn?: boolean
   complianceConfig?: Record<string, string>
   /** Falls back to `true` (hidden) if neither the widget config nor the profile set it. */
   hidePoweredBy?: boolean
@@ -433,31 +510,71 @@ export type WidgetCountryResolverFn = () => Promise<{
   country: string | null
   region: string | null
   confidence: number
+  /** Optional escape hatch: when set, profile resolution uses this compliance group directly
+   * instead of computing one from `country`/`region` — mirrors the server-side `GeoResult`'s
+   * `complianceGroup` field (`@consenti/types`'s `api.ts`). `country`/`region` are still used for
+   * anything that reads them independently of group selection. Optional — omitting it preserves
+   * the existing timezone/language-based resolution exactly as before. */
+  complianceGroup?: string
 }>
 
 // ─── Compliance widget config ─────────────────────────────────────────────────
 
-export interface AgeGateWidgetConfig {
-  enabled: boolean
-  minimumAge: number
-  requireParentalConsent?: boolean
-}
-
 /** Mirrors the server-side `TcfConfig` shape (`@consenti/api`) — `cmpId`/`cmpVersion` must match
- * what the backend uses to encode `tcfString`, since both feed the same simplified TC string. */
+ * what the backend uses to encode `tcfString`, since both feed the same simplified TC string.
+ *
+ * The client-side `__tcfapi` stub never fetches the Global Vendor List itself (multi-megabyte,
+ * and IAB policy requires CMPs to cache their own copy rather than have every visitor's browser
+ * fetch it) — `publisherCC`/`vendorListVersion`/`gvlVersion` are therefore operator-supplied
+ * config here, not auto-derived. Spec-correct binary TC-string encoding happens server-side in
+ * `@consenti/api` (see `compliance.tcf.publisherCC` there); this stub's `tcString` stays the
+ * simplified format documented in `@consenti/utils`'s `encodeTcString`. */
 export interface TcfWidgetConfig {
   enabled: boolean
   cmpId: number
   cmpVersion: number
+  /** ISO 3166-1 alpha-2 publisher country code. No honest default exists — leave unset only if
+   * you don't rely on this field downstream; ad-tech vendors that read it will see 'AA'
+   * (an explicit "not configured" placeholder, not a real country). */
+  publisherCC?: string
+  /** Known Global Vendor List version, if you track it. Defaults to 0 ("unknown"). */
+  vendorListVersion?: number
+  /** Known GVL specification version, if you track it. Defaults to 0 ("unknown"). */
+  gvlVersion?: number
+}
+
+/** Mirrors the server-side `GppConfig` shape (`@consenti/api`) — `cmpId`/`cmpVersion` must match
+ * what the backend uses to encode `gppString`. Unlike TCF, the GPP US National section needs no
+ * Global Vendor List, so both the widget's `window.__gpp` and the server's `gppString` use the
+ * same real, spec-correct encoder (the optional `@iabgpp/cmpapi` peer dependency) — there's no
+ * "simplified fallback" format the way TCF has, since a non-spec GPP string has no consumer that
+ * would accept it. When `@iabgpp/cmpapi` isn't installed, `window.__gpp` is simply not exposed. */
+export interface GppWidgetConfig {
+  enabled: boolean
+  cmpId: number
+  cmpVersion: number
+  /** MSPA "covered transaction" — whether this deployment's data transactions fall under MSPA
+   * signatory obligations. No honest default, so it's required rather than optional. */
+  mspaCoveredTransaction: boolean
+  /** IAB's tri-state encoding for both MSPA fields: 0 = not applicable, 1 = yes, 2 = no. */
+  mspaOptOutOptionMode: 0 | 1 | 2
+  mspaServiceProviderMode: 0 | 1 | 2
 }
 
 export interface ComplianceWidgetConfig {
   type?: ComplianceType
   geoDataProvider?: 'default' | WidgetCountryResolverFn
-  autoComplianceMap?: 'default' | ComplianceMapData | 'auto'
-  complianceMapUrl?: string
-  ageGate?: AgeGateWidgetConfig
+  /** Only meaningful in standalone mode (no `api.enabled`) — ignored (with a warning) when
+   * `api.enabled: true`, since the server resolves the compliance group in that mode.
+   * `'default'` (embedded map, the default), a URL to fetch a JSON `ComplianceMapData`
+   * document from (the browser's own HTTP cache honors whatever `Cache-Control`/`ETag` the
+   * response sends — no custom caching here), or an inline operator-supplied `ComplianceMapData`
+   * object. Invalid data from either a URL or an object logs a warning and falls back to
+   * `'default'`. Only overrides the country→group mapping — country/region detection itself
+   * always uses the embedded geo data. */
+  complianceMap?: 'default' | string | ComplianceMapData
   tcf?: TcfWidgetConfig
+  gpp?: GppWidgetConfig
 }
 
 // ─── Config ───────────────────────────────────────────────────────────────────
@@ -484,38 +601,68 @@ export interface ApiConfig {
   trustDomain?: boolean
 }
 
+/** Field names mirror their `--consenti-*` CSS variable literally (`--consenti-color-primary`
+ * → `colorPrimary`) — see `applyTheme()` in `consenti-setup.ts` for the full mapping. */
 export interface ThemeConfig {
-  bgColor?: string
-  textColor?: string
-  primaryColor?: string
-  primaryTextColor?: string
-  secondaryColor?: string
-  secondaryTextColor?: string
-  borderColor?: string
+  colorBg?: string
+  colorText?: string
+  colorTextMuted?: string
+  colorPrimary?: string
+  colorPrimaryText?: string
+  colorSecondary?: string
+  colorSecondaryText?: string
+  colorBorder?: string
+  colorSecondaryBorder?: string
+  colorOverlay?: string
+  colorAccent?: string
+  colorAccentText?: string
   fontFamily?: string
+  fontFamilyMono?: string
   fontSizeBase?: string
   fontSizeHeading?: string
   fontSizeMultiplier?: string
+  fontWeightHeading?: string
+  lineHeight?: string
+  spacingXs?: string
+  spacingSm?: string
+  spacingMd?: string
+  spacingLg?: string
   borderRadius?: string
-  buttonBorderRadius?: string
+  borderRadiusBtn?: string
+  shadow?: string
   toggleBgOn?: string
+  toggleBgPartial?: string
   toggleBgOff?: string
-  accentColor?: string
-  accentTextColor?: string
+  toggleKnob?: string
+  toggleWidth?: string
+  toggleHeight?: string
+  zBanner?: string
+  zOverlay?: string
+  zModal?: string
 }
 
 export interface CoreConfig {
   tenantId?: string
   locale?: string
-  /** Text direction for the banner/modal root. `'auto'` (default) derives it from `locale`
-   * (Arabic, Hebrew, Persian, Urdu, ... → `rtl`); set explicitly to override. */
+  /** Text direction for the banner/modal root. `'auto'` (default) derives it from `locale` via
+   * `Intl.Locale(...).getTextInfo().direction` (falling back to a hand-maintained RTL-language
+   * list on engines without `getTextInfo()` support); set explicitly to override. */
   dir?: 'ltr' | 'rtl' | 'auto'
   disableCssTemplate?: boolean
   cookieSigningKey?: string
   allowReceipt?: boolean
   cookieDomains?: string
+  /** Name of the consent cookie/localStorage key. Default: `'consenti_data'`. Not switched
+   * automatically by detected region — set explicitly if you want a different name (e.g.
+   * `'euconsent-v2'`, the IAB TCF convention, but only meaningful for operators using the
+   * spec-correct binary encoder — `@consenti/api` + the optional `@iabtechlabtcf/core` peer
+   * dependency — since the IAB name implies IAB's binary format, not Consenti's own encoding). */
+  cookieName?: string
   storage?: 'cookie' | 'localStorage'
   theme?: ThemeConfig
+  /** Initial logged-in application user ID; empty/anonymous when unset. Prefer `getUserId()`/
+   * `setUserId()` (or the `consenti:listener:identify` event) to change it after init — those
+   * also handle reconsent when the identity changes on a shared device. */
   userId?: string
   usePrebuiltProfiles?: 'all' | NonEmptyArray<ComplianceGroupId>
   cacheResolvedProfiles?: boolean
@@ -536,6 +683,14 @@ export interface ConsentiConfig {
   utils?: UtilsConfig
   plugins?: ConsentiPlugin[]
   profileOverride?: DeepPartial<ResolvedProfile>
+  /** Per-compliance-group text/button/cookie overrides — applied on top of whichever profile the
+   * visitor's resolved group loads, keyed by that group's id (one of the 8 built-in
+   * `ComplianceGroupId`s, or any custom group id). Lets you author different copy per country
+   * without creating a separate profile (and separate `compliance.type` wiring) for each one —
+   * e.g. `{ 'opt-in': { mainBanner: { htmlText: '...' } }, 'my-custom-group': { ... } }`.
+   * Applied before `profileOverride`, which still always applies last as the universal catch-all.
+   * Works identically in standalone and server (`api.enabled`) mode. */
+  complianceGroupsOverride?: Partial<Record<ComplianceGroupId | (string & {}), DeepPartial<ResolvedProfile>>>
   /** When true, suppresses the "Powered by Consenti" footer link in the banner and modal. */
   hidePoweredBy?: boolean
 }
@@ -555,6 +710,18 @@ export type ConsentiEventName =
   | 'consenti:consentSubmitted'
   | 'parentalConsentRequired'
   | 'consenti:parentalConsentRequired'
+  | 'forgetMeRequested'
+  | 'consenti:forgetMeRequested'
+  | 'forgotten'
+  | 'consenti:forgotten'
+
+/** Snapshot of the current visitor's identity. `visitorId` is `null` until a consent decision
+ * has actually happened — it's never minted just to answer this call, see `getVisitor()`. */
+export interface VisitorIdentity {
+  visitorId: string | null
+  type: 'authenticated' | 'anonymous'
+  userId: string | null
+}
 
 export interface ConsentiWidgetAPI {
   hasConsent(): boolean
@@ -580,10 +747,25 @@ export interface ConsentiWidgetAPI {
   submitConsent(consent: Partial<ConsentValue>): Promise<ConsentDbRecord | void>
   deleteConsent(): Promise<void>
   reConsent(): Promise<void>
+  /** Erases the stored consent record (same underlying call as `deleteConsent()`) and
+   * re-prompts, dispatching `consenti:forgetMeRequested` / `consenti:forgotten` around it so a
+   * host app can hook its own identity-verified erasure workflow. Powers the preference modal's
+   * "Forget me" button; also callable directly for a custom placement of the same action. */
+  forgetMe(resetAgeGate?: boolean): Promise<void>
   getRootElement(): HTMLElement | null
   getBannerElement(): HTMLElement | null
   getModalElement(): HTMLElement | null
   switchLocale(locale: string): void
+  getUserId(): string | null
+  /** Sets the logged-in application user ID (`null` for anonymous/logout). When the stored
+   * consent record's user differs from the new value, reconsents by default — pass
+   * `reConsent: false` to just update the identity without prompting again. No-ops (no
+   * reconsent, no warning) when there's no prior consent record to compare against. */
+  setUserId(userId: string | null, reConsent?: boolean): Promise<void>
+  /** Snapshot of the current visitor's identity: the stable per-browser `visitorId` (`null` if
+   * no consent decision has happened yet — this never creates one), whether they're
+   * `authenticated` or `anonymous`, and the app `userId` (same as `getUserId()`). */
+  getVisitor(): VisitorIdentity
   setDarkMode(enable?: boolean): void
   setTheme(theme: Partial<ThemeConfig>): void
   setConfig(config: DeepPartial<ConsentiConfig>): void
@@ -681,14 +863,53 @@ export interface ConsentSubmittedDetail extends ConsentBeingSubmitted {
   apiResponse: ConsentDbRecord                    // backend response if api.enabled: true
 }
 
-/** Dispatched when the age gate is declined and `requireParentalConsent` is set — see
- * `AgeGateWidgetConfig`. A deny-all consent (mandatory cookies only) has already been
+/** Dispatched when the age gate is declined and `requireParentalConsent` is set — see the
+ * profile's `AgeGateConfig`. A deny-all consent (mandatory cookies only) has already been
  * submitted with `parentalConsentToken` attached; this event is the hook for the site
- * owner to run their own out-of-band parental-consent verification. */
+ * owner to run their own out-of-band parental-consent verification. `parentalConsentToken` is
+ * server-issued (and signed, when `compliance.dataSigningHash` is configured) when `api.enabled`,
+ * otherwise a client-generated, unsigned fallback — see `POST /consent/:visitorId/parental-consent-request`. */
 export interface ParentalConsentRequiredDetail {
   parentalConsentToken: string
   profileId: string
   visitorId: string
+  timestamp: number
+}
+
+/** Dispatched by the standalone `resolveParentalConsent()` util (`apps/ui/src/utils/parental-consent.ts`)
+ * after `POST /consent/parental-consent-resolve` succeeds — typically from a fresh page/session
+ * with no live `ConsentiSetup` instance (the parent's own device, not the child's). A page that
+ * does have a live widget instance can listen for this to react (e.g. re-show the banner/modal for
+ * the real consent choice); what "resolved" should actually do to consent state is host-defined. */
+export interface ParentalConsentGrantedDetail {
+  visitorId: string
+  profileId: string
+}
+
+/** Detail payload for the inbound `consenti:listener:identify` event — dispatched by the *host*
+ * page (not the widget) to tell the widget which application user is logged in, equivalent to
+ * calling `setUserId(userId, reConsent)`. `reConsent` defaults to `true`. */
+export interface IdentifyEventDetail {
+  userId: string | null
+  reConsent?: boolean
+}
+
+/** Dispatched by `forgetMe()` right before the erasure call goes out — the hook for a host app
+ * to kick off its own identity-verified erasure workflow across other systems (CRM, DMP,
+ * analytics). The CMP itself only ever erases its own consent record; see the server-side
+ * `consent.erased` eventBus event (fired by `DELETE /consent/:visitorId`) for the same hook on
+ * the backend. See the "Right to erasure" guide for the full picture. */
+export interface ForgetMeRequestedDetail {
+  visitorId: string
+  profileId: string
+  timestamp: number
+}
+
+/** Dispatched by `forgetMe()` after the consent record has been erased and the banner/age-gate
+ * has been re-prompted (see `reConsent()`, which `forgetMe()` wraps). */
+export interface ForgottenDetail {
+  visitorId: string
+  profileId: string
   timestamp: number
 }
 
@@ -698,7 +919,10 @@ export type ConsentEvent =
   | ModalVisibilityDetail
   | ConsentBeingSubmitted
   | ConsentSubmittedDetail
-  | ParentalConsentRequiredDetail;
+  | ParentalConsentRequiredDetail
+  | ParentalConsentGrantedDetail
+  | ForgetMeRequestedDetail
+  | ForgottenDetail;
 
 // ─── Cross-tab broadcast ──────────────────────────────────────────────────────
 

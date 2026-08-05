@@ -28,6 +28,7 @@ interface DocConsent {
   locale: string; consent_json: ConsentValue
   gpc_detected: boolean; source: string; created_at: string; updated_at: string
   age_verified?: boolean; parental_consent_token?: string; tcf_string?: string
+  gpp_string?: string
   signature?: string
 }
 interface DocConsentSummary {
@@ -103,6 +104,7 @@ function mapConsent(d: DocConsent): ConsentDbRecord {
     ...(d.age_verified != null ? { ageVerified: d.age_verified } : {}),
     ...(d.parental_consent_token != null ? { parentalConsentToken: d.parental_consent_token } : {}),
     ...(d.tcf_string != null ? { tcfString: d.tcf_string } : {}),
+    ...(d.gpp_string != null ? { gppString: d.gpp_string } : {}),
     ...(d.signature != null ? { signature: d.signature } : {}),
   }
 }
@@ -333,6 +335,7 @@ export class MongoDBAdapter implements StorageAdapter {
       ...(data.ageVerified != null ? { age_verified: data.ageVerified } : {}),
       ...(data.parentalConsentToken != null ? { parental_consent_token: data.parentalConsentToken } : {}),
       ...(data.tcfString != null ? { tcf_string: data.tcfString } : {}),
+      ...(data.gppString != null ? { gpp_string: data.gppString } : {}),
       ...(data.signature != null ? { signature: data.signature } : {}),
     }
     await this.col('consent_records').insertOne(doc)
@@ -873,13 +876,19 @@ export class MongoDBAdapter implements StorageAdapter {
   }
 
   async getSettings(tenantId: string): Promise<TenantSettings> {
-    const doc = cast<{ _id: string; allowed_origins?: string[]; admin_allowed_origins?: string[]; setup_completed?: boolean }>(
+    const doc = cast<{
+      _id: string; allowed_origins?: string[]; admin_allowed_origins?: string[]; setup_completed?: boolean
+      profiles_seeded?: boolean; tcf_confirmation?: TenantSettings['tcfConfirmation']; gpp_confirmation?: TenantSettings['gppConfirmation']
+    }>(
       await this.col('tenant_settings').findOne({ _id: tenantId })
     )
     return {
       ...(doc?.allowed_origins !== undefined ? { allowedOrigins: doc.allowed_origins } : {}),
       ...(doc?.admin_allowed_origins !== undefined ? { adminAllowedOrigins: doc.admin_allowed_origins } : {}),
       ...(doc?.setup_completed !== undefined ? { setupCompleted: doc.setup_completed } : {}),
+      ...(doc?.profiles_seeded !== undefined ? { profilesSeeded: doc.profiles_seeded } : {}),
+      ...(doc?.tcf_confirmation !== undefined ? { tcfConfirmation: doc.tcf_confirmation } : {}),
+      ...(doc?.gpp_confirmation !== undefined ? { gppConfirmation: doc.gpp_confirmation } : {}),
     }
   }
 
@@ -888,6 +897,9 @@ export class MongoDBAdapter implements StorageAdapter {
     if (data.allowedOrigins !== undefined) update['allowed_origins'] = data.allowedOrigins
     if (data.adminAllowedOrigins !== undefined) update['admin_allowed_origins'] = data.adminAllowedOrigins
     if (data.setupCompleted !== undefined) update['setup_completed'] = data.setupCompleted
+    if (data.profilesSeeded !== undefined) update['profiles_seeded'] = data.profilesSeeded
+    if (data.tcfConfirmation !== undefined) update['tcf_confirmation'] = data.tcfConfirmation
+    if (data.gppConfirmation !== undefined) update['gpp_confirmation'] = data.gppConfirmation
     await this.col('tenant_settings').updateOne({ _id: tenantId }, { $set: update }, { upsert: true })
     return this.getSettings(tenantId)
   }
@@ -902,14 +914,6 @@ export class MongoDBAdapter implements StorageAdapter {
     await this.col('consent_history').deleteMany({ visitor_id: { $in: visitorIds } })
     await this.col('consent_records').deleteMany({ visitor_id: { $in: visitorIds } })
     return docs.length
-  }
-
-  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
-    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
-    const filter = { created_at: { $lt: cutoff } }
-    const count = await this.col('audit_logs').countDocuments(filter)
-    await this.col('audit_logs').deleteMany(filter)
-    return count
   }
 
   // Template methods — not yet implemented for MongoDB adapter

@@ -38,8 +38,8 @@ export function UITemplateList({ current }: { current: string }) {
     } catch (err) {
       if (err instanceof ApiError && err.status === 422) {
         try {
-          const body = JSON.parse(err.message) as { profiles?: BlockingProfile[] }
-          if (body.profiles?.length) { setDeleteBlockedBy(body.profiles); return }
+          const body = JSON.parse(err.message) as { details?: { profiles?: BlockingProfile[] } }
+          if (body.details?.profiles?.length) { setDeleteBlockedBy(body.details.profiles); return }
         } catch { /* fall through */ }
       }
     }

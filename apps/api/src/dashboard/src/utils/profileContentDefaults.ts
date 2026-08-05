@@ -1,13 +1,14 @@
 import type { ServerUITemplate, ServerConsentTemplate } from '@consenti/types'
-import { DEFAULT_PROFILES, resolveLocaleTranslation } from '@consenti/utils/profiles'
+import { DEFAULT_PROFILES, resolveLocaleTranslation, GENERIC_GPC_BANNER_TEXT } from '@consenti/utils/profiles'
 import type { EmbeddedButton, EmbeddedTranslations } from '@consenti/utils/profiles'
 import type { LocaleContent, CategoryContent } from './templates'
 
 // `packages/utils/src/profiles` is the single source of truth for default compliance-profile
 // content (seeded profiles, "Load Defaults" here, and the widget's own embedded-profile
-// fallback) — no compliance-group copy is authored in this file. A custom (non-preset)
-// compliance group falls back to the `general-privacy-consent` group's real content, same as
-// any other unmatched-but-valid selection, rather than a separate generic-content block.
+// fallback) — no compliance-group copy is authored in this file. A custom or unselected
+// ("None / Custom") compliance group gets no compliance-rule defaults at all — the config
+// step's hint text promises exactly that (`profileEditor.config.customComplianceGroupHint`) —
+// so it must NOT silently borrow the `general-privacy-consent` group's copy.
 
 type Bucket = 'acceptAll' | 'denyAll' | 'customSubset' | 'finalSubmit' | 'manage' | 'close' | 'link' | 'other'
 
@@ -60,12 +61,18 @@ const FALLBACK_CATEGORY_TEXT = (id: string): { heading: string; htmlText: string
   htmlText: 'Used to enable specific functionality on this website.',
 })
 
+function blankButtonLabels(buttons: Record<string, unknown>): Record<string, string> {
+  return Object.fromEntries(Object.keys(buttons).map(id => [id, '']))
+}
+
 /**
  * Builds "Load Defaults" content for one profile, sourced entirely from `@consenti/utils/profiles`
- * for the given compliance group and locale (falling back to `general-privacy-consent` for a
- * custom group, and to the group's English text for a locale with no overlay). Cookie categories
- * from the author's own consent template are matched to the embedded profile's categories by the
- * cookie purpose already recorded on each parameter — not by category id, which is freeform.
+ * for the given compliance group and locale (falling back to the group's English text for a locale
+ * with no overlay). Returns blank content untouched when `complianceGroup` isn't one of the
+ * built-in presets (no group selected, or a free-typed custom group name) — see the module note
+ * above. Cookie categories from the author's own consent template are matched to the embedded
+ * profile's categories by the cookie purpose already recorded on each parameter — not by category
+ * id, which is freeform.
  */
 export function buildDefaultContent(
   complianceGroup: string,
@@ -73,7 +80,20 @@ export function buildDefaultContent(
   consentTemplate: ServerConsentTemplate | null | undefined,
   locale: string,
 ): LocaleContent {
-  const group = DEFAULT_PROFILES[complianceGroup as keyof typeof DEFAULT_PROFILES] ? complianceGroup : 'general-privacy-consent'
+  // Not one of the built-in preset groups (empty string = "None / Custom", or a free-typed
+  // custom group name) — leave everything blank rather than injecting another group's copy.
+  if (!DEFAULT_PROFILES[complianceGroup as keyof typeof DEFAULT_PROFILES]) {
+    return {
+      mainBanner: { heading: '', htmlText: '', buttonLabels: blankButtonLabels(uiTemplate.mainBanner.buttons) },
+      gpcBanner: { heading: '', htmlText: '', buttonLabels: blankButtonLabels(uiTemplate.gpcBanner.buttons) },
+      preferenceModal: {
+        heading: '', subheading: '', htmlText: '',
+        buttonLabels: blankButtonLabels(uiTemplate.preferenceModal.buttons),
+        categories: Object.keys(consentTemplate?.categories ?? {}).map(id => ({ id, heading: '', htmlText: '' })),
+      },
+    }
+  }
+  const group = complianceGroup
   const translation: EmbeddedTranslations | undefined =
     resolveLocaleTranslation(group, locale) ?? DEFAULT_PROFILES[group as keyof typeof DEFAULT_PROFILES]?.translations['en']
   const embeddedCategories = translation?.preferenceModal.categories ?? {}
@@ -97,6 +117,14 @@ export function buildDefaultContent(
   const gpcBanner = translation?.gpcBanner
   const preferenceModal = translation?.preferenceModal
 
+  // Groups whose regulation doesn't involve GPC at all (dpdpa/china/brazil/general-privacy-
+  // consent/notice-only) never author a `gpcBanner` translation — falling back to the main
+  // banner's marketing copy here would be actively wrong if GPC is manually turned on for such a
+  // profile, since that copy never mentions GPC. Use the shared generic GPC text instead,
+  // resolved for this locale (falling back to English, same rule the compliance-group
+  // translations themselves follow).
+  const genericGpc = GENERIC_GPC_BANNER_TEXT[locale] ?? GENERIC_GPC_BANNER_TEXT['en']!
+
   return {
     mainBanner: {
       heading: mainBanner?.heading ?? '',
@@ -104,8 +132,8 @@ export function buildDefaultContent(
       buttonLabels: resolveButtonLabels(uiTemplate.mainBanner.buttons, mainBanner?.buttons ?? {}),
     },
     gpcBanner: {
-      heading: gpcBanner?.heading ?? mainBanner?.heading ?? '',
-      htmlText: gpcBanner?.htmlText ?? mainBanner?.htmlText ?? '',
+      heading: gpcBanner?.heading ?? genericGpc.heading,
+      htmlText: gpcBanner?.htmlText ?? genericGpc.htmlText,
       buttonLabels: resolveButtonLabels(uiTemplate.gpcBanner.buttons, gpcBanner?.buttons ?? mainBanner?.buttons ?? {}),
     },
     preferenceModal: {

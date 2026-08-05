@@ -82,6 +82,26 @@ export default function UIEventsPage() {
               <a href="/docs/compliance/coppa">COPPA guide</a>.
             </td>
           </tr>
+          <tr>
+            <td>
+              <code>consenti:forgetMeRequested</code>
+            </td>
+            <td>
+              <code>widget.forgetMe()</code> called (e.g. the preference modal&apos;s &quot;Forget
+              me&quot; button), right before the erasure call goes out — the hook for a host app
+              to kick off its own identity-verified erasure workflow across other systems. See the{' '}
+              <a href="/guides/hot-topics/right-to-erasure">Right to Erasure guide</a>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>consenti:forgotten</code>
+            </td>
+            <td>
+              Consent record erased and the banner/age-gate re-prompted, as the last step of{' '}
+              <code>widget.forgetMe()</code>.
+            </td>
+          </tr>
         </tbody>
       </table>
 
@@ -171,6 +191,23 @@ window.addEventListener('consenti:consentSubmitted', (e: Event) => {
   timestamp: number                        // Unix timestamp, trimmed to seconds
   fromBroadcast?: boolean                  // true if this instance learned of the change via a cross-tab broadcast
   apiResponse: ConsentDbRecord             // backend response if api.enabled: true
+}`}
+      />
+
+      <h3>ForgetMeRequestedDetail / ForgottenDetail</h3>
+      <CodeBlock
+        lang="ts"
+        code={`interface ForgetMeRequestedDetail {
+  visitorId: string
+  profileId: string
+  timestamp: number  // Unix timestamp, trimmed to seconds
+}
+
+// ForgottenDetail has the exact same shape — fired after erasure completes.
+interface ForgottenDetail {
+  visitorId: string
+  profileId: string
+  timestamp: number
 }`}
       />
 

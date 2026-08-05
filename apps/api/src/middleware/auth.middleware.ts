@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto'
 import type { StorageAdapter, AuthConfig } from '@consenti/types'
 import { verifyJwt } from '../utils/crypto'
 import { errorResponse } from './error.middleware'
@@ -19,6 +20,27 @@ export async function authenticate(
   const auth = req.headers.get('authorization')
   const token = auth?.startsWith('Bearer ') ? auth.slice(7) : null
   if (!token) return null
+
+  // `ck_` tokens are the server-side/CI API keys minted from the dashboard's API Config page —
+  // per its own copy, a valid one "grants full admin access" regardless of the configured
+  // AuthConfig.mode, scoped to the tenant it was created for.
+  if (token.startsWith('ck_')) {
+    const keyHash = createHash('sha256').update(token).digest('hex')
+    const apiKey = await storage.getApiKeyByHash(keyHash)
+    if (!apiKey || !apiKey.isActive) return null
+    if (apiKey.expireBy && new Date(apiKey.expireBy) <= new Date()) {
+      await storage.revokeApiKey(apiKey.id).catch(() => { })
+      return null
+    }
+    const permissions = (await storage.getAllPermissions()).map(p => p.name)
+    return {
+      sub: `apikey:${apiKey.id}`,
+      email: apiKey.name,
+      roles: ['api_key'],
+      permissions,
+      allowedTenants: [apiKey.tenantId],
+    }
+  }
 
   if (config.mode === 'local' || config.mode === 'jwt') {
     const payload = verifyJwt(token, secret)

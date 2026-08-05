@@ -1,4 +1,6 @@
 import type { MetadataRoute } from 'next'
+import { FRONTEND_TUTORIAL_STEPS, BACKEND_TUTORIAL_STEPS } from '@/lib/tutorial-steps'
+import { EXAMPLES } from '@/lib/examples'
 
 const BASE = 'https://consenti.dev'
 
@@ -64,17 +66,24 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page('/docs/compliance/pipeda', 0.8, 'monthly'),
     page('/docs/compliance/kvkk', 0.8, 'monthly'),
     page('/docs/compliance/cpra', 0.78, 'monthly'),
-    page('/docs/compliance/tcf', 0.78, 'monthly'),
+    page('/docs/compliance/tcf-and-gpp-registration', 0.78, 'monthly'),
     page('/docs/compliance/coppa', 0.75, 'monthly'),
     page('/docs/compliance/notice-only', 0.7, 'monthly'),
 
     // Guides
     page('/guides', 0.85, 'monthly'),
+    page('/guides/what-is-consenti', 0.85, 'monthly'),
+    page('/guides/frontend-only-mode', 0.85, 'monthly'),
     page('/guides/frontend/minimal-setup', 0.8, 'monthly'),
     page('/guides/frontend/consent-flow', 0.8, 'monthly'),
     page('/guides/frontend/auto-detection', 0.75, 'monthly'),
     page('/guides/frontend/frameworks', 0.8, 'monthly'),
     page('/guides/frontend/gtm', 0.8, 'monthly'),
+    page('/guides/frontend/adobe', 0.75, 'monthly'),
+    page('/guides/frontend/meta', 0.75, 'monthly'),
+    page('/guides/frontend/clarity', 0.75, 'monthly'),
+    page('/guides/frontend/segment', 0.75, 'monthly'),
+    page('/guides/frontend/hotjar', 0.75, 'monthly'),
     page('/guides/frontend/themes', 0.7, 'monthly'),
     page('/guides/backend/minimal-setup', 0.8, 'monthly'),
     page('/guides/backend/consent-flow', 0.8, 'monthly'),
@@ -84,6 +93,29 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page('/guides/backend/server-side-enforcement', 0.75, 'monthly'),
     page('/guides/backend/webhooks', 0.75, 'monthly'),
     page('/guides/backend/policy-engine-mapping', 0.7, 'monthly'),
+
+    // Hot topics — SEO-targeted guides
+    page('/guides/hot-topics/google-consent-mode-v2-explained', 0.85, 'monthly'),
+    page('/guides/hot-topics/gdpr-vs-dpdpa', 0.82, 'monthly'),
+    page('/guides/hot-topics/dpdpa-cookie-compliance-guide', 0.82, 'monthly'),
+    page('/guides/hot-topics/cpra-implementation-guide', 0.82, 'monthly'),
+    page('/guides/hot-topics/right-to-erasure', 0.82, 'monthly'),
+    page('/guides/hot-topics/google-consent-mode-for-gtm', 0.8, 'monthly'),
+    page('/guides/hot-topics/self-hosting-a-cmp', 0.82, 'monthly'),
+    page('/guides/hot-topics/open-source-alternatives-to-onetrust', 0.8, 'monthly'),
+    page('/guides/hot-topics/open-source-alternatives-to-cookiebot', 0.8, 'monthly'),
+
+    // Ecosystem — companion tools/packages
+    page('/guides/ecosystem/scanner', 0.75, 'monthly'),
+
+    // Tutorials
+    page('/guides/tutorials', 0.8, 'monthly'),
+    ...FRONTEND_TUTORIAL_STEPS.map((s) => page(`/guides/tutorials/frontend/${s.slug}`, 0.7, 'monthly')),
+    ...BACKEND_TUTORIAL_STEPS.map((s) => page(`/guides/tutorials/backend/${s.slug}`, 0.7, 'monthly')),
+
+    // Examples
+    page('/guides/examples', 0.8, 'monthly'),
+    ...EXAMPLES.map((e) => page(`/guides/examples/${e.slug}`, 0.72, 'monthly')),
 
     // Other
     page('/docs/changelog', 0.6, 'weekly'),

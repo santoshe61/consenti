@@ -32,6 +32,9 @@ export interface ButtonClickHandler {
   onClose: () => void
   /** Grant only the specified cookie IDs plus all mandatory cookies. */
   onGrantSpecific: (cookieIds: string[]) => void
+  /** Erase the stored consent record (GDPR Art. 17 / CCPA-CPRA / LGPD Art. 18 and equivalents)
+   * and re-prompt. Wired to the preference modal's "Forget me" button. */
+  onForgetMe: () => void
 }
 
 /**

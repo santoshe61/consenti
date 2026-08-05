@@ -1,0 +1,35 @@
+{
+  "name": "@consenti/browser-engine",
+  "version": "0.1.0",
+  "description": "Internal shared Playwright launch/capture/screenshot core used by @consenti/scanner and apps/test-runner",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "install-browsers": "playwright install chromium"
+  },
+  "dependencies": {
+    "playwright": "^1.62.0"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.1",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

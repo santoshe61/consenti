@@ -3,6 +3,11 @@ import { json, parseJsonBody } from '../../utils/http'
 import { errorResponse, withErrorHandler } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
 
+/** The seeded "full system access" role (see `SEED_ROLES` in seed-data.ts) — every install's
+ * break-glass role. Locked against update/delete so it can't be accidentally stripped of
+ * permissions or removed, which would leave no one able to manage roles/users. */
+const SUPER_ADMIN_ROLE_ID = 'role_super_admin'
+
 export function buildAdminRoleRoutes(
   storage: StorageAdapter,
   authConfig: AuthConfig,
@@ -58,6 +63,7 @@ export function buildAdminRoleRoutes(
       withErrorHandler(async () => {
         const { user: actor, denied } = await auth(req, 'role:update')
         if (denied) return denied
+        if (p['id'] === SUPER_ADMIN_ROLE_ID) return errorResponse(403, 'The super_admin role cannot be modified')
         const body = await parseJsonBody(req)
         if (!body || typeof body !== 'object') return errorResponse(400, 'Invalid body')
         const b = body as Record<string, unknown>
@@ -80,6 +86,7 @@ export function buildAdminRoleRoutes(
       withErrorHandler(async () => {
         const { user: actor, denied } = await auth(req, 'role:delete')
         if (denied) return denied
+        if (p['id'] === SUPER_ADMIN_ROLE_ID) return errorResponse(403, 'The super_admin role cannot be deleted')
         await storage.deleteRole(p['id'] ?? '')
         await storage.createLog({
           tenantId: 'default',
@@ -103,6 +110,7 @@ export function buildAdminRoleRoutes(
       withErrorHandler(async () => {
         const { denied } = await auth(req, 'role:update')
         if (denied) return denied
+        if (p['id'] === SUPER_ADMIN_ROLE_ID) return errorResponse(403, 'The super_admin role cannot be modified')
         const body = await parseJsonBody(req)
         if (!body || typeof body !== 'object') return errorResponse(400, 'Invalid body')
         const b = body as Record<string, unknown>
@@ -115,6 +123,7 @@ export function buildAdminRoleRoutes(
       withErrorHandler(async () => {
         const { denied } = await auth(req, 'role:update')
         if (denied) return denied
+        if (p['id'] === SUPER_ADMIN_ROLE_ID) return errorResponse(403, 'The super_admin role cannot be modified')
         await storage.revokePermissionFromRole(p['id'] ?? '', p['permissionId'] ?? '')
         return json(200, { success: true })
       }),

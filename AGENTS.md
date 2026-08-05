@@ -6,7 +6,7 @@ This file is the single source of truth for every AI agent (Claude Code, Cursor,
 
 ## What is Consenti?
 
-Consenti is an open-source, GDPR-compliant Cookie Consent + Consent Management Platform similar to Syrenis Cassie. It ships as two independently installable npm packages inside a Turborepo monorepo:
+Consenti is an open-source, GDPR-style opt-in Cookie Consent + Consent Management Platform toolkit. It ships as two independently installable npm packages inside a Turborepo monorepo:
 
 - `@consenti/ui` — browser-side TypeScript widget (banner + preference modal)
 - `@consenti/api` — Node.js backend module (consent storage, REST API, admin dashboard)
@@ -32,12 +32,19 @@ All major design decisions are already made. Do not propose alternatives unless 
 ```
 consenti/
 ├── apps/
-│   ├── ui/         → @consenti/ui     (published frontend widget)
-│   ├── api/        → @consenti/api (published backend module)
-│   └── docs/       → Next.js documentation site + interactive playground
+│   ├── ui/             → @consenti/ui     (published frontend widget)
+│   ├── api/            → @consenti/api (published backend module)
+│   ├── docs/           → Next.js documentation site + interactive playground
+│   ├── scanner/        → @consenti/scanner (published local CLI — offline tracker discovery)
+│   └── test-runner/    → @consenti/test-runner (private — internal Playwright QA, not published)
 ├── packages/
-│   └── types/      → @consenti/types (shared types — internal)
-├── plans/          → all architecture and planning docs
+│   ├── types/          → @consenti/types (shared types — internal)
+│   ├── utils/          → @consenti/utils (shared compliance/tracker-knowledge logic — internal)
+│   └── browser-engine/ → @consenti/browser-engine (shared Playwright core — internal, used by test-runner + scanner)
+├── plans/          → architecture/planning docs — flat `DONE-*.md`/`PENDING-*.md` naming; the
+│                      table below still points at an older `plans/api/`/`plans/ui/` subdirectory
+│                      layout that no longer exists — treat entries there as topic pointers, not
+│                      live paths, until that table gets its own cleanup pass
 ├── AGENTS.md       ← this file
 ├── CLAUDE.md       ← points here
 ├── .rules
@@ -74,7 +81,7 @@ Read the relevant plan before writing any code. All architectural decisions are 
 | `plans/ui/feature-cookie-format.md` | Cookie name/value format, parsing, HMAC signing |
 | `plans/ui/feature-gpc.md` | GPC detection and handling modes |
 | `plans/ui/feature-i18n.md` | Locale resolution algorithm, translations structure |
-| `plans/ui/feature-accessibility.md` | WCAG AAA, focus trap, aria patterns |
+| `plans/ui/feature-accessibility.md` | Targeting WCAG 2.x AA (not AAA — see `plans/PENDING-cursor-review-work-items.md` #2), focus trap, aria patterns |
 | `plans/ui/feature-cross-tab-sync.md` | BroadcastChannel cross-tab implementation |
 | `plans/ui/feature-ssr.md` | SSR guard patterns, Next.js/Nuxt integration |
 | `plans/ui/feature-consent-receipt.md` | Consent receipt JSON format, download trigger |
@@ -168,7 +175,7 @@ npm run build --workspace=apps/api
 | CSS classes | BEM `.consenti-` prefix | `.consenti-banner__heading--bold` |
 | Custom events | `consenti:` prefix | `consenti:consentSubmitted` |
 | BroadcastChannel messages | camelCase type field | `{ type: 'consentUpdated' }` |
-| Event bus events | dot-separated | `consent.created` |
+| Event bus events | dot-separated | `consent:created` |
 | Files | kebab-case | `consent-engine.ts` |
 | Classes | PascalCase | `ConsentEngine` |
 | Types/interfaces | PascalCase | `ConsentRecord` |
@@ -199,11 +206,11 @@ Violations of this hierarchy are not acceptable. Routes may not import repositor
 - `src/core/consent-engine.ts` — consent validation, versioning, expiry
 
 ### Security rules
-- Never store raw IP addresses — SHA-256 hash: `createHash('sha256').update(ip).digest('hex')`
+- Never store raw IP addresses — mask (zero last IPv4 octet / last 80 bits of IPv6) and salt with `compliance.dataSigningHash` before SHA-256 hashing (`src/utils/crypto.ts` `hashIp()`)
 - Passwords: scrypt via `node:crypto` — never bcrypt (external dep)
 - JWT: use `node:crypto` `createHmac` — never jsonwebtoken package
 - Admin routes: always go through `auth.middleware.ts`
-- `audit_logs` is append-only — never UPDATE or DELETE
+- `audit_logs` is append-only / never deleted by Consenti — no UPDATE, no DELETE, no retention-purge path, under any configuration. Do not add a TTL/purge capability for this table (a prior `auditLogPurgeAfterDays` option was deliberately removed — see `plans/PENDING-cursor-review-work-items.md` #16). This is distinct from `compliance.dataRetention.purgeAfterDays`, which purges expired *consent records* and is untouched by this rule.
 
 ### Dashboard SPA
 
@@ -243,6 +250,9 @@ All custom DOM events prefixed with `consenti:`:
 `consenti:bannerInitialized`, `consenti:bannerVisibility`, `consenti:modalVisibility`,
 `consenti:consentBeingSubmitted`, `consenti:consentSubmitted`
 
+`consenti:listener:*` is reserved for inbound events (host page → widget), as opposed to the
+outbound events above (widget → host). Currently: `consenti:listener:identify`.
+
 ### Common pitfalls
 - `crypto.randomUUID()` works in Node 15+ and all ES2020 browsers — no polyfill needed
 - `BroadcastChannel` is same-origin only — cross-subdomain sync uses the API cookie
@@ -256,13 +266,13 @@ All custom DOM events prefixed with `consenti:`:
 | Zero external runtime deps in `apps/ui` and `apps/api` | Core design principle — consumers must not get transitive deps |
 | TypeScript strict mode, no `any` | Type safety is a feature |
 | All CSS: `.consenti-` prefix, BEM naming | No Shadow DOM; prefix prevents conflicts |
-| No raw IP storage — SHA-256 hash only | GDPR compliance |
+| No raw IP storage — mask + salt (`dataSigningHash`) before SHA-256 hash | GDPR compliance; unsalted hash of small IP space is brute-forceable |
 | No `console.error` in `apps/ui` — use `console.warn` | Never crash or alarm |
 | Named exports only from package entry points | Tree-shaking and clarity |
 | SSR guard on every `window`/`document`/`navigator` access | Package must work in SSR environments |
 | No React/Vue code in core `src/` — framework hooks in subpath files only | Framework-agnostic core |
 | Admin routes must go through `auth.middleware.ts` | Security |
-| `audit_logs` is append-only — never UPDATE or DELETE | GDPR compliance evidence |
+| `audit_logs` is append-only / never deleted by Consenti under any config — no purge path for this table (`dataRetention.purgeAfterDays` for consent records is separate and unaffected) | GDPR compliance evidence |
 | Do not add external runtime dependencies without explicit approval | Core design principle |
 | Do not use Shadow DOM | CSS scoping via `.consenti-` prefix instead |
 | Do not write raw SQLite queries outside `src/storage/sqlite/sqlite.adapter.ts` | Layer isolation |

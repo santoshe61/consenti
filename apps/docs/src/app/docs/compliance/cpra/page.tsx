@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'CPRA Compliance Guide (California 2023)',
@@ -28,6 +29,7 @@ export default function CPRAPage() {
   return (
     <div className="prose max-w-none">
       <h1>CPRA Compliance Guide</h1>
+      <ComplianceTierBadge tier="maintained" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-out-strict</code> — opt-out for sale/sharing;
         opt-in required for sensitive data. GPC triggers both Do Not Sell and Do Not Share. Use{' '}
@@ -122,10 +124,8 @@ export default function CPRAPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'cpra',
-    autoHonorGPC: true,  // required — GPC denies sale and sharing cookies automatically
-  },
+  // 'opt-out-strict' honors GPC automatically (denies sale/sharing on detection) — no extra flag needed
+  compliance: { type: 'opt-out-strict' },
 })`}
       />
 
@@ -227,10 +227,16 @@ if (gpcDetected && regulation === 'cpra') {
         lang="json"
         code={`{
   "text": "Do Not Sell or Share My Personal Information",
-  "type": "reject",
+  "style": "secondary",
+  "action": "custom",
   "cookies": "!"
 }`}
       />
+      <Callout type="warning">
+        <strong>Operator checklist item:</strong> placing this link somewhere a visitor can actually
+        find it — a footer link or equivalent, wired to Consenti — is the site owner&apos;s job.
+        Consenti provides the button/action; it does not auto-inject a footer link into your site.
+      </Callout>
 
       <h2>Migration from CCPA</h2>
       <p>

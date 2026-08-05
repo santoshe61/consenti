@@ -3,12 +3,12 @@ import { Copy, Check, Trash2, Eye, EyeOff, ExternalLink } from 'lucide-react'
 import { usePageTitle } from '../context/pageTitle'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { useT } from '../context/locale'
-import { apiFetch } from '../api/client'
+import { apiFetch, apiErrorMessage } from '../api/client'
 
 /** `basePath` from the runtime config injected into the dashboard's HTML — reflects
  * whatever `CONSENTI_BASE_PATH` / `config.basePath` the operator actually deployed with. */
 const basePath = window.__CONSENTI_CONFIG__?.basePath ?? '/consenti'
-const ADMIN_URL = `${window.location.origin}${basePath}/admin`
+const ADMIN_URL = `${window.location.origin}${basePath}/admin/v1`
 const PUBLIC_URL = `${window.location.origin}${basePath}/api/v1`
 
 interface ApiKey { id: string; name: string; isActive: boolean; createdAt: string; expireBy?: string }
@@ -90,8 +90,8 @@ function OriginsSection({
     try {
       await apiFetch('/settings', { method: 'PATCH', body: JSON.stringify({ [field]: updated }) })
       setOrigins(updated)
-    } catch {
-      setError(t('apiConfig.origins.errorSave'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('apiConfig.origins.errorSave')))
     } finally {
       setSaving(false)
     }
@@ -207,8 +207,8 @@ export function ApiConfig({ current }: { current: string }) {
       setKeyName('')
       setKeyExpireBy('')
       setKeys(prev => [...prev, { id: created.id, name: created.name, isActive: true, createdAt: created.createdAt, ...(keyExpireBy ? { expireBy: new Date(keyExpireBy).toISOString() } : {}) }])
-    } catch (e) {
-      setKeyError(e instanceof Error ? e.message : t('apiConfig.tokens.errorCreate'))
+    } catch (err) {
+      setKeyError(apiErrorMessage(err, t('apiConfig.tokens.errorCreate')))
     }
   }
 

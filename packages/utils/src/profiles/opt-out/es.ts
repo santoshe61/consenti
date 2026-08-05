@@ -1,4 +1,4 @@
-import type { LocaleTextContent } from '../types'
+import type { LocaleTextContent } from '../types.js'
 
 export const OPT_OUT_ES: LocaleTextContent = {
   mainBanner: {

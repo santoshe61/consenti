@@ -360,3 +360,106 @@ describe('resolveProfile — Scenario 1B', () => {
     assert.ok(Object.keys(resolved.cookies).length > 0)
   })
 })
+
+describe('resolveProfile — Scenario 1A', () => {
+  // navigator/Intl.DateTimeFormat are stubbed at module load (top of file) to
+  // de-DE / Europe/Berlin — the embedded map resolves that to 'opt-in'.
+  test('resolves complianceGroup from the embedded map when no complianceMap override is set', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto' },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-in')
+  })
+
+  test('an inline complianceMap override changes the resolved group without breaking country detection', async () => {
+    // DE is detected the same way (via the embedded timezone index — untouched by the
+    // override), but the group it maps to now comes from the override, not the embedded map.
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: {
+        type: 'auto',
+        complianceMap: { version: 'test', countries: { DE: { complianceGroup: 'opt-out' } } },
+      },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-out')
+  })
+
+  test('falls back to the embedded map and warns when the complianceMap override fails validation', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto', complianceMap: { not: 'valid' } as never },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-in')
+  })
+
+  test('a geoDataProvider-returned complianceGroup is used directly, skipping the country/region map entirely', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: {
+        type: 'auto',
+        // Country here (FR) would normally resolve to 'opt-in' via the embedded map — the
+        // explicit complianceGroup below must win instead, proving the map lookup was skipped.
+        geoDataProvider: async () => ({ country: 'FR', region: null, confidence: 1, complianceGroup: 'opt-out-strict' }),
+      },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-out-strict')
+  })
+
+  test('a geoDataProvider without complianceGroup resolves from its country/region against the embedded map', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: {
+        type: 'auto',
+        // US with no region → embedded map's country-level default (opt-out-strict), same
+        // "never under-comply when region is unknown" rule the server-side resolver uses.
+        geoDataProvider: async () => ({ country: 'US', region: null, confidence: 1 }),
+      },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-out-strict')
+  })
+
+  test('a geoDataProvider country/region resolves region-level overriddenRegions carve-outs', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: {
+        type: 'auto',
+        // California region override should apply, not the US country-level default.
+        geoDataProvider: async () => ({ country: 'US', region: 'CA', confidence: 1 }),
+      },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-out-strict')
+  })
+
+  test('a geoDataProvider with no resolvable country falls back to the strictest safe default', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: {
+        type: 'auto',
+        geoDataProvider: async () => ({ country: null, region: null, confidence: 0 }),
+      },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-in')
+  })
+})

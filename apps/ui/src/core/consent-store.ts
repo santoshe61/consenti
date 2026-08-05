@@ -37,11 +37,25 @@ export const CONSENT_COOKIE_NAME = 'consenti_data'
  * already-consented visitor's locale before the profile — and hence a full `ConsentStore`
  * instance — is known. Returns `null` if no consent exists or no locale was recorded.
  */
-export function peekConsentLocale(storageMode: 'cookie' | 'localStorage' = 'cookie'): string | null {
+export function peekConsentLocale(storageMode: 'cookie' | 'localStorage' = 'cookie', cookieName: string = CONSENT_COOKIE_NAME): string | null {
   const storage = new ConsentStorage(storageMode)
-  const raw = storage.read(CONSENT_COOKIE_NAME)
+  const raw = storage.read(cookieName)
   if (!raw) return null
   return decodeConsent(raw)?.l || null
+}
+
+/**
+ * Peeks at the compliance group recorded with an existing consent record, without needing a
+ * profile ID or a resolved profile yet — same "know the answer before the profile is resolved"
+ * problem `peekConsentLocale` solves for locale. Lets `scenario2A` skip the `/resolve-profile`
+ * geo round-trip for a returning, already-consented visitor. Returns `null` if no consent exists
+ * or no group was recorded (e.g. a pre-existing cookie from before this field existed).
+ */
+export function peekConsentGroup(storageMode: 'cookie' | 'localStorage' = 'cookie', cookieName: string = CONSENT_COOKIE_NAME): string | null {
+  const storage = new ConsentStorage(storageMode)
+  const raw = storage.read(cookieName)
+  if (!raw) return null
+  return decodeConsent(raw)?.k || null
 }
 
 const LEGACY_PREFIX = 'consenti'
@@ -87,7 +101,7 @@ function parseLegacyCookieValue(value: string): ParsedConsent | null {
 
 // ─── ConsentStore ─────────────────────────────────────────────────────────────
 
-type WriteMeta = { source?: number; gpcDetected?: boolean; consentId?: string; locale?: string }
+type WriteMeta = { source?: number; gpcDetected?: boolean; consentId?: string; locale?: string; complianceGroup?: string | undefined }
 
 /**
  * Manages reading and writing the `consenti_data` consent cookie for a single visitor.
@@ -108,12 +122,14 @@ export class ConsentStore {
    * @param storageMode    - `'cookie'` (default) or `'localStorage'`.
    * @param cookieDomains  - Comma-separated domain list; first entry is used as `Domain` attribute.
    * @param appUserId      - Logged-in application user ID; empty string / undefined for anonymous.
+   * @param cookieName     - Cookie/localStorage key name. Default: `CONSENT_COOKIE_NAME` (`'consenti_data'`).
    */
   constructor(
     private profileId: string,
     private storageMode: 'cookie' | 'localStorage',
     private cookieDomains?: string,
     private appUserId?: string,
+    private cookieName: string = CONSENT_COOKIE_NAME,
   ) {
     this.storage = new ConsentStorage(storageMode)
   }
@@ -128,9 +144,25 @@ export class ConsentStore {
     this.profileVersion = version
   }
 
-  /** Returns `consenti_data` (the fixed cookie name used for all consent records). */
-  get cookieName(): string {
-    return CONSENT_COOKIE_NAME
+  /** Returns the logged-in application user ID recorded with the stored consent (`u` field),
+   * or `null` if anonymous/unset/no consent exists yet. Prefers the in-memory cache; falls back
+   * to peeking the raw cookie the same way `getConsentLocale()` does. */
+  getAppUserId(): string | null {
+    if (this.cachedData) return this.cachedData.u || null
+    const raw = this.storage.read(this.cookieName)
+    if (!raw) return null
+    return decodeConsent(raw)?.u || null
+  }
+
+  /** Updates the user ID used for the *next* cookie write — does not touch storage itself. */
+  setAppUserId(id?: string): void {
+    this.appUserId = id
+  }
+
+  /** Returns the configured cookie/localStorage key name for all consent records
+   * (`CONSENT_COOKIE_NAME` / `'consenti_data'` unless `core.cookieName` overrides it). */
+  getCookieName(): string {
+    return this.cookieName
   }
 
   /**
@@ -142,7 +174,7 @@ export class ConsentStore {
    * Updates the in-memory cache on success.
    */
   read(): ParsedConsent | null {
-    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    const raw = this.storage.read(this.cookieName)
     if (raw) {
       const data = decodeConsent(raw)
       if (data) {
@@ -171,7 +203,7 @@ export class ConsentStore {
    * @param signingKey - HMAC key (from profile API response or `core.cookieSigningKey`).
    */
   async readAndVerify(signingKey: string): Promise<ParsedConsent | null> {
-    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    const raw = this.storage.read(this.cookieName)
     if (!raw) {
       const migrated = this.migrateLegacyCookie()
       if (migrated) {
@@ -214,7 +246,7 @@ export class ConsentStore {
     const data = this.buildCookieData(consent, meta)
     let encoded = encodeConsent(data)
     if (signature) encoded = `${encoded}::sig:${signature}`
-    this.storage.write(CONSENT_COOKIE_NAME, encoded, this.buildCookieOpts())
+    this.storage.write(this.cookieName, encoded, this.buildCookieOpts())
     this.cachedData = data
   }
 
@@ -234,7 +266,7 @@ export class ConsentStore {
     const data = this.buildCookieData(consent, meta)
     const encoded = encodeConsent(data)
     const sig = await signValue(encoded, signingKey)
-    this.storage.write(CONSENT_COOKIE_NAME, `${encoded}::sig:${sig}`, this.buildCookieOpts())
+    this.storage.write(this.cookieName, `${encoded}::sig:${sig}`, this.buildCookieOpts())
     this.cachedData = data
     return sig
   }
@@ -242,7 +274,7 @@ export class ConsentStore {
   /** Removes the consent record from storage and clears the in-memory cache. */
   delete(): void {
     const opts = this.buildCookieOpts()
-    this.storage.remove(CONSENT_COOKIE_NAME, opts)
+    this.storage.remove(this.cookieName, opts)
     this.deleteLegacyCookies()
     this.cachedData = null
   }
@@ -270,7 +302,7 @@ export class ConsentStore {
   /** Returns the per-submission consent UUID (`i` field), or `null` if no consent exists. */
   getConsentId(): string | null {
     if (this.cachedData) return this.cachedData.i
-    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    const raw = this.storage.read(this.cookieName)
     if (!raw) return null
     return decodeConsent(raw)?.i ?? null
   }
@@ -278,7 +310,7 @@ export class ConsentStore {
   /** Returns the locale recorded with the stored consent (`l` field), or `null` if unset/no consent exists. */
   getConsentLocale(): string | null {
     if (this.cachedData) return this.cachedData.l || null
-    const raw = this.storage.read(CONSENT_COOKIE_NAME)
+    const raw = this.storage.read(this.cookieName)
     if (!raw) return null
     return decodeConsent(raw)?.l || null
   }
@@ -298,6 +330,7 @@ export class ConsentStore {
       p: 0,
       c: compressConsent(consent),
       l: this.cachedData?.l ?? '',
+      k: this.cachedData?.k ?? '',
     }
   }
 
@@ -326,6 +359,7 @@ export class ConsentStore {
       p: meta.source ?? 0,
       c: compressConsent(consent),
       l: meta.locale ?? '',
+      k: meta.complianceGroup ?? '',
     }
   }
 
@@ -359,11 +393,12 @@ export class ConsentStore {
         p: 0,
         c: compressConsent(parsed.consent),
         l: '', // legacy format predates locale tracking — genuinely unknown
+        k: '', // legacy format predates compliance-group tracking — genuinely unknown
       }
 
-      this.storage.write(CONSENT_COOKIE_NAME, encodeConsent(data), this.buildCookieOpts())
+      this.storage.write(this.cookieName, encodeConsent(data), this.buildCookieOpts())
       this.storage.remove(name, this.buildCookieOpts())
-      logger.info(`Migrated consent cookie from "${name}" to "${CONSENT_COOKIE_NAME}"`)
+      logger.info(`Migrated consent cookie from "${name}" to "${this.cookieName}"`)
       return data
     }
     return null

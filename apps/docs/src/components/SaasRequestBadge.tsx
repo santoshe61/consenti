@@ -167,7 +167,7 @@ export function SaasRequestBadge() {
                       onChange={e => setCurrentTool(e.target.value)}
                       maxLength={MAX_SHORT}
                       className="w-full px-3 py-2 border border-slate-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 text-slate-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                      placeholder="e.g. Cookiebot, OneTrust, Usercentrics…"
+                      placeholder="e.g. an enterprise CMP or SaaS banner tool"
                     />
                   </div>
 

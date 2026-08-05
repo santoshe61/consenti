@@ -130,7 +130,7 @@ const widget = new ConsentiSetup({})
       htmlText: 'We use cookies to improve your experience.',
       buttons: {
         'accept-all': { text: 'Accept All',     style: 'primary',   action: 'custom', cookies: '*' },
-        'reject-optional': { text: 'Reject Optional',style: 'secondary', action: 'custom', cookies: '!' },
+        'reject-optional': { text: 'Reject Optional',style: 'primary', action: 'custom', cookies: '!' },
         'customize': { text: 'Customize',      style: 'secondary', action: 'manage' },
       },
     },

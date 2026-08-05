@@ -125,7 +125,7 @@ export function buildAdminAuthRoutes(
           const allRoles = await storage.getRoles('default')
           for (const roleName of roles) {
             const role = allRoles.find(r => r.name === roleName)
-            if (role) await storage.assignRole(user.id, role.id).catch(() => {})
+            if (role) await storage.assignRole(user.id, role.id).catch(() => { })
           }
         }
         const userRoles = await storage.getUserRoles(user.id)

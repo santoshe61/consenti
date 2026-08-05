@@ -69,6 +69,7 @@ export function buildAdminSetupRoutes(
           return errorResponse(400, `Unknown compliance group id(s): ${unknown.join(', ')}`)
         }
         await Promise.all((groups as string[]).map(g => profileService.seedDefaultProfile(g)))
+        await storage.updateSettings('default', { profilesSeeded: true })
         return json(200, { seeded: groups })
       }),
 
@@ -78,8 +79,12 @@ export function buildAdminSetupRoutes(
         if (denied) return denied
         const completed = await rejectIfCompleted()
         if (completed) return completed
-        const settings = await storage.updateSettings('default', { setupCompleted: true })
-        return json(200, settings)
+        const settings = await storage.getSettings('default')
+        if (settings.profilesSeeded !== true) {
+          return errorResponse(409, 'POST /setup/seed-profiles must be called at least once (an empty groups: [] call is a valid pass) before setup can be completed')
+        }
+        const updated = await storage.updateSettings('default', { setupCompleted: true })
+        return json(200, updated)
       }),
   }
 }

@@ -58,7 +58,6 @@ class MyPlugin extends ConsentiPlugin {
 }
 
 const widget = new ConsentiSetup({
-  core: { profileId: 0 },
   plugins: [new MyPlugin()],
 })`}
       />
@@ -454,7 +453,7 @@ import { AnalyticsPlugin } from './plugins/analytics'
 import { BrandingPlugin } from './plugins/branding'
 
 const widget = new ConsentiSetup({
-  core: { profileId: 1, regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
   plugins: [
     new AnalyticsPlugin(),
     new BrandingPlugin(),

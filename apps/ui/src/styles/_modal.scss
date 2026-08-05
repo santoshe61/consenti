@@ -126,6 +126,10 @@
     font-size: 0.87em;
     padding: var(--consenti-spacing-xs) var(--consenti-spacing-sm);
     border-radius: var(--consenti-spacing-xs);
+
+    &:first-child {
+      padding-left: 0;
+    }
   }
 
   &__subheading {
@@ -144,10 +148,23 @@
     flex: 1;
     padding: var(--consenti-spacing-sm) var(--consenti-spacing-lg);
     position: relative;
+    display: flex;
+    flex-direction: column;
+
+    // `.consenti__powered-by` only sets `inset-inline-end`, so without an explicit
+    // `bottom` it falls back to its static position (wherever it lands in normal flow,
+    // last among body's children) — that can spill past body's own box onto the meta
+    // footer / button bar rendered below it. Pin it to body's own bottom-right instead.
+    .consenti__powered-by {
+      bottom: 0;
+      left: 0;
+      position: relative;
+    }
   }
 
   &__categories {
     display: flex;
+    flex-grow: 1;
     flex-direction: column;
     gap: var(--consenti-spacing-md);
     padding: var(--consenti-spacing-md) 0;

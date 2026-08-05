@@ -54,7 +54,7 @@ export default function BackendGeoRoutingGuide() {
           Resolver returns <code>{'{ country, region, locale }'}</code>.
         </li>
         <li>
-          Country/region is matched against the compliance map (195 countries and territories → 8
+          Country/region is matched against the compliance map (190+ countries and territories → 8
           compliance groups).
         </li>
         <li>Response returns the file path to the active profile JSON for that group.</li>
@@ -180,12 +180,14 @@ createConsenti({
 
       <h2>The compliance map</h2>
       <p>
-        Countries are mapped to compliance groups via an embedded, <strong>fixed</strong> map of
-        195+ countries and territories, maintained by the Consenti project — see the full list on
-        the <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a>.
-        There is currently no config option to supply your own map; <code>geoDataProvider</code> is
-        the only customization point in the pipeline — it decides which country/region gets looked
-        up, not what group that country resolves to.
+        Countries are mapped to compliance groups via an embedded map of 190+ countries and
+        territories, maintained by the Consenti project — see the full list on the{' '}
+        <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a>.{' '}
+        <code>geoDataProvider</code> decides which country/region gets looked up;{' '}
+        <code>compliance.complianceMap</code> decides what group that country resolves to — set it
+        to <code>'default'</code> to keep the embedded map, a URL to fetch your own JSON map
+        (refreshed in the background per the response's <code>Cache-Control</code>/
+        <code>Expires</code> header), or an inline object to override specific countries directly.
       </p>
 
       <CodeBlock
@@ -194,6 +196,7 @@ createConsenti({
   compliance: {
     type: 'auto',
     geoDataProvider: 'geoip', // resolves { country, region } — the map does the rest
+    complianceMap: 'default', // or a URL string, or an inline ComplianceMapData object
   },
 })`}
       />

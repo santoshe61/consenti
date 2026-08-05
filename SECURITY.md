@@ -48,8 +48,17 @@ The following design decisions are security-relevant. Understanding them helps b
 
 ### Audit Log Integrity
 
-- `audit_logs` is **append-only** — the storage adapter never issues `UPDATE` or `DELETE` against this table.
-- This provides immutable evidence for GDPR accountability obligations.
+- `audit_logs` is **append-only / never deleted by Consenti** — the storage adapter never issues
+  `UPDATE` or `DELETE` against this table, under any configuration. There is no retention-purge
+  option for this table (unlike `compliance.dataRetention.purgeAfterDays`, which purges expired
+  *consent records* and is unrelated).
+- This provides append-only evidence for GDPR accountability obligations. It is not
+  cryptographically tamper-evident (no chaining/hashing between entries) — see "Known
+  Limitations."
+- Operators who need to reduce audit-log retention for their own storage or operational reasons
+  must do so manually, directly against their own database. This is intentionally outside
+  Consenti's supported paths — there is no config flag or admin action that deletes audit log
+  rows.
 
 ### Error Handling
 
@@ -83,12 +92,58 @@ The following are known trade-offs, not vulnerabilities, but operators should be
 
 | Limitation | Notes |
 |-----------|-------|
-| Consent cookie HMAC verification is client-side only | Server-side cookie verification is planned for a future phase. Do not rely on the signed cookie as a server-side proof of consent without additional verification. |
+| Standalone `@consenti/ui` HMAC signing is spoofable | With no `@consenti/api` backend, `core.cookieSigningKey` has nowhere to live but the shipped browser bundle — anyone can read it and re-sign a forged cookie. It catches accidental tampering, not a motivated attacker. Server-side verification already exists via `@consenti/api`'s `compliance.dataSigningHash` (the signing key never reaches the browser) — use it whenever you need consent records that hold up as evidence, not just client-side tamper-evidence. |
 | Consent cookies lack `HttpOnly` | The consent widget intentionally reads `consenti_*` cookies via JavaScript to display consent state. `HttpOnly` cannot be applied globally. The `visitorId` embedded in the cookie name is a persistent identifier that XSS payloads can read — mitigate by deploying a strong CSP that prevents script injection. |
 | Plugin hooks run in-process with full Node.js access | Only install plugins from trusted sources. No sandbox exists today. |
 | SQLite DB file permissions are operator responsibility | The file must not be web-accessible. Configure your web server to block direct file access. |
 | No built-in CSP headers | Add `Content-Security-Policy` at your reverse proxy or web server layer. |
 | Swagger UI loaded from unpkg CDN | The API documentation page (`/api/docs`) loads `swagger-ui-dist@5.17.14` from `https://unpkg.com`. If operating in a high-security environment, pin to a specific version and add `integrity="sha384-…"` SRI hashes (compute with `openssl dgst -sha384 -binary file | openssl base64 -A`), or serve Swagger UI assets locally. |
+
+---
+
+## Third-Party Security Review
+
+**Status: not yet conducted.** Everything in "Security Architecture" and "Known Limitations"
+above is Consenti's own self-assessment — accurate to the best of the maintainers' knowledge, but
+not independently verified. This section exists so that status is stated plainly rather than left
+implicit, and so a future review has a scoped starting point instead of "audit everything."
+
+### Scope, if/when a review happens
+
+- **Authentication** — password hashing (`scrypt` via `node:crypto`, `apps/api/src/utils/crypto.ts`),
+  admin JWT issuance/verification (`createHmac('sha256', secret)`, no `jsonwebtoken` dependency),
+  session/token lifecycle (`auth.middleware.ts`), OAuth/OIDC/SAML integration points.
+- **Authorisation** — RBAC permission checks at the service layer (per-route `authenticate()` +
+  `authError()` calls against a named permission, e.g. `settings:update` in
+  `tenants.routes.ts`), and the split between `routes/admin/*` (JWT-gated, permission-checked) and
+  `routes/public/*` (`consent`, `profile`, `notice`, `tcf-status`, `gpp-status` — visitor-facing,
+  unauthenticated by design).
+- **Storage** — all seven adapters (`postgresql`, `mysql`, `mongodb`, `json`, and the three
+  `sqlite` variants) for injection risk, especially anywhere a query is composed outside the
+  parameterised-query helpers; the audit-log append-only guarantee (see "Audit Log Integrity"
+  above) — confirm no code path can `UPDATE`/`DELETE` `audit_logs` under any configuration.
+- **Public routes** — rate limiting coverage and bypass potential, CORS configuration, input
+  validation on every `routes/public/*` endpoint (these are reachable with no authentication by
+  design, so they're the widest attack surface).
+- **Cryptography** — the `hashIp()`/`hashUserAgent()` masking+salting scheme in `utils/crypto.ts`,
+  cookie-signing (`compliance.dataSigningHash` server-side vs. the spoofable client-only fallback
+  documented in "Known Limitations"), and the parental-consent token scheme
+  (`utils/parental-consent-token.ts`).
+- Full context for a reviewer: this file, `THREATMODEL.md` (assets, trust boundaries, STRIDE
+  analysis, mitigations already in place, known gaps), and `AGENTS.md` (repo conventions).
+
+### What "done" looks like
+
+A findings summary — severity, affected component, remediation status — gets added to this
+section once a review completes. Whether the full report is published depends on whether it
+contains exploit-level detail; the summary here will not.
+
+### Choosing a reviewer
+
+Not something this document can commit to — engaging a specific firm or independent researcher is
+a maintainer decision (budget, timing, availability) outside what's fixable in a docs pass. If
+you're a security researcher interested in reviewing Consenti, or can point to one, reach out via
+the vulnerability-reporting contact above with subject line `[SECURITY REVIEW]`.
 
 ---
 

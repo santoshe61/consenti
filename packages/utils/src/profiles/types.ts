@@ -1,4 +1,4 @@
-import type { COMPLIANCE_GROUP_IDS, COOKIE_PURPOSE_IDS } from '../compliance'
+import type { COMPLIANCE_GROUP_IDS, COOKIE_PURPOSE_IDS } from '../compliance.js'
 
 export type ComplianceGroupId = (typeof COMPLIANCE_GROUP_IDS)[number]
 type CookiePurpose = (typeof COOKIE_PURPOSE_IDS)[number]
@@ -63,10 +63,24 @@ export interface EmbeddedModal {
 
 // ─── Locale translations ──────────────────────────────────────────────────────
 
+/** Per-locale age-gate modal text — only meaningful when the owning `EmbeddedProfile.ageGate.enabled`. */
+export interface EmbeddedAgeGateModal {
+  heading?: string
+  htmlText: string
+  confirmButtonLabel: string
+  denyButtonLabel: string
+  parentalConsent: {
+    heading?: string
+    htmlText: string
+    confirmButtonLabel: string
+  }
+}
+
 export interface EmbeddedTranslations {
   mainBanner: EmbeddedBanner
   gpcBanner?: EmbeddedBanner
   preferenceModal: EmbeddedModal
+  ageGateModal?: EmbeddedAgeGateModal
 }
 
 // ─── Top-level profile ────────────────────────────────────────────────────────
@@ -79,6 +93,13 @@ export interface EmbeddedProfile {
   /** Days until consent expires and the visitor is asked again (profile-wide). Default: 365. */
   expiryDays?: number
   translations: Record<string, EmbeddedTranslations>
+  /** Optional per-profile age gate for standalone `registerProfile()` authors. None of the 8
+   * built-in `DEFAULT_PROFILES` set this (left undefined/disabled). */
+  ageGate?: {
+    enabled: boolean
+    minimumAge: number
+    requireParentalConsent?: boolean
+  }
 }
 
 // ─── Non-English locale overlays ─────────────────────────────────────────────

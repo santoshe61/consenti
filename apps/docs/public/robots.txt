@@ -35,6 +35,11 @@ Allow: /
 User-agent: Bytespider
 Allow: /
 
+User-agent: Algolia Crawler
+Disallow: /llms.txt
+Disallow: /llms-full.txt
+Allow: /
+
 # Sitemap
 Sitemap: https://consenti.dev/sitemap.xml
 

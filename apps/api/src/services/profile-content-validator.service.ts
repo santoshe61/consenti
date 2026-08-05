@@ -7,10 +7,12 @@ import { hasVisibleText } from '@consenti/utils'
  * shape the dashboard now sends per `StoredProfileJson`/`LocaleContentInput` — see
  * `plans/PENDING-profile-storage-buttons-wizard-revamp.md` Phase 3/4), not raw author input.
  *
- * Rules (heading is intentionally optional everywhere — only body text, button labels, and
- * category headings are mandatory):
- * - Main Banner / GPC Banner: `htmlText` mandatory (`hasVisibleText`), every button's `text` mandatory.
- * - Preference Modal: `heading` mandatory, every button's `text` mandatory, every category's `heading` mandatory.
+ * Rules (`required = mandatory = trimmed text has length > 0`):
+ * - Main Banner / GPC Banner: `heading` optional; `htmlText` (body text) mandatory; every
+ *   button's `text` mandatory.
+ * - Preference Modal: `heading` mandatory; `htmlText` (intro text) mandatory; every button's
+ *   `text` mandatory; every category's `heading` mandatory. Everything else (`subheading`,
+ *   category `htmlText`, `legitimateInterestDescription`, receipt fields) stays optional.
  *
  * Trusts the submitted button/category id set as authoritative (matches this codebase's existing
  * `validateProfileCompliance` convention of validating submitted values, not re-fetching templates
@@ -35,6 +37,9 @@ function validateModal(locale: string, modal: PreferenceModal): ContentValidatio
   const errors: ContentValidationError[] = []
   if (!modal.heading?.trim()) {
     errors.push({ locale, section: 'preferenceModal', field: 'heading', message: 'Heading is required' })
+  }
+  if (!hasVisibleText(modal.htmlText)) {
+    errors.push({ locale, section: 'preferenceModal', field: 'htmlText', message: 'Intro text is required' })
   }
   for (const [buttonId, btn] of Object.entries(modal.buttons)) {
     if (!btn.text?.trim()) {

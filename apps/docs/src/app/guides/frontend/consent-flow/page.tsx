@@ -247,7 +247,7 @@ const date = widget.getConsentDate()  // Date | false`}
           {
             href: '/docs/ui/advanced-configuration/',
             label: 'Advanced Configuration',
-            desc: 'cookieSigningKey, cookieDomains, expiryDays, and every other option',
+            desc: 'cookieSigningKey, cookieName, cookieDomains, expiryDays, and every other option',
           },
         ]}
       />

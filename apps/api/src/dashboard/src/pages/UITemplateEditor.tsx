@@ -1,18 +1,76 @@
 import { useState, useEffect } from 'preact/hooks'
+import { Heading, Palette, MousePointerClick, Cookie, Focus, Hash, Globe, Eraser } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { usePageTitle } from '../context/pageTitle'
 import { BannerUIEditor } from '../components/BannerUIEditor'
 import { ModalUIEditor } from '../components/ModalUIEditor'
 import { PreviewPane } from '../components/PreviewPane'
-import { useT } from '../context/locale'
+import { useT, type TranslationKey } from '../context/locale'
 import {
   defaultUISettings, defaultCookies, defaultCategories, defaultLocaleContent, composeProfileJson,
   buttonsToMap, mapToButtonRows,
   type TemplateBannerUI, type TemplateModalUI,
 } from '../utils/templates'
 import { uiTemplatesApi } from '../api/templates'
+import { apiErrorMessage } from '../api/client'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 
 type UITab = 'main' | 'gpc' | 'modal'
+
+// ── Field reference panel ──────────────────────────────────────────────────────
+
+type FieldInfo = { key: string; Icon: LucideIcon; label: TranslationKey; description: TranslationKey; highlights: TranslationKey }
+
+const FIELD_INFO: FieldInfo[] = [
+  { key: 'headingTag', Icon: Heading, label: 'uiTemplates.editor.fieldInfo.headingTag.label', description: 'uiTemplates.editor.fieldInfo.headingTag.description', highlights: 'uiTemplates.editor.fieldInfo.headingTag.highlights' },
+  { key: 'style', Icon: Palette, label: 'uiTemplates.editor.fieldInfo.style.label', description: 'uiTemplates.editor.fieldInfo.style.description', highlights: 'uiTemplates.editor.fieldInfo.style.highlights' },
+  { key: 'action', Icon: MousePointerClick, label: 'uiTemplates.editor.fieldInfo.action.label', description: 'uiTemplates.editor.fieldInfo.action.description', highlights: 'uiTemplates.editor.fieldInfo.action.highlights' },
+  { key: 'cookies', Icon: Cookie, label: 'uiTemplates.editor.fieldInfo.cookies.label', description: 'uiTemplates.editor.fieldInfo.cookies.description', highlights: 'uiTemplates.editor.fieldInfo.cookies.highlights' },
+  { key: 'trapFocus', Icon: Focus, label: 'uiTemplates.editor.fieldInfo.trapFocus.label', description: 'uiTemplates.editor.fieldInfo.trapFocus.description', highlights: 'uiTemplates.editor.fieldInfo.trapFocus.highlights' },
+  { key: 'buttonId', Icon: Hash, label: 'uiTemplates.editor.fieldInfo.buttonId.label', description: 'uiTemplates.editor.fieldInfo.buttonId.description', highlights: 'uiTemplates.editor.fieldInfo.buttonId.highlights' },
+  { key: 'localeSwitcher', Icon: Globe, label: 'uiTemplates.editor.fieldInfo.localeSwitcher.label', description: 'uiTemplates.editor.fieldInfo.localeSwitcher.description', highlights: 'uiTemplates.editor.fieldInfo.localeSwitcher.highlights' },
+  { key: 'forgetMe', Icon: Eraser, label: 'uiTemplates.editor.fieldInfo.forgetMe.label', description: 'uiTemplates.editor.fieldInfo.forgetMe.description', highlights: 'uiTemplates.editor.fieldInfo.forgetMe.highlights' },
+]
+
+function FieldReferencePanel({ t }: { t: (key: TranslationKey) => string }) {
+  const [active, setActive] = useState(0)
+  const info = FIELD_INFO[active]!
+
+  return (
+    <div class="bg-white border border-gray-200 rounded-lg p-5 xl:sticky xl:top-4">
+      <p class="text-xs text-gray-400 mb-3 uppercase tracking-wide font-semibold">{t('uiTemplates.editor.fieldInfo.title')}</p>
+
+      <div class="flex flex-wrap gap-1.5 mb-4">
+        {FIELD_INFO.map((f, i) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setActive(i)}
+            class={`text-xs px-2.5 py-1 rounded-full border transition-colors ${active === i
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'border-gray-300 text-gray-600 hover:border-blue-400'
+              }`}
+          >
+            {t(f.label)}
+          </button>
+        ))}
+      </div>
+
+      <div class="space-y-2">
+        <div class="flex items-center gap-2">
+          <info.Icon size={18} className="text-gray-600 shrink-0" />
+          <h4 class="font-semibold text-gray-800 text-sm">{t(info.label)}</h4>
+        </div>
+        <p class="text-xs text-gray-600 leading-relaxed">{t(info.description)}</p>
+        <ul class="list-disc list-inside space-y-1">
+          {t(info.highlights).split('\n').map((line, i) => (
+            <li key={i} class="text-xs text-gray-600 leading-relaxed">{line}</li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
 
 const BLANK_BANNER: TemplateBannerUI = {
   position: 'bottom',
@@ -117,8 +175,8 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
       if (isNew) await uiTemplatesApi.create(payload)
       else await uiTemplatesApi.update(id!, payload)
       window.location.hash = '#/banners/ui-templates'
-    } catch {
-      setError(t('uiTemplates.editor.error.failed'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('uiTemplates.editor.error.failed')))
     } finally {
       setSaving(false)
     }
@@ -179,7 +237,8 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
           </div>
         )}
 
-        <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
+        <div class="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-5 items-start">
+          <div class="bg-white border border-gray-200 rounded-lg overflow-hidden">
           {/* Wizard step indicator */}
           <div class="flex items-center border-b border-gray-200 px-5 py-3 gap-2">
             {steps.map((step, i) => (
@@ -262,6 +321,9 @@ export function UITemplateEditor({ id, current }: { id?: string; current: string
               )}
             </div>
           </div>
+          </div>
+
+          <FieldReferencePanel t={t} />
         </div>
 
         <PreviewPane draft={previewDraft} expandable previewMode={activeTab} />

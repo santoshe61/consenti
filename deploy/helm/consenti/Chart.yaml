@@ -1,6 +1,6 @@
 apiVersion: v2
 name: consenti
-description: Self-hosted Consenti (@consenti/api) — GDPR-compliant Cookie Consent + CMP backend
+description: Self-hosted Consenti (@consenti/api) — GDPR-style Cookie Consent + CMP backend
 type: application
 version: 0.1.0
 appVersion: "0.2.0"

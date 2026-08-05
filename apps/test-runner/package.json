@@ -1,0 +1,46 @@
+{
+  "name": "@consenti/test-runner",
+  "version": "0.1.0",
+  "description": "Internal Playwright QA runner driving apps/ui's widget across jurisdictions and widget states, with baseline visual diffing",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "bin": {
+    "test-runner": "./dist/cli.js",
+    "test-runner-a11y": "./dist/a11y-cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "typecheck": "tsc --noEmit",
+    "run": "node dist/cli.js",
+    "a11y": "node dist/a11y-cli.js"
+  },
+  "dependencies": {
+    "@axe-core/playwright": "^4.12.1",
+    "@consenti/browser-engine": "*",
+    "@consenti/utils": "*",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0"
+  },
+  "devDependencies": {
+    "@consenti/types": "*",
+    "@types/node": "^26.1.1",
+    "@types/pngjs": "^6.0.5",
+    "typescript": "^6.0.3"
+  },
+  "packageManager": "npm@10.9.2",
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  }
+}

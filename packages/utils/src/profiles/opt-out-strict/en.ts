@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 // California CPRA: gpcMode 'honor' applies GPC opt-out silently on detection
 // (no banner) per CPRA's requirement to honor GPC as a valid opt-out request
@@ -12,8 +12,8 @@ export const OPT_OUT_STRICT_EN_PROFILE: EmbeddedProfile = {
   expiryDays: 365,
   cookies: {
     security_storage: { purpose: 'necessary', listenGpc: false },
-    functionality_storage: { purpose: 'functional', listenGpc: true },
-    personalization_storage: { purpose: 'preferences', listenGpc: true },
+    functionality_storage: { purpose: 'functional', listenGpc: true, cpraCategory: 'sharing' },
+    personalization_storage: { purpose: 'preferences', listenGpc: true, cpraCategory: 'sharing' },
     analytics_storage: { purpose: 'analytics', listenGpc: true, cpraCategory: 'sharing' },
     ad_storage: { purpose: 'marketing', listenGpc: true, cpraCategory: 'sharing' },
     sensitive_info_storage: { purpose: 'marketing', listenGpc: true, cpraCategory: 'sensitive' },
@@ -26,11 +26,11 @@ export const OPT_OUT_STRICT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'Under the California Privacy Rights Act (CPRA), you have the right to opt out of the sale, sharing, and use of sensitive personal information. We use cookies and tracking technologies that may involve the sale or sharing of your data with third parties.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'opt-out-sale-sharing-sensitive': {
             text: 'Opt Out of Sale, Sharing & Sensitive Use',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           manage: { text: 'Manage', style: 'text', action: 'manage' },
@@ -42,11 +42,11 @@ export const OPT_OUT_STRICT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'Your browser sent a Global Privacy Control signal. Under the CPRA, we are required to honor this as a Do Not Sell or Share My Personal Information request. Your opt-out has been applied automatically.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'confirm-opt-out': {
             text: 'Confirm Opt-Out',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'review-choices': { text: 'Review Choices', style: 'text', action: 'manage' },
@@ -60,11 +60,11 @@ export const OPT_OUT_STRICT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'As a California resident, you have the right under CPRA to opt out of the sale and sharing of your personal information, including for cross-context behavioral advertising, and to limit the use of your sensitive personal information. Toggle each category below to exercise your rights.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'opt-out-sale-sharing-sensitive': {
             text: 'Opt Out of Sale, Sharing & Sensitive Use',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'save-choices': { text: 'Save My Choices', style: 'primary', action: 'submit' },

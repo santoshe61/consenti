@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'preact/hooks'
 import { createPortal } from 'preact/compat'
-import { Check, ChevronLeft, ChevronRight, Download, Upload, Wand2 } from 'lucide-react'
+import { Check, ChevronLeft, ChevronRight, Copy, Download, Upload, Wand2 } from 'lucide-react'
 import { usePageTitle } from '../context/pageTitle'
 import { LocaleTabBar } from '../components/LocaleTabBar'
 import { HtmlEditor } from '../components/HtmlEditor'
 import { DomainsInput } from '../components/DomainsInput'
 import { PreviewPane } from '../components/PreviewPane'
 import { Select } from '../components/Select'
-import { CountrySelecter } from '../components/CountrySelecter'
+import { CountrySelecter, localeLabel } from '../components/CountrySelecter'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { useT } from '../context/locale'
 import type { TranslationKey } from '../context/locale'
@@ -25,6 +25,9 @@ import { buildDefaultContent } from '../utils/profileContentDefaults'
 import { htmlToJson, serializeContent } from '../utils/contentjson'
 import {
   mapToButtonRows,
+  defaultButtonLabel,
+  SAMPLE_HEADING,
+  SAMPLE_DESCRIPTION,
   type LocaleContent,
   type CategoryContent,
   type TemplateBannerUI,
@@ -33,6 +36,8 @@ import {
 import type { ServerConsentTemplate, ServerUITemplate, CookieMap, CategoryMap, MainBanner, GpcBanner, PreferenceModal, LocaleContentInput } from '@consenti/types'
 import type { DashboardProfile } from '@consenti/types'
 import { COMPLIANCE_GROUPS, GPC_OPTIONS, buildCookieCategoryIndex, getCookieLegalBasis, renderContentText, hasVisibleText } from '@consenti/utils'
+import { GENERIC_AGE_GATE_TEXT } from '@consenti/utils/profiles'
+import { ApiError } from '../api/client'
 
 /** Stores an HTML string as the compact rich-text `ContentDoc` JSON — the inverse of
  * `renderContentText()`, used to prefill the editor from already-resolved content. */
@@ -45,10 +50,15 @@ function storeHtml(html: string): string {
 function StepBar({
   step,
   labels,
+  descriptions = [],
   disabledSteps = [],
 }: {
   step: number
   labels: string[]
+  // Parallel to `labels` — a short, muted summary of what was authored in that step. Only ever
+  // shown once a step is `done` (already passed and not disabled), never for the active or
+  // future steps, since there's nothing settled yet to summarize.
+  descriptions?: Array<string | undefined>
   disabledSteps?: number[]
 }) {
   return (
@@ -58,23 +68,31 @@ function StepBar({
         const disabled = disabledSteps.includes(n)
         const done = step > n && !disabled
         const active = step === n
+        const description = done ? descriptions[i] : undefined
         return (
           <div key={n} class="flex items-center flex-1 last:flex-none">
             <div class="flex items-center gap-2 shrink-0">
-              <div class={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors ${disabled ? 'bg-gray-100 text-gray-300' :
+              <div class={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-colors shrink-0 ${disabled ? 'bg-gray-100 text-gray-300' :
                 done ? 'bg-green-500 text-white' :
                   active ? 'bg-blue-600 text-white' :
                     'bg-gray-200 text-gray-500'
                 }`}>
                 {done ? <Check size={14} /> : n}
               </div>
-              <span class={`text-sm font-medium hidden sm:block ${disabled ? 'text-gray-300 line-through' :
-                active ? 'text-blue-600' :
-                  done ? 'text-green-600' :
-                    'text-gray-400'
-                }`}>
-                {label}
-              </span>
+              <div class="hidden sm:flex flex-col leading-tight min-w-0">
+                <span class={`text-sm font-medium ${disabled ? 'text-gray-300 line-through' :
+                  active ? 'text-blue-600' :
+                    done ? 'text-green-600' :
+                      'text-gray-400'
+                  }`}>
+                  {label}
+                </span>
+                {description && (
+                  <span class="text-[11px] text-gray-400 truncate max-w-[12rem]" title={description}>
+                    {description}
+                  </span>
+                )}
+              </div>
             </div>
             {i < labels.length - 1 && (
               <div class={`h-px flex-1 mx-3 ${step > n ? 'bg-green-400' : 'bg-gray-200'}`} />
@@ -89,7 +107,9 @@ function StepBar({
 // ── Template ↔ locale helpers ──────────────────────────────────────────────────
 
 /** Builds a `{ buttonId: '' }` skeleton for every button the template defines — the starting
- * point for a not-yet-authored locale's `buttonLabels`. */
+ * point for a not-yet-authored locale's `buttonLabels`. Deliberately blank, not sample text:
+ * this feeds both the editable Steps 4-6 fields and (via `buildSaveData`'s fallback) what could
+ * get saved — see {@link fillPreviewPlaceholders} for the display-only sample text instead. */
 function blankButtonLabels(buttons: ServerUITemplate['mainBanner']['buttons']): Record<string, string> {
   return Object.fromEntries(Object.keys(buttons).map(id => [id, '']))
 }
@@ -121,6 +141,56 @@ function defaultLocaleFromTemplate(ut: ServerUITemplate, ct?: ServerConsentTempl
       heading: '', subheading: '', htmlText: '',
       buttonLabels: blankButtonLabels(ut.preferenceModal.buttons),
       categories: Object.keys(ct?.categories ?? {}).map(id => ({ id, heading: '', htmlText: '' })),
+    },
+  }
+}
+
+/** Substitutes generic placeholder text for any field the author hasn't filled in yet — display
+ * only, inside `buildPreviewDraft`. Never touches the actual `localeContents` state or what
+ * `buildSaveData` persists, so the sample copy can never end up on a real, published banner.
+ * Per-field, not per-section: a section with some fields filled and others blank shows real text
+ * for the filled ones and sample text only for what's still empty. Runs for every preview across
+ * every step, including the age-gate modal (harmless when age gate is disabled — that content
+ * simply never reaches a visible preview mode in that case). */
+function fillPreviewPlaceholders(content: LocaleContent): LocaleContent {
+  const fillLabels = (labels: Record<string, string>): Record<string, string> =>
+    Object.fromEntries(Object.entries(labels).map(([id, label]) => [id, label.trim() ? label : defaultButtonLabel(id)]))
+  // Explicit `string` return (not `string | undefined`) so a blank optional source field (e.g.
+  // `ageGateModal.htmlText`) never taints the result — needed for `exactOptionalPropertyTypes`.
+  const fillText = (value: string | undefined, sample: string): string =>
+    value && hasVisibleText(value) ? value : sample
+  const fillLabel = (value: string | undefined, sample: string): string =>
+    value?.trim() ? value : sample
+  const agm = content.ageGateModal
+  return {
+    mainBanner: {
+      ...content.mainBanner,
+      heading: content.mainBanner.heading?.trim() ? content.mainBanner.heading : SAMPLE_HEADING,
+      htmlText: hasVisibleText(content.mainBanner.htmlText) ? content.mainBanner.htmlText : SAMPLE_DESCRIPTION,
+      buttonLabels: fillLabels(content.mainBanner.buttonLabels),
+    },
+    gpcBanner: {
+      ...content.gpcBanner,
+      heading: content.gpcBanner.heading?.trim() ? content.gpcBanner.heading : SAMPLE_HEADING,
+      htmlText: hasVisibleText(content.gpcBanner.htmlText) ? content.gpcBanner.htmlText : SAMPLE_DESCRIPTION,
+      buttonLabels: fillLabels(content.gpcBanner.buttonLabels),
+    },
+    preferenceModal: {
+      ...content.preferenceModal,
+      heading: content.preferenceModal.heading?.trim() ? content.preferenceModal.heading : SAMPLE_HEADING,
+      subheading: content.preferenceModal.subheading?.trim() ? content.preferenceModal.subheading : SAMPLE_DESCRIPTION,
+      buttonLabels: fillLabels(content.preferenceModal.buttonLabels),
+    },
+    ageGateModal: {
+      heading: fillLabel(agm?.heading, SAMPLE_HEADING),
+      htmlText: fillText(agm?.htmlText, SAMPLE_DESCRIPTION),
+      confirmButtonLabel: fillLabel(agm?.confirmButtonLabel, 'Yes'),
+      denyButtonLabel: fillLabel(agm?.denyButtonLabel, 'No'),
+      parentalConsent: {
+        heading: fillLabel(agm?.parentalConsent?.heading, SAMPLE_HEADING),
+        htmlText: fillText(agm?.parentalConsent?.htmlText, SAMPLE_DESCRIPTION),
+        confirmButtonLabel: fillLabel(agm?.parentalConsent?.confirmButtonLabel, 'OK'),
+      },
     },
   }
 }
@@ -178,7 +248,18 @@ function defaultCookiesOverride(groupId: string, cookies: CookieMap, categories:
  * `packages/types/src/api.ts` `StoredProfileJson`/`LocaleContentInput`), it only stores/serves
  * whatever the dashboard already resolved.
  */
-function resolveLocaleContent(ut: ServerUITemplate, ct: ServerConsentTemplate, content: LocaleContent): LocaleContentInput {
+function resolveLocaleContent(
+  ut: ServerUITemplate,
+  ct: ServerConsentTemplate,
+  content: LocaleContent,
+  ageGateRequireParentalConsent = false,
+  // The GPC banner step is skippable (gpcMode 'ignore', or a compliance group that doesn't use
+  // GPC at all) — when it's skipped there's nothing authored, so omitting `gpcBanner` entirely
+  // keeps the server's mandatory-content check from rejecting the save over blank fields nobody
+  // was ever asked to fill in. Defaults to `true` for preview/deresolve callers that always want
+  // the section rendered regardless of step state.
+  includeGpcBanner = true,
+): LocaleContentInput {
   return {
     mainBanner: {
       position: ut.mainBanner.position,
@@ -192,21 +273,24 @@ function resolveLocaleContent(ut: ServerUITemplate, ct: ServerConsentTemplate, c
       htmlText: renderContentText(content.mainBanner.htmlText),
       buttons: resolvedButtonsMap(ut.mainBanner.buttons, content.mainBanner.buttonLabels),
     },
-    gpcBanner: {
-      position: ut.gpcBanner.position,
-      overlayOpacity: ut.gpcBanner.overlayOpacity,
-      showClose: ut.gpcBanner.showClose,
-      showLocaleSwitcher: ut.gpcBanner.showLocaleSwitcher,
-      headingTag: ut.gpcBanner.headingTag,
-      heading: content.gpcBanner.heading,
-      htmlText: renderContentText(content.gpcBanner.htmlText),
-      buttons: resolvedButtonsMap(ut.gpcBanner.buttons, content.gpcBanner.buttonLabels),
-    },
+    ...(includeGpcBanner ? {
+      gpcBanner: {
+        position: ut.gpcBanner.position,
+        overlayOpacity: ut.gpcBanner.overlayOpacity,
+        showClose: ut.gpcBanner.showClose,
+        showLocaleSwitcher: ut.gpcBanner.showLocaleSwitcher,
+        headingTag: ut.gpcBanner.headingTag,
+        heading: content.gpcBanner.heading,
+        htmlText: renderContentText(content.gpcBanner.htmlText),
+        buttons: resolvedButtonsMap(ut.gpcBanner.buttons, content.gpcBanner.buttonLabels),
+      },
+    } : {}),
     preferenceModal: {
       position: ut.preferenceModal.position,
       overlayOpacity: ut.preferenceModal.overlayOpacity,
       showClose: ut.preferenceModal.showClose,
       showLocaleSwitcher: ut.preferenceModal.showLocaleSwitcher,
+      showForgetMe: ut.preferenceModal.showForgetMe,
       persistent: ut.preferenceModal.persistent,
       headingTag: ut.preferenceModal.headingTag,
       heading: content.preferenceModal.heading,
@@ -215,6 +299,7 @@ function resolveLocaleContent(ut: ServerUITemplate, ct: ServerConsentTemplate, c
       ...(content.preferenceModal.htmlText ? { htmlText: renderContentText(content.preferenceModal.htmlText) } : {}),
       ...(content.preferenceModal.receiptLabel ? { receiptLabel: content.preferenceModal.receiptLabel } : {}),
       ...(content.preferenceModal.receiptDescription ? { receiptDescription: content.preferenceModal.receiptDescription } : {}),
+      ...(content.preferenceModal.forgetMeLabel ? { forgetMeLabel: content.preferenceModal.forgetMeLabel } : {}),
       buttons: resolvedButtonsMap(ut.preferenceModal.buttons, content.preferenceModal.buttonLabels),
       categories: Object.fromEntries(Object.entries(ct.categories).map(([id, cat]) => {
         const c = content.preferenceModal.categories.find(x => x.id === id)
@@ -230,6 +315,24 @@ function resolveLocaleContent(ut: ServerUITemplate, ct: ServerConsentTemplate, c
         }]
       })),
     },
+    ...(content.ageGateModal?.htmlText && content.ageGateModal.confirmButtonLabel && content.ageGateModal.denyButtonLabel
+      && (!ageGateRequireParentalConsent || (content.ageGateModal.parentalConsent?.htmlText && content.ageGateModal.parentalConsent.confirmButtonLabel)) ? {
+      ageGateModal: {
+        ...(content.ageGateModal.heading ? { heading: content.ageGateModal.heading } : {}),
+        htmlText: renderContentText(content.ageGateModal.htmlText),
+        confirmButtonLabel: content.ageGateModal.confirmButtonLabel,
+        denyButtonLabel: content.ageGateModal.denyButtonLabel,
+        // Only meaningful (and only authorable in the wizard) when `requireParentalConsent` is
+        // on — otherwise this content is never shown, but the field is structurally required
+        // (see `AgeGateModalContent`), so it's filled with an inert placeholder instead of
+        // blocking authors from saving an age-gate-without-parental-consent profile.
+        parentalConsent: ageGateRequireParentalConsent ? {
+          ...(content.ageGateModal.parentalConsent?.heading ? { heading: content.ageGateModal.parentalConsent.heading } : {}),
+          htmlText: renderContentText(content.ageGateModal.parentalConsent?.htmlText ?? ''),
+          confirmButtonLabel: content.ageGateModal.parentalConsent?.confirmButtonLabel ?? '',
+        } : { htmlText: '', confirmButtonLabel: '' },
+      },
+    } : {}),
   } as unknown as LocaleContentInput
 }
 
@@ -241,7 +344,7 @@ function resolveLocaleContent(ut: ServerUITemplate, ct: ServerConsentTemplate, c
  * fall back to whatever ids the resolved content itself lists.
  */
 function deresolveLocaleContent(
-  resolved: { mainBanner: MainBanner; gpcBanner?: GpcBanner; preferenceModal: PreferenceModal },
+  resolved: { mainBanner: MainBanner; gpcBanner?: GpcBanner; preferenceModal: PreferenceModal; ageGateModal?: LocaleContent['ageGateModal'] },
   ct: ServerConsentTemplate | null,
 ): LocaleContent {
   const labelsFrom = (buttons: MainBanner['buttons'] | undefined): Record<string, string> =>
@@ -275,7 +378,21 @@ function deresolveLocaleContent(
       }),
       ...(resolved.preferenceModal.receiptLabel !== undefined ? { receiptLabel: resolved.preferenceModal.receiptLabel } : {}),
       ...(resolved.preferenceModal.receiptDescription !== undefined ? { receiptDescription: resolved.preferenceModal.receiptDescription } : {}),
+      ...(resolved.preferenceModal.forgetMeLabel !== undefined ? { forgetMeLabel: resolved.preferenceModal.forgetMeLabel } : {}),
     },
+    ...(resolved.ageGateModal ? {
+      ageGateModal: {
+        ...(resolved.ageGateModal.heading ? { heading: resolved.ageGateModal.heading } : {}),
+        htmlText: resolved.ageGateModal.htmlText ? storeHtml(resolved.ageGateModal.htmlText) : '',
+        confirmButtonLabel: resolved.ageGateModal.confirmButtonLabel ?? '',
+        denyButtonLabel: resolved.ageGateModal.denyButtonLabel ?? '',
+        parentalConsent: {
+          ...(resolved.ageGateModal.parentalConsent?.heading ? { heading: resolved.ageGateModal.parentalConsent.heading } : {}),
+          htmlText: resolved.ageGateModal.parentalConsent?.htmlText ? storeHtml(resolved.ageGateModal.parentalConsent.htmlText) : '',
+          confirmButtonLabel: resolved.ageGateModal.parentalConsent?.confirmButtonLabel ?? '',
+        },
+      },
+    } : {}),
   }
 }
 
@@ -288,23 +405,37 @@ function sortLocalesDefaultFirst(locales: string[], defaultLocale: string): stri
 
 // ── Mandatory-content validation ────────────────────────────────────────────────
 // Mirrors the backend's `validateProfileContent` (apps/api/src/services/
-// profile-content-validator.service.ts) — heading is always optional (soft-nudged elsewhere),
-// only body text, button labels, and category headings are mandatory. Operates on the dashboard's
-// authored `LocaleContent` shape directly (not the resolved wire shape), same `hasVisibleText`
-// util shared via @consenti/utils so client and server agree on what "blank" means.
+// profile-content-validator.service.ts). Required = trimmed text has length > 0:
+// - Main Banner / GPC Banner: heading optional (soft-nudged elsewhere); body text (htmlText)
+//   and every button label mandatory.
+// - Preference Modal: heading, intro text (htmlText), every button label, and every category
+//   heading mandatory; everything else (subheading, category body text, receipt fields) optional.
+// Operates on the dashboard's authored `LocaleContent` shape directly (not the resolved wire
+// shape), same `hasVisibleText` util shared via @consenti/utils so client and server agree on
+// what "blank" means.
 
 interface MissingContentField {
   locale: string
-  section: 'mainBanner' | 'gpcBanner' | 'preferenceModal'
+  section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal'
   field: string
 }
 
 function findMissingMandatoryFields(
   localeContents: Record<string, LocaleContent>,
-  sections: Array<'mainBanner' | 'gpcBanner' | 'preferenceModal'>,
+  sections: Array<'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal'>,
+  ageGateRequireParentalConsent = false,
 ): MissingContentField[] {
   const missing: MissingContentField[] = []
   for (const [locale, content] of Object.entries(localeContents)) {
+    if (sections.includes('ageGateModal')) {
+      if (!hasVisibleText(content.ageGateModal?.htmlText ?? '')) missing.push({ locale, section: 'ageGateModal', field: 'htmlText' })
+      if (!content.ageGateModal?.confirmButtonLabel?.trim()) missing.push({ locale, section: 'ageGateModal', field: 'confirmButtonLabel' })
+      if (!content.ageGateModal?.denyButtonLabel?.trim()) missing.push({ locale, section: 'ageGateModal', field: 'denyButtonLabel' })
+      if (ageGateRequireParentalConsent) {
+        if (!hasVisibleText(content.ageGateModal?.parentalConsent?.htmlText ?? '')) missing.push({ locale, section: 'ageGateModal', field: 'parentalConsent.htmlText' })
+        if (!content.ageGateModal?.parentalConsent?.confirmButtonLabel?.trim()) missing.push({ locale, section: 'ageGateModal', field: 'parentalConsent.confirmButtonLabel' })
+      }
+    }
     if (sections.includes('mainBanner')) {
       if (!hasVisibleText(content.mainBanner.htmlText)) missing.push({ locale, section: 'mainBanner', field: 'htmlText' })
       for (const [buttonId, label] of Object.entries(content.mainBanner.buttonLabels)) {
@@ -319,6 +450,7 @@ function findMissingMandatoryFields(
     }
     if (sections.includes('preferenceModal')) {
       if (!content.preferenceModal.heading?.trim()) missing.push({ locale, section: 'preferenceModal', field: 'heading' })
+      if (!hasVisibleText(content.preferenceModal.htmlText)) missing.push({ locale, section: 'preferenceModal', field: 'htmlText' })
       for (const [buttonId, label] of Object.entries(content.preferenceModal.buttonLabels)) {
         if (!label.trim()) missing.push({ locale, section: 'preferenceModal', field: `buttons.${buttonId}` })
       }
@@ -330,14 +462,41 @@ function findMissingMandatoryFields(
   return missing
 }
 
-/** Optional fields the wizard nudges (not blocks) on if left blank — banner heading, modal intro
- * text. Same idea as {@link findMissingMandatoryFields} but advisory only. */
+/** Optional fields the wizard nudges (not blocks) on if left blank — banner heading is the only
+ * one left (Preference Modal's intro text moved to {@link findMissingMandatoryFields}, hard-blocked
+ * instead). Same idea as {@link findMissingMandatoryFields} but advisory only. */
 function findBlankOptionalFields(
   content: LocaleContent,
-  section: 'mainBanner' | 'gpcBanner' | 'preferenceModal',
+  section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal',
 ): string[] {
-  if (section === 'preferenceModal') return hasVisibleText(content.preferenceModal.htmlText) ? [] : ['htmlText']
-  return content[section].heading?.trim() ? [] : ['heading']
+  if (section === 'preferenceModal') return []
+  return content[section]?.heading?.trim() ? [] : ['heading']
+}
+
+/** True once any field in the given section has real author-entered text — used by "Copy Locale
+ * Content" to decide whether overwriting the active locale's section needs a confirmation (it's
+ * a full-section replace, not a per-field merge, so anything already there would be lost). */
+function sectionHasContent(
+  content: LocaleContent | undefined,
+  section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal',
+): boolean {
+  if (!content) return false
+  if (section === 'ageGateModal') {
+    const agm = content.ageGateModal
+    if (!agm) return false
+    return hasVisibleText(agm.heading ?? '') || hasVisibleText(agm.htmlText ?? '')
+      || !!agm.confirmButtonLabel?.trim() || !!agm.denyButtonLabel?.trim()
+      || hasVisibleText(agm.parentalConsent?.heading ?? '') || hasVisibleText(agm.parentalConsent?.htmlText ?? '')
+      || !!agm.parentalConsent?.confirmButtonLabel?.trim()
+  }
+  if (section === 'preferenceModal') {
+    const pm = content.preferenceModal
+    return hasVisibleText(pm.heading ?? '') || hasVisibleText(pm.subheading ?? '') || hasVisibleText(pm.htmlText ?? '')
+      || Object.values(pm.buttonLabels).some(l => l.trim())
+      || pm.categories.some(c => hasVisibleText(c.heading ?? '') || hasVisibleText(c.htmlText ?? ''))
+  }
+  const s = content[section]
+  return hasVisibleText(s.heading ?? '') || hasVisibleText(s.htmlText ?? '') || Object.values(s.buttonLabels).some(l => l.trim())
 }
 
 function buildPreviewDraft(
@@ -347,15 +506,21 @@ function buildPreviewDraft(
   localeContents: Record<string, LocaleContent>,
   expiryDays?: number,
   previewLocale?: string,
+  // Sample placeholder text fills any still-blank field in every step's preview (not just Step
+  // 2) — per-field, not per-step: once a field has real authored text, its sample text is gone
+  // for good, but a blank field keeps showing a sample rather than an empty-looking preview.
+  useSamplePlaceholders = true,
+  ageGateConfig?: { enabled: boolean; minimumAge: number; requireParentalConsent?: boolean },
 ): object {
   // Preview whatever locale tab is active — falling back to the profile's default locale (and
   // then the template defaults) only when the active tab has no content yet — instead of always
   // rendering `defaultLocale`, which made switching locale tabs a no-op in the live preview.
   const locale = previewLocale ?? defaultLocale
   const content = localeContents[locale] ?? localeContents[defaultLocale] ?? defaultLocaleFromTemplate(ut, ct)
-  const resolved = resolveLocaleContent(ut, ct, content)
+  const resolved = resolveLocaleContent(ut, ct, useSamplePlaceholders ? fillPreviewPlaceholders(content) : content, ageGateConfig?.requireParentalConsent)
   return {
     cookies: ct.cookies,
+    ...(ageGateConfig ? { ageGate: ageGateConfig } : {}),
     ...(expiryDays !== undefined ? { expiryDays } : {}),
     defaultLocale: locale,
     translations: {
@@ -501,12 +666,18 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
   const [gpcMode, setGpcMode] = useState('')
   const [darkMode, setDarkMode] = useState(false)
   const [hidePoweredBy, setHidePoweredBy] = useState(true)
-  const [allowReceipt, setAllowReceipt] = useState(false)
+  // Default on for new profiles only — a downloadable consent receipt is the self-service Art. 15
+  // answer and is non-destructive, unlike showForgetMe's erasure action. Existing profiles are
+  // resynced to their actual stored value below (never left at this initial guess).
+  const [allowReceipt, setAllowReceipt] = useState(isNew)
   const [enhanceAccessibility, setEnhanceAccessibility] = useState(false)
   const [showFooterMetadata, setShowFooterMetadata] = useState(false)
   const [dpdpaFiduciary, setDpdpaFiduciary] = useState('')
   const [dpdpaGrievanceEmail, setDpdpaGrievanceEmail] = useState('')
   const [dpdpaPurpose, setDpdpaPurpose] = useState('')
+  const [ageGateEnabled, setAgeGateEnabled] = useState(false)
+  const [ageGateMinimumAge, setAgeGateMinimumAge] = useState(16)
+  const [ageGateRequireParentalConsent, setAgeGateRequireParentalConsent] = useState(false)
   const [expiryDays, setExpiryDays] = useState(365)
   const [expiryDaysError, setExpiryDaysError] = useState('')
 
@@ -578,7 +749,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         if (pj.gpcMode !== undefined) setGpcMode(String(pj.gpcMode))
         if (pj.darkMode === true) setDarkMode(true)
         if (typeof pj.hidePoweredBy === 'boolean') setHidePoweredBy(pj.hidePoweredBy)
-        if (pj.allowReceipt === true) setAllowReceipt(true)
+        setAllowReceipt(pj.allowReceipt === true)
         if (pj.enhanceAccessibility === true) setEnhanceAccessibility(true)
         if (pj.showFooterMetadata === true) setShowFooterMetadata(true)
         if (typeof pj.expiryDays === 'number') setExpiryDays(pj.expiryDays)
@@ -586,6 +757,11 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
           setDpdpaFiduciary(pj.dpdpa['dataFiduciary'] ?? '')
           setDpdpaGrievanceEmail(pj.dpdpa['grievanceEmail'] ?? '')
           setDpdpaPurpose(pj.dpdpa['purposeDescription'] ?? '')
+        }
+        if (pj.ageGate?.enabled) {
+          setAgeGateEnabled(true)
+          setAgeGateMinimumAge(pj.ageGate.minimumAge)
+          setAgeGateRequireParentalConsent(pj.ageGate.requireParentalConsent === true)
         }
         if (pj.cookiesOverride && typeof pj.cookiesOverride === 'object') {
           setCookiesOverride(pj.cookiesOverride as Record<string, { preGrant?: boolean }>)
@@ -612,10 +788,10 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
             const locales = pj.locales?.length ? pj.locales : [profile.defaultLocale]
             const entries = await Promise.all(locales.map(async (locale): Promise<[string, LocaleContent]> => {
               if (locale === profile.defaultLocale) {
-                return [locale, deresolveLocaleContent({ mainBanner: pj.mainBanner!, ...(pj.gpcBanner ? { gpcBanner: pj.gpcBanner } : {}), preferenceModal: pj.preferenceModal! }, ct)]
+                return [locale, deresolveLocaleContent({ mainBanner: pj.mainBanner!, ...(pj.gpcBanner ? { gpcBanner: pj.gpcBanner } : {}), preferenceModal: pj.preferenceModal!, ...(pj.ageGateModal ? { ageGateModal: pj.ageGateModal } : {}) }, ct)]
               }
               try {
-                const raw = await profilesApi.getVersion(id, String(profile.version), locale) as { mainBanner: MainBanner; gpcBanner?: GpcBanner; preferenceModal: PreferenceModal }
+                const raw = await profilesApi.getVersion(id, String(profile.version), locale) as { mainBanner: MainBanner; gpcBanner?: GpcBanner; preferenceModal: PreferenceModal; ageGateModal?: LocaleContent['ageGateModal'] }
                 return [locale, deresolveLocaleContent(raw, ct)]
               } catch {
                 return [locale, defaultLocaleFromTemplate(ut, ct)]
@@ -721,6 +897,16 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
     setActiveLocale(locale)
   }
 
+  const removeLocale = (locale: string) => {
+    if (locale === defaultLocale) return
+    setLocaleContents(prev => {
+      const { [locale]: _drop, ...rest } = prev
+      void _drop
+      return rest
+    })
+    if (activeLocale === locale) setActiveLocale(defaultLocale)
+  }
+
   const setLocaleField = (section: 'mainBanner' | 'gpcBanner', field: 'heading' | 'htmlText', value: string) => {
     setLocaleContents(prev => ({
       ...prev,
@@ -728,12 +914,41 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
     }))
   }
 
-  const setModalField = (field: 'heading' | 'subheading' | 'htmlText' | 'receiptLabel' | 'receiptDescription', value: string) => {
+  const setModalField = (field: 'heading' | 'subheading' | 'htmlText' | 'receiptLabel' | 'receiptDescription' | 'forgetMeLabel', value: string) => {
     setLocaleContents(prev => ({
       ...prev,
       [activeLocale]: {
         ...prev[activeLocale]!,
         preferenceModal: { ...prev[activeLocale]!.preferenceModal, [field]: value },
+      },
+    }))
+  }
+
+  const setAgeGateModalField = (
+    field: 'heading' | 'htmlText' | 'confirmButtonLabel' | 'denyButtonLabel',
+    value: string,
+  ) => {
+    setLocaleContents(prev => ({
+      ...prev,
+      [activeLocale]: {
+        ...prev[activeLocale]!,
+        ageGateModal: { ...prev[activeLocale]!.ageGateModal, [field]: value },
+      },
+    }))
+  }
+
+  const setAgeGateParentalConsentField = (
+    field: 'heading' | 'htmlText' | 'confirmButtonLabel',
+    value: string,
+  ) => {
+    setLocaleContents(prev => ({
+      ...prev,
+      [activeLocale]: {
+        ...prev[activeLocale]!,
+        ageGateModal: {
+          ...prev[activeLocale]!.ageGateModal,
+          parentalConsent: { ...prev[activeLocale]!.ageGateModal?.parentalConsent, [field]: value },
+        },
       },
     }))
   }
@@ -763,6 +978,92 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
     setLocaleContents(prev => {
       const base = prev[activeLocale] ?? defaultLocaleFromTemplate(uiTemplate, consentTemplate)
       return { ...prev, [activeLocale]: { ...base, [section]: defaults[section] } }
+    })
+  }
+
+  /** Age-gate copy has no compliance-group-specific default (none of the built-in
+   * `DEFAULT_PROFILES` author it — it's fixed, regulated-age-verification chrome, not
+   * marketing/consent copy) so this loads the shared generic fallback text from
+   * `@consenti/utils/profiles` instead — resolved for the locale tab actually being edited
+   * (`activeLocale`), falling back to English for any locale we don't have a translation for.
+   * Deliberately NOT `t(...)` here: that resolves against the admin's own dashboard UI language,
+   * which is an unrelated setting from which content locale is being authored — using it would
+   * silently write e.g. English text into a "de" locale tab whenever the admin's dashboard
+   * happens to be set to English (or vice versa). */
+  const handleLoadAgeGateDefaults = () => {
+    if (!uiTemplate) return
+    const generic = GENERIC_AGE_GATE_TEXT[activeLocale] ?? GENERIC_AGE_GATE_TEXT['en']!
+    setLocaleContents(prev => {
+      const base = prev[activeLocale] ?? defaultLocaleFromTemplate(uiTemplate, consentTemplate)
+      return {
+        ...prev,
+        [activeLocale]: {
+          ...base,
+          ageGateModal: {
+            heading: generic.heading,
+            htmlText: generic.htmlText,
+            confirmButtonLabel: generic.confirmButtonLabel,
+            denyButtonLabel: generic.denyButtonLabel,
+            parentalConsent: {
+              heading: generic.parentalConsent.heading,
+              htmlText: generic.parentalConsent.htmlText,
+              confirmButtonLabel: generic.parentalConsent.confirmButtonLabel,
+            },
+          },
+        },
+      }
+    })
+  }
+
+  /** Replaces the active locale's whole section with another authored locale's section —
+   * dashboard-only convenience for locale variants (en → en-US/en-GB/en-IN) so the author only
+   * writes the base language once. Nothing server-side changes: the dashboard still resolves and
+   * saves it as this locale's own authored content, same as if it had been typed by hand. Blank
+   * sections copy silently; anything already written there is confirmed away first since this is
+   * a full overwrite, not a per-field merge. */
+  const handleCopyLocaleContent = async (
+    section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal',
+    sourceLocale: string,
+  ) => {
+    if (sectionHasContent(localeContents[activeLocale], section)) {
+      const proceed = await requestConfirm({
+        title: t('profileEditor.copyLocale.confirmTitle'),
+        message: t('profileEditor.copyLocale.confirmMessage', { locale: activeLocale.toUpperCase(), source: sourceLocale.toUpperCase() }),
+        confirmLabel: t('profileEditor.copyLocale.confirmAction'),
+        cancelLabel: t('common.cancel'),
+      })
+      if (!proceed) return
+    }
+    setLocaleContents(prev => {
+      const source = prev[sourceLocale]
+      if (!source) return prev
+      const base = prev[activeLocale] ?? (uiTemplate ? defaultLocaleFromTemplate(uiTemplate, consentTemplate) : source)
+      if (section === 'ageGateModal') {
+        return {
+          ...prev,
+          [activeLocale]: {
+            ...base,
+            ...(source.ageGateModal ? { ageGateModal: { ...source.ageGateModal, parentalConsent: { ...source.ageGateModal.parentalConsent } } } : {}),
+          },
+        }
+      }
+      if (section === 'preferenceModal') {
+        return {
+          ...prev,
+          [activeLocale]: {
+            ...base,
+            preferenceModal: {
+              ...source.preferenceModal,
+              buttonLabels: { ...source.preferenceModal.buttonLabels },
+              categories: source.preferenceModal.categories.map(c => ({ ...c })),
+            },
+          },
+        }
+      }
+      return {
+        ...prev,
+        [activeLocale]: { ...base, [section]: { ...source[section], buttonLabels: { ...source[section].buttonLabels } } },
+      }
     })
   }
 
@@ -828,8 +1129,12 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
     reader.readAsText(file)
   }
 
+  const ageGateConfig = ageGateEnabled
+    ? { enabled: true, minimumAge: ageGateMinimumAge, ...(ageGateRequireParentalConsent ? { requireParentalConsent: true } : {}) }
+    : undefined
+
   const previewDraft = consentTemplate && uiTemplate
-    ? buildPreviewDraft(consentTemplate, uiTemplate, defaultLocale, localeContents, expiryDays, activeLocale)
+    ? buildPreviewDraft(consentTemplate, uiTemplate, defaultLocale, localeContents, expiryDays, activeLocale, true, ageGateConfig)
     : null
 
   const buildSaveData = (choice?: string) => {
@@ -846,13 +1151,13 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
     // `LocaleContentInput` (packages/types/src/api.ts) for why the split exists (row-size).
     const locales = sortLocalesDefaultFirst(Object.keys(localeContents).length > 0 ? Object.keys(localeContents) : [defaultLocale], defaultLocale)
     const defaultContent = localeContents[defaultLocale] ?? defaultLocaleFromTemplate(uiTemplate, consentTemplate)
-    const resolvedDefault = resolveLocaleContent(uiTemplate, consentTemplate, defaultContent)
+    const resolvedDefault = resolveLocaleContent(uiTemplate, consentTemplate, defaultContent, ageGateRequireParentalConsent, !isGpcStepDisabled)
     const localeContent: Record<string, LocaleContentInput> = {}
     for (const locale of locales) {
       if (locale === defaultLocale) continue
       const content = localeContents[locale]
       if (!content) continue
-      localeContent[locale] = resolveLocaleContent(uiTemplate, consentTemplate, content)
+      localeContent[locale] = resolveLocaleContent(uiTemplate, consentTemplate, content, ageGateRequireParentalConsent, !isGpcStepDisabled)
     }
 
     return {
@@ -871,6 +1176,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         ...(gpcMode ? { gpcMode: gpcMode === 'true' ? true : gpcMode === 'false' ? false : gpcMode } : {}),
         ...(allowedOrigins.length > 0 ? { allowedOrigins } : {}),
         ...(dpdpaConfig ? { dpdpa: dpdpaConfig } : {}),
+        ...(ageGateConfig ? { ageGate: ageGateConfig } : {}),
         ...(darkMode ? { darkMode: true } : {}),
         hidePoweredBy,
         ...(allowReceipt ? { allowReceipt: true } : {}),
@@ -881,6 +1187,39 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
       },
       ...(Object.keys(localeContent).length > 0 ? { localeContent } : {}),
     }
+  }
+
+  /** Turns a failed create/update into something a non-technical profile author can act on.
+   * `ApiError#message` is the raw JSON response body (`{error, details}` — see
+   * `error.middleware.ts`), not a plain string; server-side validators (`profile-content-
+   * validator.service.ts`, `compliance-validator.service.ts`) already produce a human-readable
+   * `message` per offending field (e.g. `Label for button "confirm-settings" is required`), so
+   * surface that instead of a single hardcoded "Failed to save profile" that hid exactly which
+   * field was the problem. Falls back to the generic message when the body isn't JSON (network
+   * failure, unexpected 5xx) or carries no further detail. */
+  const describeSaveError = (err: unknown): {
+    message: string
+    jump: { locale: string; section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal' } | undefined
+  } => {
+    if (err instanceof ApiError) {
+      try {
+        const body = JSON.parse(err.message) as {
+          error?: string
+          details?: { errors?: Array<{ message: string; locale?: string; section?: string }> }
+        }
+        const errors = body.details?.errors
+        if (errors?.length) {
+          const first = errors[0]!
+          const more = errors.length > 1 ? ` ${t('profileEditor.error.saveFailedMoreFields', { count: errors.length - 1 })}` : ''
+          const jump = first.locale && first.section
+            ? { locale: first.locale, section: first.section as 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal' }
+            : undefined
+          return { message: `${body.error ?? t('profileEditor.error.failed')}: ${first.message}${more}`, jump }
+        }
+        if (body.error) return { message: body.error, jump: undefined }
+      } catch { /* not JSON — fall through to the generic message below */ }
+    }
+    return { message: t('profileEditor.error.failed'), jump: undefined }
   }
 
   const doSave = async (choice?: string) => {
@@ -895,8 +1234,13 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         return
       }
       window.location.hash = '#/banners/profiles'
-    } catch {
-      setError(t('profileEditor.error.failed'))
+    } catch (err) {
+      const { message, jump } = describeSaveError(err)
+      if (jump) {
+        setActiveLocale(jump.locale)
+        setStep(jump.section === 'ageGateModal' ? 3 : jump.section === 'mainBanner' ? 4 : jump.section === 'gpcBanner' ? 5 : 6)
+      }
+      setError(message)
     } finally {
       setSaving(false)
     }
@@ -905,24 +1249,25 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
   /** Hard-blocks on any blank mandatory field across the given section(s), for every locale —
    * jumps to the first offending locale/tab instead of just a generic error. Returns true if the
    * caller should stop (something's missing). */
-  const blockOnMissingContent = (sections: Array<'mainBanner' | 'gpcBanner' | 'preferenceModal'>): boolean => {
-    const missing = findMissingMandatoryFields(localeContents, sections)
+  const blockOnMissingContent = (sections: Array<'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal'>): boolean => {
+    const missing = findMissingMandatoryFields(localeContents, sections, ageGateRequireParentalConsent)
     if (missing.length === 0) return false
     const first = missing[0]!
     setActiveLocale(first.locale)
-    setStep(first.section === 'mainBanner' ? 3 : first.section === 'gpcBanner' ? 4 : 5)
+    setStep(first.section === 'ageGateModal' ? 3 : first.section === 'mainBanner' ? 4 : first.section === 'gpcBanner' ? 5 : 6)
     setError(t('profileEditor.error.missingRequiredContent', { locale: first.locale }))
     return true
   }
 
-  /** Soft nudge for the active locale's optional field in `section` (banner heading / modal intro
-   * text) — advisory only. Resolves true if the user wants to stay and fill it in. */
-  const nudgeIfOptionalBlank = async (section: 'mainBanner' | 'gpcBanner' | 'preferenceModal'): Promise<boolean> => {
+  /** Soft nudge for the active locale's optional banner heading — advisory only (Preference Modal
+   * never reaches here now: `findBlankOptionalFields` returns `[]` for it since intro text is
+   * mandatory, hard-blocked elsewhere). Resolves true if the user wants to stay and fill it in. */
+  const nudgeIfOptionalBlank = async (section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal'): Promise<boolean> => {
     const content = localeContents[activeLocale]
     if (!content || findBlankOptionalFields(content, section).length === 0) return false
     return requestConfirm({
       title: t('profileEditor.nudge.title'),
-      message: t(section === 'preferenceModal' ? 'profileEditor.nudge.introBlank' : 'profileEditor.nudge.headingBlank'),
+      message: t('profileEditor.nudge.headingBlank'),
       confirmLabel: t('profileEditor.nudge.addNow'),
       cancelLabel: t('profileEditor.nudge.ignore'),
       danger: false,
@@ -932,12 +1277,12 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
   /** Shared by the tab bar (leaving the active locale) and each content step's "Next" button
    * (leaving the whole section) — nudges once for the active locale's optional field, then either
    * stays (user chose "Add now") or runs `proceed`. */
-  const withOptionalNudge = async (section: 'mainBanner' | 'gpcBanner' | 'preferenceModal', proceed: () => void): Promise<void> => {
+  const withOptionalNudge = async (section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal', proceed: () => void): Promise<void> => {
     const stay = await nudgeIfOptionalBlank(section)
     if (!stay) proceed()
   }
 
-  const goToNextContentStep = async (nextStep: number, section: 'mainBanner' | 'gpcBanner' | 'preferenceModal') => {
+  const goToNextContentStep = async (nextStep: number, section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal') => {
     setError('')
     if (blockOnMissingContent([section])) return
     await withOptionalNudge(section, () => setStep(nextStep))
@@ -949,7 +1294,13 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
     if (!complianceGroup && !customComplianceGroup.trim()) { setError(t('profileEditor.error.customComplianceGroupRequired')); setStep(1); return }
     if (!consentTemplateId) { setError(t('profileEditor.error.cookieRequired')); setStep(2); return }
     if (!uiTemplateId) { setError(t('profileEditor.error.uiRequired')); setStep(2); return }
-    if (blockOnMissingContent(isGpcStepDisabled ? ['mainBanner', 'preferenceModal'] : ['mainBanner', 'gpcBanner', 'preferenceModal'])) return
+    const sections: Array<'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal'> = [
+      ...(ageGateEnabled ? ['ageGateModal'] as const : []),
+      'mainBanner',
+      ...(isGpcStepDisabled ? [] : ['gpcBanner'] as const),
+      'preferenceModal',
+    ]
+    if (blockOnMissingContent(sections)) return
     await doSave()
   }
 
@@ -959,7 +1310,10 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
     await doSave(choice)
   }
 
-  // GPC step (step 4) is disabled when gpcMode is ignore or default-inherit with a non-GPC group
+  // Age Gate step (step 3) is disabled when the profile doesn't have age gate enabled (Step 1)
+  const isAgeGateStepDisabled = !ageGateEnabled
+
+  // GPC step (step 5) is disabled when gpcMode is ignore or default-inherit with a non-GPC group
   const isGpcStepDisabled = gpcMode === 'ignore' || (gpcMode === '' && (
     !complianceGroup || COMPLIANCE_GROUPS[complianceGroup as keyof typeof COMPLIANCE_GROUPS]?.defaultGpc === 'ignore'
   ))
@@ -990,12 +1344,59 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
   const stepLabels = [
     t('profileEditor.step.config'),
     t('profileEditor.step.templates'),
+    t('profileEditor.step.ageGateModal'),
     t('profileEditor.step.mainBanner'),
     t('profileEditor.step.gpcBanner'),
     t('profileEditor.step.prefModal'),
   ]
 
-  // ── Shared locale toolbar for content steps (3–5) — Load Defaults is per-section ──
+  // Small muted summary shown under each already-completed step in the StepBar — same
+  // default-locale content the rest of the wizard treats as canonical, falling back to
+  // whichever locale tab is active if the default one hasn't been authored yet.
+  const stepSummaryContent = localeContents[defaultLocale] ?? localeContents[activeLocale]
+  const stepDescriptions: Array<string | undefined> = [
+    (complianceGroup || customComplianceGroup) ? `${complianceGroup || customComplianceGroup}, gpc: ${gpcMode || 'inherit'}` : undefined,
+    [consentTemplate?.name, uiTemplate?.name].filter(Boolean).join(', ') || undefined,
+    stepSummaryContent?.ageGateModal?.heading || undefined,
+    stepSummaryContent?.mainBanner.heading || undefined,
+    stepSummaryContent?.gpcBanner.heading || undefined,
+    stepSummaryContent?.preferenceModal.heading || undefined,
+  ]
+
+  // ── "Copy Locale Content" — only offered once another locale tab has been authored, so an
+  // author can write one language once and reuse it across its regional variants (en → en-US,
+  // en-GB, en-IN, …) instead of retyping the same copy per tab ──────────────────────────────
+  const CopyLocaleDropdown = ({
+    section,
+  }: {
+    section: 'ageGateModal' | 'mainBanner' | 'gpcBanner' | 'preferenceModal'
+  }) => {
+    const sources = locales.filter(l => l !== activeLocale)
+    if (sources.length === 0) return null
+    return (
+      // Native <select> rendered invisible on top of a styled label, so it shares the
+      // "Load Defaults" button's look while keeping native dropdown behaviour for free.
+      <div class="relative flex items-center gap-1 text-xs px-2.5 py-1.5 border border-gray-300 rounded hover:bg-gray-50 text-gray-600 transition-colors">
+        <Copy size={12} aria-hidden="true" />
+        {t('profileEditor.content.copyLocale')}
+        <select
+          value=""
+          onChange={e => {
+            const source = (e.target as HTMLSelectElement).value
+            if (source) void handleCopyLocaleContent(section, source)
+          }}
+          class="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+          title={t('profileEditor.content.copyLocaleTitle')}
+          aria-label={t('profileEditor.content.copyLocale')}
+        >
+          <option value="">{t('profileEditor.content.copyLocale')}</option>
+          {sources.map(l => <option key={l} value={l}>{localeLabel(l)}</option>)}
+        </select>
+      </div>
+    )
+  }
+
+  // ── Shared locale toolbar for content steps (4–6) — Load Defaults is per-section ──
   const ContentLocaleToolbar = ({
     section,
   }: {
@@ -1008,8 +1409,10 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         activeLocale={activeLocale}
         onSelect={locale => void withOptionalNudge(section, () => setActiveLocale(locale))}
         onAdd={addLocale}
+        onRemove={removeLocale}
       />
       <div class="flex items-center gap-1.5 shrink-0">
+        <CopyLocaleDropdown section={section} />
         <button
           type="button"
           onClick={() => handleLoadSectionDefaults(section)}
@@ -1096,9 +1499,9 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         document.body
       )}
 
-      <StepBar step={step} labels={stepLabels} disabledSteps={isGpcStepDisabled ? [4] : []} />
+      <StepBar step={step} labels={stepLabels} descriptions={stepDescriptions} disabledSteps={[...(isAgeGateStepDisabled ? [3] : []), ...(isGpcStepDisabled ? [5] : [])]} />
 
-      {(step === 3 || step === 4 || step === 5) && (
+      {(step === 3 || step === 4 || step === 5 || step === 6) && (
         <>
           <ContentImportExportBar />
           {importError && (
@@ -1268,6 +1671,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
                 { checked: allowReceipt, onChange: setAllowReceipt, label: t('profileEditor.config.allowReceipt'), hint: t('profileEditor.config.allowReceiptHint') },
                 { checked: enhanceAccessibility, onChange: setEnhanceAccessibility, label: t('profileEditor.config.enhanceAccessibility'), hint: t('profileEditor.config.enhanceAccessibilityHint') },
                 { checked: showFooterMetadata, onChange: setShowFooterMetadata, label: t('profileEditor.config.showFooterMetadata'), hint: t('profileEditor.config.showFooterMetadataHint') },
+                { checked: ageGateEnabled, onChange: setAgeGateEnabled, label: t('profileEditor.config.ageGate'), hint: t('profileEditor.config.ageGateHint') },
               ].map(({ checked, onChange, label, hint }) => (
                 <label key={label} class="flex items-start gap-2.5 p-3 border border-gray-200 rounded-lg cursor-pointer hover:border-gray-300 bg-white select-none">
                   <input
@@ -1316,6 +1720,41 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
                     onInput={e => setDpdpaPurpose((e.target as HTMLInputElement).value)}
                     placeholder={t('profileEditor.config.dpdpa.purposePlaceholder')}
                   />
+                </div>
+              </div>
+            )}
+
+            {ageGateEnabled && (
+              <div class="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-3">
+                <p class="text-xs font-semibold text-amber-800">{t('profileEditor.config.ageGateSection.heading')}</p>
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-700 mb-1">{t('profileEditor.config.ageGateSection.minimumAge')} <span class="text-red-500" aria-hidden="true">*</span></label>
+                    <input
+                      type="number"
+                      min="1"
+                      max="99"
+                      class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                      value={ageGateMinimumAge}
+                      onInput={e => {
+                        const v = parseInt((e.target as HTMLInputElement).value, 10)
+                        setAgeGateMinimumAge(isNaN(v) ? 1 : v)
+                      }}
+                    />
+                    <p class="text-[10px] text-gray-400 mt-0.5">{t('profileEditor.config.ageGateSection.minimumAgeHint')}</p>
+                  </div>
+                  <label class="flex items-start gap-2.5 mt-5 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      class="mt-0.5 accent-blue-600 shrink-0 w-4 h-4"
+                      checked={ageGateRequireParentalConsent}
+                      onChange={e => setAgeGateRequireParentalConsent((e.target as HTMLInputElement).checked)}
+                    />
+                    <div>
+                      <span class="text-sm font-medium text-gray-700">{t('profileEditor.config.ageGateSection.requireParentalConsent')}</span>
+                      <p class="text-xs text-gray-500 mt-0.5">{t('profileEditor.config.ageGateSection.requireParentalConsentHint')}</p>
+                    </div>
+                  </label>
                 </div>
               </div>
             )}
@@ -1505,8 +1944,138 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
                 }
                 setActiveLocale(defaultLocale)
                 setError('')
-                setStep(3)
+                setStep(isAgeGateStepDisabled ? 4 : 3)
               }}
+              class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1"
+            >
+              {isAgeGateStepDisabled ? t('profileEditor.nav.nextMainBanner') : t('profileEditor.nav.nextAgeGate')} <ChevronRight size={14} aria-hidden="true" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Step 3: Age Gate Modal Content ─────────────────────────────── */}
+      {step === 3 && (
+        <div class="space-y-5">
+          <div class="bg-white border border-amber-200 rounded-lg p-5">
+            <div class="flex flex-wrap items-start justify-between gap-3 mb-4">
+              <LocaleTabBar
+                locales={locales}
+                defaultLocale={defaultLocale}
+                activeLocale={activeLocale}
+                onSelect={locale => void withOptionalNudge('ageGateModal', () => setActiveLocale(locale))}
+                onAdd={addLocale}
+                onRemove={removeLocale}
+              />
+              <div class="flex items-center gap-1.5 shrink-0">
+                <CopyLocaleDropdown section="ageGateModal" />
+                <button
+                  type="button"
+                  onClick={handleLoadAgeGateDefaults}
+                  disabled={!uiTemplate}
+                  class="flex items-center gap-1 text-xs px-2.5 py-1.5 border border-purple-300 rounded hover:bg-purple-50 text-purple-700 transition-colors disabled:opacity-40"
+                  title={t('profileEditor.content.ageGateModal.loadDefaultsTitle')}
+                >
+                  <Wand2 size={12} aria-hidden="true" /> {t('profileEditor.content.loadDefaults')}
+                </button>
+              </div>
+            </div>
+
+            <p class="text-xs text-purple-600 bg-purple-50 border border-purple-100 rounded px-3 py-1.5 mb-4">
+              {t('profileEditor.content.loadDefaultsNotice')}
+            </p>
+
+            {currentContent ? (
+              <div class="space-y-3">
+                <h4 class="text-xs font-semibold text-amber-800 uppercase tracking-wide">{t('profileEditor.content.ageGateModal.heading')}</h4>
+                <div>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">{t('profileEditor.content.heading')} <span class="text-xs font-normal text-gray-400">({t('common.optional')})</span></label>
+                  <input
+                    class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                    value={currentContent.ageGateModal?.heading ?? ''}
+                    onInput={e => setAgeGateModalField('heading', (e.target as HTMLInputElement).value)}
+                    placeholder={t('profileEditor.content.ageGateModal.headingPlaceholder')}
+                  />
+                </div>
+                <HtmlEditor
+                  label={t('profileEditor.content.ageGateModal.bodyText')}
+                  required
+                  value={currentContent.ageGateModal?.htmlText ?? ''}
+                  onChange={v => setAgeGateModalField('htmlText', v)}
+                  placeholder={t('profileEditor.content.ageGateModal.bodyPlaceholder')}
+                  rows={3}
+                />
+                <div class="grid grid-cols-2 gap-3">
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">{t('profileEditor.content.ageGateModal.confirmButtonLabel')} <span class="text-red-500">*</span></label>
+                    <input
+                      class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                      value={currentContent.ageGateModal?.confirmButtonLabel ?? ''}
+                      onInput={e => setAgeGateModalField('confirmButtonLabel', (e.target as HTMLInputElement).value)}
+                      placeholder={t('profileEditor.content.ageGateModal.confirmButtonPlaceholder')}
+                    />
+                  </div>
+                  <div>
+                    <label class="block text-xs font-medium text-gray-600 mb-1">{t('profileEditor.content.ageGateModal.denyButtonLabel')} <span class="text-red-500">*</span></label>
+                    <input
+                      class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                      value={currentContent.ageGateModal?.denyButtonLabel ?? ''}
+                      onInput={e => setAgeGateModalField('denyButtonLabel', (e.target as HTMLInputElement).value)}
+                      placeholder={t('profileEditor.content.ageGateModal.denyButtonPlaceholder')}
+                    />
+                  </div>
+                </div>
+                {ageGateRequireParentalConsent && (
+                  <div class="border-t border-amber-100 pt-3 space-y-3">
+                    <h5 class="text-xs font-semibold text-amber-800 uppercase tracking-wide">{t('profileEditor.content.ageGateModal.parentalConsent.heading')}</h5>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">{t('profileEditor.content.heading')} <span class="text-xs font-normal text-gray-400">({t('common.optional')})</span></label>
+                      <input
+                        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                        value={currentContent.ageGateModal?.parentalConsent?.heading ?? ''}
+                        onInput={e => setAgeGateParentalConsentField('heading', (e.target as HTMLInputElement).value)}
+                        placeholder={t('profileEditor.content.ageGateModal.parentalConsent.headingPlaceholder')}
+                      />
+                    </div>
+                    <HtmlEditor
+                      label={t('profileEditor.content.ageGateModal.parentalConsent.bodyText')}
+                      required
+                      value={currentContent.ageGateModal?.parentalConsent?.htmlText ?? ''}
+                      onChange={v => setAgeGateParentalConsentField('htmlText', v)}
+                      placeholder={t('profileEditor.content.ageGateModal.parentalConsent.bodyPlaceholder')}
+                      rows={3}
+                    />
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-1">{t('profileEditor.content.ageGateModal.parentalConsent.confirmButtonLabel')} <span class="text-red-500">*</span></label>
+                      <input
+                        class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
+                        value={currentContent.ageGateModal?.parentalConsent?.confirmButtonLabel ?? ''}
+                        onInput={e => setAgeGateParentalConsentField('confirmButtonLabel', (e.target as HTMLInputElement).value)}
+                        placeholder={t('profileEditor.content.ageGateModal.parentalConsent.confirmButtonPlaceholder')}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p class="text-xs text-gray-400 italic py-4 text-center">
+                {uiTemplateId && !uiTemplate ? t('profileEditor.content.loadingTemplate') : t('profileEditor.content.noContent')}
+              </p>
+            )}
+          </div>
+
+          {previewDraft && <PreviewPane draft={previewDraft} expandable previewMode="ageGate" />}
+
+          {error && <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
+
+          <div class="flex justify-between">
+            <button type="button" onClick={() => { setError(''); setStep(2) }}
+              class="px-5 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1">
+              <ChevronLeft size={14} aria-hidden="true" /> {t('common.back')}
+            </button>
+            <button
+              type="button"
+              onClick={() => void goToNextContentStep(4, 'ageGateModal')}
               class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1"
             >
               {t('profileEditor.nav.nextMainBanner')} <ChevronRight size={14} aria-hidden="true" />
@@ -1515,8 +2084,8 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         </div>
       )}
 
-      {/* ── Step 3: Main Banner Content ────────────────────────────────── */}
-      {step === 3 && (
+      {/* ── Step 4: Main Banner Content ────────────────────────────────── */}
+      {step === 4 && (
         <div class="space-y-5">
           <div class="bg-white border border-gray-200 rounded-lg p-5">
             <ContentLocaleToolbar section="mainBanner" />
@@ -1529,7 +2098,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
               <div class="space-y-3">
                 <h4 class="text-xs font-semibold text-gray-700 uppercase tracking-wide">{t('profileEditor.content.mainBanner')}</h4>
                 <div>
-                  <label class="block text-xs font-medium text-gray-600 mb-1">{t('profileEditor.content.heading')} <span class="text-red-500" aria-hidden="true">*</span></label>
+                  <label class="block text-xs font-medium text-gray-600 mb-1">{t('profileEditor.content.heading')}</label>
                   <input
                     class="w-full border border-gray-300 rounded px-3 py-1.5 text-sm"
                     value={currentContent.mainBanner.heading}
@@ -1540,6 +2109,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
                 </div>
                 <HtmlEditor
                   label={t('profileEditor.content.bodyText')}
+                  required
                   value={currentContent.mainBanner.htmlText}
                   onChange={v => setLocaleField('mainBanner', 'htmlText', v)}
                   placeholder={t('profileEditor.content.mainBannerBodyPlaceholder')}
@@ -1577,13 +2147,13 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
           {error && <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
 
           <div class="flex justify-between">
-            <button type="button" onClick={() => { setError(''); setStep(2) }}
+            <button type="button" onClick={() => { setError(''); setStep(isAgeGateStepDisabled ? 2 : 3) }}
               class="px-5 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1">
               <ChevronLeft size={14} aria-hidden="true" /> {t('common.back')}
             </button>
             <button
               type="button"
-              onClick={() => void goToNextContentStep(isGpcStepDisabled ? 5 : 4, 'mainBanner')}
+              onClick={() => void goToNextContentStep(isGpcStepDisabled ? 6 : 5, 'mainBanner')}
               class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1"
             >
               {isGpcStepDisabled ? t('profileEditor.nav.nextPrefModal') : t('profileEditor.nav.nextGpcBanner')} <ChevronRight size={14} aria-hidden="true" />
@@ -1592,8 +2162,8 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         </div>
       )}
 
-      {/* ── Step 4: GPC Banner Content ─────────────────────────────────── */}
-      {step === 4 && (
+      {/* ── Step 5: GPC Banner Content ─────────────────────────────────── */}
+      {step === 5 && (
         <div class="space-y-5">
           <div class="bg-white border border-gray-200 rounded-lg p-5">
             <ContentLocaleToolbar section="gpcBanner" />
@@ -1617,6 +2187,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
                 </div>
                 <HtmlEditor
                   label={t('profileEditor.content.bodyText')}
+                  required
                   value={currentContent.gpcBanner.htmlText}
                   onChange={v => setLocaleField('gpcBanner', 'htmlText', v)}
                   rows={3}
@@ -1653,13 +2224,13 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
           {error && <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
 
           <div class="flex justify-between">
-            <button type="button" onClick={() => { setError(''); setStep(3) }}
+            <button type="button" onClick={() => { setError(''); setStep(4) }}
               class="px-5 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1">
               <ChevronLeft size={14} aria-hidden="true" /> {t('common.back')}
             </button>
             <button
               type="button"
-              onClick={() => void goToNextContentStep(5, 'gpcBanner')}
+              onClick={() => void goToNextContentStep(6, 'gpcBanner')}
               class="bg-blue-600 text-white px-6 py-2 rounded-lg text-sm font-medium hover:bg-blue-700 transition-colors flex items-center gap-1"
             >
               {t('profileEditor.nav.nextPrefModal')} <ChevronRight size={14} aria-hidden="true" />
@@ -1668,8 +2239,8 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
         </div>
       )}
 
-      {/* ── Step 5: Preference Modal Content ──────────────────────────── */}
-      {step === 5 && (
+      {/* ── Step 6: Preference Modal Content ──────────────────────────── */}
+      {step === 6 && (
         <div class="space-y-5">
           <div class="bg-white border border-gray-200 rounded-lg p-5">
             <ContentLocaleToolbar section="preferenceModal" />
@@ -1704,6 +2275,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
                 )}
                 <HtmlEditor
                   label={t('profileEditor.content.introText')}
+                  required
                   value={currentContent.preferenceModal.htmlText}
                   onChange={v => setModalField('htmlText', v)}
                   placeholder={t('profileEditor.content.prefIntroPlaceholder')}
@@ -1794,6 +2366,22 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
                     </div>
                   </div>
                 )}
+
+                {uiTemplate?.preferenceModal.showForgetMe && (
+                  <div class="border border-gray-100 rounded p-3 bg-gray-50 space-y-2">
+                    <span class="text-xs font-semibold text-gray-700">{t('profileEditor.content.forgetMeHeading')}</span>
+                    <p class="text-xs text-gray-500">{t('profileEditor.content.forgetMeHint')}</p>
+                    <div>
+                      <label class="block text-xs font-medium text-gray-600 mb-0.5">{t('profileEditor.content.forgetMeLabel')}</label>
+                      <input
+                        class="w-full border border-gray-300 rounded px-2 py-1.5 text-sm"
+                        value={currentContent.preferenceModal.forgetMeLabel ?? ''}
+                        onInput={e => setModalField('forgetMeLabel', (e.target as HTMLInputElement).value)}
+                        placeholder={defaultContent?.preferenceModal.forgetMeLabel || 'Forget me'}
+                      />
+                    </div>
+                  </div>
+                )}
               </div>
             ) : (
               <p class="text-xs text-gray-400 italic py-4 text-center">
@@ -1807,7 +2395,7 @@ export function ProfileEditor({ id, current }: { id?: string; current: string })
           {error && <p class="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">{error}</p>}
 
           <div class="flex justify-between">
-            <button type="button" onClick={() => { setError(''); setStep(isGpcStepDisabled ? 3 : 4) }}
+            <button type="button" onClick={() => { setError(''); setStep(isGpcStepDisabled ? 4 : 5) }}
               class="px-5 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors flex items-center gap-1">
               <ChevronLeft size={14} aria-hidden="true" /> {t('common.back')}
             </button>

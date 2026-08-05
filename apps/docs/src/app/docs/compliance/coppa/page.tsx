@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'COPPA Compliance Guide',
@@ -28,6 +29,7 @@ export default function COPPAPage() {
   return (
     <div className="prose max-w-none">
       <h1>COPPA Compliance Guide</h1>
+      <ComplianceTierBadge tier="partial" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>general-privacy-consent</code> — full-flexibility
         mode; configure your profile to show age-gated consent for children under 13. Use{' '}
@@ -41,37 +43,29 @@ export default function COPPAPage() {
 
       <h2>Configuration</h2>
       <p>
-        Two matching config blocks — server-side (so the field is accepted/stored) and widget-side
-        (so the actual gating UI shows):
+        Age gate is a <strong>per-profile, per-locale</strong> dashboard setting, not a
+        <code>createConsenti()</code>/<code>ConsentiSetup()</code> config option — one global age
+        doesn&apos;t fit every jurisdiction a multi-region deployment serves. In the dashboard&apos;s
+        Profile Editor:
       </p>
-      <CodeBlock
-        lang="ts"
-        code={`// apps/api — createConsenti({ ... })
-createConsenti({
-  ageGate: {
-    enabled: true,
-    minimumAge: 13,
-    requireParentalConsent: true,
-  },
-})`}
-      />
-      <CodeBlock
-        lang="ts"
-        code={`// @consenti/ui — new ConsentiSetup({ ... })
-new ConsentiSetup({
-  compliance: {
-    ageGate: {
-      enabled: true,
-      minimumAge: 13,
-      requireParentalConsent: true,
-    },
-  },
-})`}
-      />
+      <ol>
+        <li>Step 1 → enable &quot;Age gate&quot;, set minimum age to 13, check &quot;Require parental consent&quot;.</li>
+        <li>
+          Main Banner content step → author the age-gate modal&apos;s heading, body text, and
+          Yes/No button labels for each locale you support.
+        </li>
+      </ol>
+      <p>
+        The widget reads this straight off the resolved profile (<code>profile.ageGate</code>/
+        <code>profile.ageGateModal</code>) — no separate widget-side config needed. For a
+        standalone/local profile (<code>registerProfile()</code>), set <code>ageGate</code>/
+        <code>ageGateModal</code> directly on the <code>EmbeddedProfile</code>/
+        <code>EmbeddedTranslations</code> you register instead.
+      </p>
 
       <h2>How it works</h2>
       <p>
-        When <code>compliance.ageGate.enabled: true</code>, the widget shows a Yes/No
+        When the active profile&apos;s <code>ageGate.enabled: true</code>, the widget shows a Yes/No
         age-confirmation prompt before anything else — banner, GPC, CCPA opt-out all wait behind it
         on first visit:
       </p>
@@ -87,7 +81,8 @@ new ConsentiSetup({
         </li>
         <li>
           Declined, <code>requireParentalConsent: true</code> → same deny-all submission, plus the
-          widget mints a <code>parentalConsentToken</code> itself and fires a{' '}
+          widget requests a <code>parentalConsentToken</code> from the backend (signed with{' '}
+          <code>compliance.dataSigningHash</code>, auto-generated if not set) and fires a{' '}
           <code>consenti:parentalConsentRequired</code> event carrying it — see{' '}
           <a href="/docs/ui/events">UI Events</a>.
         </li>
@@ -110,23 +105,39 @@ new ConsentiSetup({
 
       <h2>Parental consent flow</h2>
       <p>
-        Consenti mints the <code>parentalConsentToken</code> and stores it, but does not implement
-        parental <em>verification</em> itself — there is no email-sending infrastructure in this
-        zero-runtime-dependency package. The <code>consenti:parentalConsentRequired</code> event is
-        the hook for wiring your own out-of-band process, for example:
+        Consenti mints a stateless, signed <code>parentalConsentToken</code> and emits it — no
+        server-side persistence of the token itself, and no email-sending infrastructure in this
+        zero-runtime-dependency package. Both the request and the resolve step are plumbing for
+        your own out-of-band verification process, for example:
       </p>
       <ol>
         <li>
-          Widget declines → fires <code>consenti:parentalConsentRequired</code> with the token
+          Widget declines → calls <code>POST /consent/:visitorId/parental-consent-request</code>,
+          fires <code>consenti:parentalConsentRequired</code> with the returned token
         </li>
         <li>
-          Your listener sends the parent an email with a verification link containing the token
+          Your <code>eventBus.on('consent.parentalConsentRequired', ...)</code> listener sends the
+          parent an email with a verification link containing the token
         </li>
         <li>Parent clicks the link → your backend verifies them however you choose</li>
         <li>
-          Once verified, your system calls <code>PUT /consent/:visitorId</code> to update the record
+          Once verified, call <code>POST /consent/parental-consent-resolve</code> with{' '}
+          <code>{'{ token }'}</code> — either from the parent&apos;s page (via{' '}
+          <code>resolveParentalConsent()</code> from <code>@consenti/ui</code>) or server-side.
+          Consenti emits <code>consent.parentalConsentGranted</code>; your own{' '}
+          <code>eventBus</code> listener decides what &quot;granted&quot; means for stored consent
+          (e.g. call <code>PUT /consent/:visitorId</code> yourself) — Consenti doesn&apos;t update
+          the record automatically.
         </li>
       </ol>
+      <Callout type="warning">
+        Token replay isn&apos;t prevented — there&apos;s no persistence to mark a token
+        &quot;used,&quot; an accepted tradeoff of staying fully stateless.{' '}
+        <code>compliance.dataSigningHash</code> is auto-generated in memory if you don&apos;t set
+        it, so tokens are always signed — but with an ephemeral, unpersisted key unless you set it
+        explicitly, meaning a server restart between issuing and resolving a token invalidates it.
+        Set <code>compliance.dataSigningHash</code> before relying on this in production.
+      </Callout>
 
       <h2>Dashboard filtering</h2>
       <p>

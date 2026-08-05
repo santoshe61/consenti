@@ -49,7 +49,7 @@ export default function BackendPolicyEngineMappingGuide() {
         <code>general-privacy-consent</code>, and <code>notice-only</code>. A profile declares which
         group it belongs to; the group determines default-deny vs. default-grant behavior, GPC
         handling, and CPRA-specific sale/share denial — see the{' '}
-        <a href="/docs/compliance">regulation-by-regulation compliance pages</a> for the full
+        <a href="/docs/compliance/jurisdiction-coverage-map">regulation-by-regulation compliance pages</a> for the full
         country-to-group table.
       </p>
       <p>
@@ -169,7 +169,7 @@ export default function BackendPolicyEngineMappingGuide() {
               <p className="m-0">
                 Every consent record stores its <code>profileId</code>, and every profile stores its{' '}
                 <code>complianceGroup</code> at the time — the audit log (append-only,{' '}
-                <code>GET /consenti/admin/audit</code>) captures every profile edit, so you can
+                <code>GET /consenti/admin/v1/audit</code>) captures every profile edit, so you can
                 reconstruct exactly which policy version was active when any given consent was
                 collected.
               </p>

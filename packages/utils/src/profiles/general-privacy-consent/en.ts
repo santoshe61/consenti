@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 // General Privacy Consent: jurisdictions with privacy laws that do not mandate
 // a GDPR-style cookie banner but where documenting legal basis is best practice.
@@ -22,11 +22,11 @@ export const GENERAL_PRIVACY_CONSENT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'We use cookies to improve your browsing experience, analyse site traffic, and show you relevant content. By continuing to use this site, you accept our use of cookies. You can manage your preferences at any time.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'reject-marketing': {
             text: 'Reject Marketing',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: [
               'security_storage',
               'functionality_storage',
@@ -44,11 +44,11 @@ export const GENERAL_PRIVACY_CONSENT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'A privacy notice or consent framework applies in your jurisdiction. While a strict cookie consent banner may not be legally required, we document our legal basis for processing to follow privacy best practices.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'necessary-only': {
             text: 'Necessary Only',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'save-preferences': { text: 'Save My Settings', style: 'primary', action: 'submit' },
@@ -66,6 +66,8 @@ export const GENERAL_PRIVACY_CONSENT_EN_PROFILE: EmbeddedProfile = {
             htmlText:
               'Improve how the site works and remember your preferences. Legal basis: legitimate interest.',
             legalBasis: 'legitimate_interest',
+            legitimateInterestDescription:
+              'Remembering a visitor\'s in-session preferences (e.g. layout, saved settings) is a low-privacy-impact processing activity that a visitor would reasonably expect from using the site, and is necessary to deliver the functionality they engaged with — our interest in providing it is not overridden by the visitor\'s privacy interest, since no data leaves the site and nothing is used for profiling or advertising.',
             cookies: ['functionality_storage', 'personalization_storage'],
           },
           analytics: {
@@ -73,6 +75,8 @@ export const GENERAL_PRIVACY_CONSENT_EN_PROFILE: EmbeddedProfile = {
             htmlText:
               'Help us understand usage patterns to improve the site. Legal basis: legitimate interest. Data is aggregated and anonymised where possible.',
             legalBasis: 'legitimate_interest',
+            legitimateInterestDescription:
+              'Measuring aggregate, anonymised site usage to improve performance and content is a reasonable, low-risk business interest that does not identify individual visitors or feed advertising/profiling, and is proportionate to the minimal impact on visitor privacy.',
             cookies: ['analytics_storage'],
           },
           marketing: {

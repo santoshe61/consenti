@@ -5,12 +5,12 @@ import { Callout } from '@/components/Callout'
 export const metadata: Metadata = {
   title: 'Admin API Routes',
   description:
-    'Admin API routes at /consenti/admin — every route requires a valid JWT passed as an Authorization: Bearer token.',
+    'Admin API routes at /consenti/admin/v1 — every route requires a valid JWT passed as an Authorization: Bearer token.',
   alternates: { canonical: '/docs/api/routes/admin' },
   openGraph: {
     title: 'Admin API Routes',
     description:
-      'Admin API routes at /consenti/admin — every route requires a valid JWT passed as an Authorization: Bearer token.',
+      'Admin API routes at /consenti/admin/v1 — every route requires a valid JWT passed as an Authorization: Bearer token.',
     url: 'https://consenti.dev/docs/api/routes/admin',
     siteName: 'Consenti Docs',
     images: ['/og-image.jpg'],
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Admin API Routes',
     description:
-      'Admin API routes at /consenti/admin — every route requires a valid JWT passed as an Authorization: Bearer token.',
+      'Admin API routes at /consenti/admin/v1 — every route requires a valid JWT passed as an Authorization: Bearer token.',
     images: ['/og-image.jpg'],
   },
 }
@@ -46,13 +46,13 @@ export default function AdminRoutesPage() {
     <div className="prose max-w-none">
       <h1>Admin API Routes</h1>
       <p>
-        Base path: <code>/consenti/admin</code> (default — set via <code>basePath</code> in{' '}
+        Base path: <code>/consenti/admin/v1</code> (default — set via <code>basePath</code> in{' '}
         <code>createConsenti()</code>). All routes require a valid JWT passed as{' '}
         <code>Authorization: Bearer &lt;token&gt;</code>.
       </p>
 
       <Callout type="info">
-        Obtain a token via <code>POST /consenti/admin/auth/login</code>. Include it in the{' '}
+        Obtain a token via <code>POST /consenti/admin/v1/auth/login</code>. Include it in the{' '}
         <code>Authorization</code> header of every subsequent request.
       </Callout>
 
@@ -75,9 +75,17 @@ export default function AdminRoutesPage() {
           </thead>
           <tbody className="divide-y divide-slate-100 text-xs">
             {[
-              ['POST', '/auth/login', 'Authenticate — returns a JWT'],
+              ['POST', '/auth/login', 'Authenticate (mode local only) — returns a JWT'],
               ['GET', '/auth/me', 'Get current authenticated user'],
               ['POST', '/auth/logout', 'Invalidate session'],
+              ['POST', '/auth/refresh', 'Reissue a fresh token — extends the session'],
+              ['GET', '/auth/oidc/authorize', 'Start OIDC authorization (PKCE)'],
+              ['GET', '/auth/oidc/callback', 'OIDC redirect target — exchanges code for a JWT'],
+              ['GET', '/auth/saml/metadata', 'SAML SP metadata XML'],
+              ['POST', '/auth/saml/acs', 'SAML Assertion Consumer Service — returns a JWT'],
+              ['POST', '/auth/totp/setup', 'Generate a TOTP secret + QR code for the current user'],
+              ['POST', '/auth/totp/verify', 'Verify a TOTP code and enable it'],
+              ['POST', '/auth/totp/disable', 'Disable TOTP for the current user'],
               ['GET', '/profiles', 'List all profiles'],
               [
                 'GET',
@@ -151,10 +159,16 @@ export default function AdminRoutesPage() {
               ['GET', '/consents/:visitorId/history', 'Get consent change history for a visitor'],
               ['GET', '/visitors', 'List visitor records (paginated)'],
               ['GET', '/users', 'List admin users'],
+              ['GET', '/users/:id', 'Get an admin user'],
               ['POST', '/users', 'Create an admin user'],
               ['PUT', '/users/:id', 'Update an admin user (including allowedTenants)'],
+              ['DELETE', '/users/:id', 'Delete an admin user'],
+              ['POST', '/users/:id/roles', 'Assign a role to a user'],
+              ['DELETE', '/users/:id/roles/:roleId', 'Revoke a role from a user'],
               ['GET', '/roles', 'List roles'],
               ['POST', '/roles', 'Create a role'],
+              ['PUT', '/roles/:id', 'Update a role'],
+              ['DELETE', '/roles/:id', 'Delete a role'],
               ['GET', '/roles/:id/permissions', 'Get permissions assigned to a role'],
               ['POST', '/roles/:id/permissions', 'Assign a permission to a role'],
               ['DELETE', '/roles/:id/permissions/:permId', 'Revoke a permission from a role'],
@@ -195,6 +209,10 @@ export default function AdminRoutesPage() {
               ['DELETE', '/tenants/:id', 'Delete a tenant'],
               ['GET', '/tcf/vendors', 'List IAB TCF vendors'],
               ['GET', '/tcf/purposes', 'List IAB TCF purposes'],
+              ['GET', '/tcf/registration-status', 'TCF registration confirmation status + live IAB CMP-List lookup'],
+              ['POST', '/tcf/confirm-registration', 'Confirm TCF cmpId/cmpVersion registration'],
+              ['GET', '/gpp/registration-status', 'GPP registration confirmation status'],
+              ['POST', '/gpp/confirm-registration', 'Confirm GPP cmpId/cmpVersion registration'],
             ].map(row => {
               const [m, p, d] = row as [string, string, string]
               return (
@@ -227,7 +245,7 @@ export default function AdminRoutesPage() {
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/auth/login HTTP/1.1
+            code: `// POST /consenti/admin/v1/auth/login HTTP/1.1
 // Content-Type: application/json
 
 {
@@ -253,7 +271,7 @@ export default function AdminRoutesPage() {
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/auth/me HTTP/1.1
+            code: `// GET /consenti/admin/v1/auth/me HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -283,12 +301,120 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/auth/logout HTTP/1.1
+            code: `// POST /consenti/admin/v1/auth/logout HTTP/1.1
 ${AUTH_HEADER}`,
           },
           { label: 'Response 200', lang: 'json', code: `{ "success": true }` },
         ]}
       />
+
+      <h3>
+        <Method m="POST" /> <code>/auth/refresh</code>
+      </h3>
+      <p>
+        Reissues a fresh token from the current (still-valid) one, extending the session another
+        30 minutes — the dashboard calls this on user activity to implement a sliding inactivity
+        timeout rather than a flat expiry from login. 401s the same as any other authenticated
+        route if the current token is already invalid/expired.
+      </p>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// POST /consenti/admin/v1/auth/refresh HTTP/1.1
+${AUTH_HEADER}`,
+          },
+          { label: 'Response 200', lang: 'json', code: `{ "token": "eyJhbGciOiJIUzI1NiJ9..." }` },
+        ]}
+      />
+
+      <h3>SSO — OIDC / SAML</h3>
+      <p>
+        Active only when <code>auth.mode</code> is <code>&apos;oidc&apos;</code> or{' '}
+        <code>&apos;saml&apos;</code> — see the{' '}
+        <a href="/docs/api/advanced-configuration">Advanced Configuration</a> guide&apos;s Auth
+        section for the full setup. Both flows upsert (create-if-missing) an admin user by email
+        on first successful login.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>GET</td>
+            <td>
+              <code>/auth/oidc/authorize</code>
+            </td>
+            <td>Starts OIDC authorization (PKCE) — 302-redirects to the IdP</td>
+          </tr>
+          <tr>
+            <td>GET</td>
+            <td>
+              <code>/auth/oidc/callback</code>
+            </td>
+            <td>OIDC redirect target — exchanges the code, verifies the ID token, returns a JWT</td>
+          </tr>
+          <tr>
+            <td>GET</td>
+            <td>
+              <code>/auth/saml/metadata</code>
+            </td>
+            <td>SAML SP metadata XML for your IdP configuration</td>
+          </tr>
+          <tr>
+            <td>POST</td>
+            <td>
+              <code>/auth/saml/acs</code>
+            </td>
+            <td>SAML Assertion Consumer Service — validates the assertion, returns a JWT</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h3>TOTP (per-user MFA)</h3>
+      <p>
+        Each admin user can independently enable TOTP on top of whichever <code>auth.mode</code>{' '}
+        is active. Opt-in per user — not currently enforced as a required second factor on{' '}
+        <code>POST /auth/login</code> itself.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Method</th>
+            <th>Path</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>POST</td>
+            <td>
+              <code>/auth/totp/setup</code>
+            </td>
+            <td>Generates a TOTP secret + QR-code URL for the current user</td>
+          </tr>
+          <tr>
+            <td>POST</td>
+            <td>
+              <code>/auth/totp/verify</code>
+            </td>
+            <td>Verifies a submitted code and enables TOTP for the current user</td>
+          </tr>
+          <tr>
+            <td>POST</td>
+            <td>
+              <code>/auth/totp/disable</code>
+            </td>
+            <td>Disables TOTP for the current user</td>
+          </tr>
+        </tbody>
+      </table>
 
       {/* ── Profiles ─────────────────────────────────────────────── */}
 
@@ -302,7 +428,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/profiles HTTP/1.1
+            code: `// GET /consenti/admin/v1/profiles HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -363,7 +489,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/profiles HTTP/1.1
+            code: `// POST /consenti/admin/v1/profiles HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -492,7 +618,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/profiles/my-profile HTTP/1.1
+            code: `// GET /consenti/admin/v1/profiles/my-profile HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -542,7 +668,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// PUT /consenti/admin/profiles/prof-a1b2c3 HTTP/1.1
+            code: `// PUT /consenti/admin/v1/profiles/prof-a1b2c3 HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -578,7 +704,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// DELETE /consenti/admin/profiles/my-profile HTTP/1.1
+            code: `// DELETE /consenti/admin/v1/profiles/my-profile HTTP/1.1
 ${AUTH_HEADER}`,
           },
           { label: 'Response 200', lang: 'json', code: `{ "success": true }` },
@@ -600,7 +726,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/profiles/prof-a1b2c3/copy HTTP/1.1
+            code: `// POST /consenti/admin/v1/profiles/prof-a1b2c3/copy HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -636,7 +762,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/profiles?summary=1 HTTP/1.1
+            code: `// GET /consenti/admin/v1/profiles?summary=1 HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -674,7 +800,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/profiles/prof-a1b2c3/activate HTTP/1.1
+            code: `// POST /consenti/admin/v1/profiles/prof-a1b2c3/activate HTTP/1.1
 ${AUTH_HEADER}`,
           },
           { label: 'Response 200', lang: 'json', code: `{ "success": true }` },
@@ -694,7 +820,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/profiles/prof-a1b2c3/deactivate HTTP/1.1
+            code: `// POST /consenti/admin/v1/profiles/prof-a1b2c3/deactivate HTTP/1.1
 ${AUTH_HEADER}`,
           },
           { label: 'Response 200', lang: 'json', code: `{ "success": true }` },
@@ -715,7 +841,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/profiles/archived HTTP/1.1
+            code: `// GET /consenti/admin/v1/profiles/archived HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -742,7 +868,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/profiles/prof-a1b2c3/versions HTTP/1.1
+            code: `// GET /consenti/admin/v1/profiles/prof-a1b2c3/versions HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -771,7 +897,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/profiles/prof-a1b2c3/versions/2?locale=fr-FR HTTP/1.1
+            code: `// GET /consenti/admin/v1/profiles/prof-a1b2c3/versions/2?locale=fr-FR HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -825,7 +951,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/profiles/validate HTTP/1.1
+            code: `// POST /consenti/admin/v1/profiles/validate HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -889,7 +1015,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/compliance-coverage HTTP/1.1
+            code: `// GET /consenti/admin/v1/compliance-coverage HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -990,7 +1116,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/consent-templates HTTP/1.1
+            code: `// POST /consenti/admin/v1/consent-templates HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -1122,7 +1248,7 @@ ${AUTH_HEADER}
     "stackButtonsOnBreakpoint": 576,
     "buttons": {
       "accept-all": { "type": "primary", "action": "custom", "cookies": "*" },
-      "reject-optional": { "type": "secondary", "action": "custom", "cookies": "!" },
+      "reject-optional": { "type": "primary", "action": "custom", "cookies": "!" },
       "customize": { "type": "secondary", "action": "manage" }
     }
   },
@@ -1203,7 +1329,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/analytics/opt-in?from=2026-01-01&to=2026-07-01 HTTP/1.1
+            code: `// GET /consenti/admin/v1/analytics/opt-in?from=2026-01-01&to=2026-07-01 HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1241,7 +1367,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/consents HTTP/1.1
+            code: `// GET /consenti/admin/v1/consents HTTP/1.1
 ${AUTH_HEADER}
 
 // Query params (all optional):
@@ -1280,7 +1406,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/consents/visitor-uuid HTTP/1.1
+            code: `// GET /consenti/admin/v1/consents/visitor-uuid HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1313,7 +1439,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/consents/visitor-uuid/history HTTP/1.1
+            code: `// GET /consenti/admin/v1/consents/visitor-uuid/history HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1359,7 +1485,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/visitors HTTP/1.1
+            code: `// GET /consenti/admin/v1/visitors HTTP/1.1
 ${AUTH_HEADER}
 
 // Query params (all optional):
@@ -1400,7 +1526,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/users HTTP/1.1
+            code: `// GET /consenti/admin/v1/users HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1433,7 +1559,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/users HTTP/1.1
+            code: `// POST /consenti/admin/v1/users HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -1478,7 +1604,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/roles HTTP/1.1
+            code: `// GET /consenti/admin/v1/roles HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1510,7 +1636,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/roles HTTP/1.1
+            code: `// POST /consenti/admin/v1/roles HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -1540,7 +1666,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/roles/role-uuid/permissions HTTP/1.1
+            code: `// GET /consenti/admin/v1/roles/role-uuid/permissions HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1571,7 +1697,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/apikeys HTTP/1.1
+            code: `// GET /consenti/admin/v1/apikeys HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1604,7 +1730,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/apikeys HTTP/1.1
+            code: `// POST /consenti/admin/v1/apikeys HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -1639,7 +1765,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// DELETE /consenti/admin/apikeys/key-uuid HTTP/1.1
+            code: `// DELETE /consenti/admin/v1/apikeys/key-uuid HTTP/1.1
 ${AUTH_HEADER}`,
           },
           { label: 'Response 204', lang: 'json', code: `// No body` },
@@ -1660,7 +1786,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/apikeys/key-uuid/reactivate HTTP/1.1
+            code: `// POST /consenti/admin/v1/apikeys/key-uuid/reactivate HTTP/1.1
 ${AUTH_HEADER}`,
           },
           { label: 'Response 204', lang: 'json', code: `// No body` },
@@ -1679,7 +1805,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// DELETE /consenti/admin/apikeys/key-uuid/permanent HTTP/1.1
+            code: `// DELETE /consenti/admin/v1/apikeys/key-uuid/permanent HTTP/1.1
 ${AUTH_HEADER}`,
           },
           { label: 'Response 204', lang: 'json', code: `// No body` },
@@ -1703,7 +1829,7 @@ ${AUTH_HEADER}`,
         </li>
         <li>
           <code>adminAllowedOrigins</code> is an additional CORS-layer check on top of Bearer-token
-          auth for browser-originated <code>/consenti/admin/*</code> requests (server-to-server
+          auth for browser-originated <code>/consenti/admin/v1/*</code> requests (server-to-server
           callers without an <code>Origin</code> header are unaffected). Unauthenticated static
           assets (<code>widget.js</code>/<code>widget.css</code>) are exempt.{' '}
           <strong>Be careful</strong>: include the dashboard&apos;s own origin, or you&apos;ll lock
@@ -1723,7 +1849,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/settings HTTP/1.1
+            code: `// GET /consenti/admin/v1/settings HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1743,7 +1869,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// PATCH /consenti/admin/settings HTTP/1.1
+            code: `// PATCH /consenti/admin/v1/settings HTTP/1.1
 ${AUTH_HEADER}
 Content-Type: application/json
 
@@ -1777,7 +1903,7 @@ Content-Type: application/json
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/setup/status HTTP/1.1
+            code: `// GET /consenti/admin/v1/setup/status HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1793,16 +1919,16 @@ ${AUTH_HEADER}`,
       </h3>
       <p>
         The same merged <code>DEFAULT_CONFIG</code> + user config <code>createConsenti</code>{' '}
-        computes at boot, with <code>auth.adminPassword</code>, <code>auth.jwtSecret</code>,{' '}
-        <code>consentSigningKey</code>, storage credentials, and OIDC/SAML secrets replaced with a
-        redaction marker.
+        computes at boot, with <code>auth.adminPassword</code>, <code>auth.masterSecret</code>,{' '}
+        <code>compliance.dataSigningHash</code>, storage credentials, and OIDC/SAML secrets
+        replaced with a redaction marker.
       </p>
       <CodeTabs
         tabs={[
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/setup/config HTTP/1.1
+            code: `// GET /consenti/admin/v1/setup/config HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1829,7 +1955,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/setup/compliance-groups HTTP/1.1
+            code: `// GET /consenti/admin/v1/setup/compliance-groups HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1863,7 +1989,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/setup/seed-profiles HTTP/1.1
+            code: `// POST /consenti/admin/v1/setup/seed-profiles HTTP/1.1
 ${AUTH_HEADER}
 Content-Type: application/json
 
@@ -1886,7 +2012,7 @@ Content-Type: application/json
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/setup/complete HTTP/1.1
+            code: `// POST /consenti/admin/v1/setup/complete HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1909,12 +2035,12 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/audit HTTP/1.1
+            code: `// GET /consenti/admin/v1/audit HTTP/1.1
 ${AUTH_HEADER}
 
 // Query params (all optional):
 // ?page=1&limit=50
-// &action=profile.created
+// &action=profile:created
 // &resourceType=profile
 // &from=2026-01-01&to=2026-12-31
 // &q=search-term (searches action, resourceType, resourceId, userId)`,
@@ -1927,7 +2053,7 @@ ${AUTH_HEADER}
     "id": "log-uuid",
     "userId": "user-uuid",
     "tenantId": "default",
-    "action": "profile.created",
+    "action": "profile:created",
     "resourceType": "profile",
     "resourceId": "profile-uuid",
     "newData": { "id": "profile-uuid", "name": "Default Profile", "version": 1 },
@@ -1950,7 +2076,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/stats/overview HTTP/1.1
+            code: `// GET /consenti/admin/v1/stats/overview HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -1973,7 +2099,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/stats/timeline HTTP/1.1
+            code: `// GET /consenti/admin/v1/stats/timeline HTTP/1.1
 ${AUTH_HEADER}
 
 // ?days=30   (default: 30)`,
@@ -1998,7 +2124,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/stats/categories HTTP/1.1
+            code: `// GET /consenti/admin/v1/stats/categories HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -2020,10 +2146,10 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/stats/countries HTTP/1.1
+            code: `// GET /consenti/admin/v1/stats/countries HTTP/1.1
 ${AUTH_HEADER}
 
-// GET /consenti/admin/stats/gpc HTTP/1.1
+// GET /consenti/admin/v1/stats/gpc HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -2055,7 +2181,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/export/consents HTTP/1.1
+            code: `// GET /consenti/admin/v1/export/consents HTTP/1.1
 ${AUTH_HEADER}
 
 // Query params (all optional):
@@ -2084,7 +2210,7 @@ record-uuid,visitor-uuid,prof-a1b2c3,en,"{""necessary"":""granted""}",0,banner,2
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/export/audit HTTP/1.1
+            code: `// GET /consenti/admin/v1/export/audit HTTP/1.1
 ${AUTH_HEADER}
 
 // ?format=csv&from=2026-01-01&to=2026-12-31`,
@@ -2096,7 +2222,7 @@ ${AUTH_HEADER}
 // Content-Disposition: attachment; filename="audit.csv"
 
 id,user_id,action,resource_type,resource_id,created_at
-log-uuid,user-uuid,profile.created,profile,profile-uuid,2026-06-24T10:00:00.000Z`,
+log-uuid,user-uuid,profile:created,profile,profile-uuid,2026-06-24T10:00:00.000Z`,
           },
         ]}
       />
@@ -2114,7 +2240,7 @@ log-uuid,user-uuid,profile.created,profile,profile-uuid,2026-06-24T10:00:00.000Z
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/export/translations/my-profile HTTP/1.1
+            code: `// GET /consenti/admin/v1/export/translations/my-profile HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -2147,7 +2273,7 @@ fr,Nous utilisons des cookies,Ce site utilise des cookies pour améliorer votre 
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/tenants HTTP/1.1
+            code: `// GET /consenti/admin/v1/tenants HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -2168,7 +2294,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// POST /consenti/admin/tenants HTTP/1.1
+            code: `// POST /consenti/admin/v1/tenants HTTP/1.1
 ${AUTH_HEADER}
 // Content-Type: application/json
 
@@ -2201,7 +2327,7 @@ ${AUTH_HEADER}
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/tcf/vendors HTTP/1.1
+            code: `// GET /consenti/admin/v1/tcf/vendors HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -2226,7 +2352,7 @@ ${AUTH_HEADER}`,
           {
             label: 'Request',
             lang: 'javascript',
-            code: `// GET /consenti/admin/tcf/purposes HTTP/1.1
+            code: `// GET /consenti/admin/v1/tcf/purposes HTTP/1.1
 ${AUTH_HEADER}`,
           },
           {
@@ -2237,6 +2363,114 @@ ${AUTH_HEADER}`,
   { "id": 2, "name": "Select basic ads" },
   { "id": 3, "name": "Create a personalised ads profile" }
 ]`,
+          },
+        ]}
+      />
+
+      <h3>
+        <Method m="GET" /> <code>/tcf/registration-status</code>
+      </h3>
+      <p>
+        Draft/confirmed diff plus a live IAB CMP-List lookup for <code>cmpId</code> (
+        <code>?refresh=true</code> bypasses the 7-day cache) — powers the dashboard&apos;s TCF
+        Registration panel.
+      </p>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// GET /consenti/admin/v1/tcf/registration-status HTTP/1.1
+${AUTH_HEADER}`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `{
+  "enabled": true,
+  "cmpId": 280,
+  "cmpVersion": 1,
+  "confirmed": false,
+  "cmpListVersion": 42,
+  "cmpListEntry": { "found": true, "deregistered": false }
+}`,
+          },
+        ]}
+      />
+
+      <h3>
+        <Method m="POST" /> <code>/tcf/confirm-registration</code>
+      </h3>
+      <p>
+        Records confirmation as a hash of <code>cmpId</code>/<code>cmpVersion</code>/
+        <code>publisherCC</code> (never the raw values). <code>409</code> if IAB&apos;s CMP List
+        shows <code>cmpId</code> deregistered, <code>404</code> if not found yet.
+      </p>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// POST /consenti/admin/v1/tcf/confirm-registration HTTP/1.1
+${AUTH_HEADER}
+// Content-Type: application/json
+
+{ "acknowledge": true }`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `{ "confirmed": true, "tcfConfirmation": { "confirmedAt": "...", "confirmedBy": "user-uuid" } }`,
+          },
+        ]}
+      />
+
+      {/* ── GPP ──────────────────────────────────────────────────── */}
+
+      <h2>IAB GPP (US National)</h2>
+      <Callout type="info">
+        GPP routes are only active when <code>gpp.enabled: true</code> is set in{' '}
+        <code>createConsenti()</code>. Unlike TCF, IAB publishes no CMP-List equivalent for GPP, so
+        confirmation here is self-attestation only.
+      </Callout>
+
+      <h3>
+        <Method m="GET" /> <code>/gpp/registration-status</code>
+      </h3>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// GET /consenti/admin/v1/gpp/registration-status HTTP/1.1
+${AUTH_HEADER}`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `{ "enabled": true, "cmpId": 280, "cmpVersion": 1, "confirmed": false }`,
+          },
+        ]}
+      />
+
+      <h3>
+        <Method m="POST" /> <code>/gpp/confirm-registration</code>
+      </h3>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// POST /consenti/admin/v1/gpp/confirm-registration HTTP/1.1
+${AUTH_HEADER}
+// Content-Type: application/json
+
+{ "acknowledge": true }`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `{ "confirmed": true, "gppConfirmation": { "confirmedAt": "...", "confirmedBy": "user-uuid" } }`,
           },
         ]}
       />

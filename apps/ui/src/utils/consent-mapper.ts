@@ -6,7 +6,7 @@
  * returning a vendor-ready object with no side effects.
  */
 
-import type { ConsentValue, CookieMap, CookiePurpose } from '../types'
+import type { ConsentValue, CookieMap, CookiePurpose, CategoryMap } from '../types'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -66,13 +66,13 @@ export function getGoogleGTMConsent(consent: ConsentValue): Record<string, strin
   return result
 }
 
-// ─── Category ─────────────────────────────────────────────────────────────────
+// ─── Purpose ──────────────────────────────────────────────────────────────────
 
 /**
- * Returns consent grouped by CookiePurpose category.
+ * Returns consent grouped by the fixed CookiePurpose taxonomy.
  * 'necessary' is always 'granted'.
  */
-export function getCategoryConsent(
+export function getPurposeConsent(
   consent: ConsentValue,
   cookies: CookieMap,
 ): Record<CookiePurpose, ConsentStatus> {
@@ -83,6 +83,34 @@ export function getCategoryConsent(
     analytics: getConsentForPurpose(consent, cookies, 'analytics'),
     marketing: getConsentForPurpose(consent, cookies, 'marketing'),
   }
+}
+
+// ─── Category ─────────────────────────────────────────────────────────────────
+
+/**
+ * Returns consent per the tenant's own authored preference-modal category, keyed by
+ * category ID. 'granted' only when every member parameter is granted. Otherwise
+ * 'objected' when every member is objected (legitimate_interest categories only —
+ * their off-state is 'objected', not 'denied'); 'denied' in every other case
+ * (uniformly denied, or a genuine mix of granted/denied/objected members).
+ */
+export function getCategoryConsent(
+  consent: ConsentValue,
+  categories: CategoryMap,
+): Record<string, ConsentStatus> {
+  const result: Record<string, ConsentStatus> = {}
+  for (const [categoryId, category] of Object.entries(categories)) {
+    const offStatus: ConsentStatus = category.legalBasis === 'legitimate_interest' ? 'objected' : 'denied'
+    const statuses = category.cookies.map(id => consent[id])
+    if (statuses.length > 0 && statuses.every(s => s === 'granted')) {
+      result[categoryId] = 'granted'
+    } else if (statuses.every(s => s === offStatus || s === undefined)) {
+      result[categoryId] = offStatus
+    } else {
+      result[categoryId] = 'denied'
+    }
+  }
+  return result
 }
 
 // ─── Adobe ────────────────────────────────────────────────────────────────────

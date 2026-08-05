@@ -62,12 +62,17 @@ export default function UIMethodsPage() {
           </tr>
           <tr>
             <td>
-              <code>getConsent()</code>
+              <code>getConsent(type?)</code>
             </td>
             <td>
-              <code>ConsentValue | null</code>
+              <code>ConsentValue | Record&lt;string, string&gt; | null</code>
             </td>
-            <td>The current consent values keyed by cookie ID</td>
+            <td>
+              Raw consent keyed by cookie ID, or pass <code>type</code> (<code>'purpose'</code>,{' '}
+              <code>'category'</code>, <code>'google-gtm'</code>, <code>'adobe'</code>,{' '}
+              <code>'meta'</code>, <code>'microsoft-clarity'</code>, <code>'twilio-segment'</code>)
+              for a re-shaped format
+            </td>
           </tr>
           <tr>
             <td>
@@ -76,7 +81,9 @@ export default function UIMethodsPage() {
             <td>
               <code>Record&lt;string, string&gt; | null</code>
             </td>
-            <td>Consent in GTM / Google Consent Mode v2 format</td>
+            <td>
+              <code>@deprecated</code> — same as <code>getConsent(&apos;google-gtm&apos;)</code>
+            </td>
           </tr>
           <tr>
             <td>
@@ -300,12 +307,71 @@ export default function UIMethodsPage() {
           </tr>
           <tr>
             <td>
+              <code>forgetMe(resetAgeGate?)</code>
+            </td>
+            <td>
+              <code>Promise&lt;void&gt;</code>
+            </td>
+            <td>
+              Right-to-erasure entry point — wraps <code>reConsent()</code> with{' '}
+              <code>consenti:forgetMeRequested</code>/<code>consenti:forgotten</code> events around
+              it. See the{' '}
+              <a href="/guides/hot-topics/right-to-erasure">Right to Erasure guide</a>.
+            </td>
+          </tr>
+          <tr>
+            <td>
               <code>destroy()</code>
             </td>
             <td>
               <code>void</code>
             </td>
             <td>Unmount the widget and remove all event listeners</td>
+          </tr>
+          <tr>
+            <td
+              colSpan={3}
+              className="bg-gray-50 font-semibold text-xs uppercase tracking-wide text-gray-500 px-2 py-1"
+            >
+              Identity
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>getUserId()</code>
+            </td>
+            <td>
+              <code>string | null</code>
+            </td>
+            <td>Current logged-in application user ID, or <code>null</code> for an anonymous visitor</td>
+          </tr>
+          <tr>
+            <td>
+              <code>setUserId(userId, reConsent?)</code>
+            </td>
+            <td>
+              <code>Promise&lt;void&gt;</code>
+            </td>
+            <td>
+              Set (or clear with <code>null</code>) the logged-in application user ID; reconsents
+              by default when it changes on a device with an existing consent record
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>getVisitor()</code>
+            </td>
+            <td>
+              <code>
+                {'{'} visitorId, type, userId {'}'}
+              </code>
+            </td>
+            <td>
+              Snapshot of the current visitor&apos;s identity — the stable per-browser{' '}
+              <code>visitorId</code> (<code>null</code> until a consent decision exists), whether
+              they&apos;re <code>&apos;authenticated&apos;</code> or{' '}
+              <code>&apos;anonymous&apos;</code>, and the app <code>userId</code>
+            </td>
           </tr>
           <tr>
             <td
@@ -455,18 +521,151 @@ widget.switchLocale('de-AT') // switch to Austrian German`}
 }`}
       />
 
-      <h3>getConsent()</h3>
+      <h3 id="getconsent-type">getConsent(type?)</h3>
+      <p>
+        With no argument, returns the <strong>raw</strong> consent map — keyed by whichever cookie{' '}
+        <em>parameter</em> IDs actually exist in the profile. There&apos;s no fixed/predefined key
+        set; the shape mirrors the profile&apos;s own <code>cookies</code> map one-for-one:
+      </p>
       <CodeBlock
         lang="ts"
         code={`const consent = widget.getConsent()
-// { analytics: 'granted', marketing: 'denied', necessary: 'granted' }
+// keyed by your own cookie parameter IDs, e.g.:
+// { ga_measurement: 'granted', hotjar: 'denied', preferences_storage: 'granted' }
 
-if (consent?.analytics === 'granted') {
+if (consent?.ga_measurement === 'granted') {
   initAnalytics()
 }`}
       />
+      <p>
+        Pass <code>type</code> to get a re-shaped, vendor- or taxonomy-ready object instead. Every
+        value below is a real, independent <code>ConsentType</code> — none of them are aliases of
+        each other:
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>
+              <code>type</code>
+            </th>
+            <th>Keyed by</th>
+            <th>Values</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>&apos;purpose&apos;</code>
+            </td>
+            <td>
+              the fixed taxonomy: <code>necessary</code>/<code>functional</code>/
+              <code>preferences</code>/<code>analytics</code>/<code>marketing</code>
+            </td>
+            <td>
+              <code>'granted' | 'denied' | 'objected'</code>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>&apos;category&apos;</code>
+            </td>
+            <td>
+              your own authored category IDs (<code>preferenceModal.categories</code> keys)
+            </td>
+            <td>
+              <code>'granted' | 'denied' | 'objected'</code>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>&apos;google-gtm&apos;</code>
+            </td>
+            <td>Google Consent Mode v2 signal names</td>
+            <td>
+              <code>'granted' | 'denied'</code> + <code>ads_data_redaction</code>/
+              <code>url_passthrough</code> flags
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>&apos;adobe&apos;</code>
+            </td>
+            <td>
+              <code>analytics</code>, <code>target</code>, <code>manager</code>,{' '}
+              <code>optimizer</code>
+            </td>
+            <td>
+              <code>'granted' | 'denied' | 'objected'</code>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>&apos;meta&apos;</code>
+            </td>
+            <td>
+              <code>pixel</code>, <code>api</code>, <code>plugins</code>,{' '}
+              <code>facebookLogin</code>
+            </td>
+            <td>
+              <code>'granted' | 'denied' | 'objected'</code>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>&apos;microsoft-clarity&apos;</code>
+            </td>
+            <td>
+              <code>session</code>, <code>heatmaps</code>, <code>performance</code>
+            </td>
+            <td>
+              <code>'granted' | 'denied' | 'objected'</code>
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>&apos;twilio-segment&apos;</code>
+            </td>
+            <td>
+              <code>identify</code>, <code>page</code>, <code>track</code>, <code>group</code>,{' '}
+              <code>alias</code>
+            </td>
+            <td>
+              <code>'granted' | 'denied' | 'objected'</code>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p>
+        <code>&apos;purpose&apos;</code> and <code>&apos;category&apos;</code> are easy to mix up —
+        they answer different questions. <code>&apos;purpose&apos;</code> gives you the fixed,
+        stable taxonomy every parameter is tagged with (useful for vendor mapping, which is why the
+        formats below all derive from it too). <code>&apos;category&apos;</code> gives you consent
+        for your own authored category IDs instead — <code>&apos;granted&apos;</code> only when{' '}
+        <em>every</em> parameter in that category is granted; otherwise <code>&apos;denied&apos;</code>{' '}
+        (covers a fully-denied category and a partially-granted one alike) or{' '}
+        <code>&apos;objected&apos;</code> (only for a <code>legitimate_interest</code> category
+        that&apos;s uniformly objected to):
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`widget.getConsent('purpose')
+// { necessary: 'granted', functional: 'granted', preferences: 'denied', analytics: 'denied', marketing: 'denied' }
+
+widget.getConsent('category')
+// { 'cat-necessary': 'granted', 'cat-analytics': 'denied', 'cat-personalization-li': 'objected' }
+// — keyed by whatever category IDs you defined in preferenceModal.categories`}
+      />
+      <p>
+        See <a href="/docs/ui/advanced-profiles/#cookie-type">Advanced Profiles</a> for the full
+        parameter (<code>purpose</code>) vs. category model.
+      </p>
 
       <h3>getGTMConsent()</h3>
+      <Callout type="warning">
+        <code>@deprecated</code> — use <code>getConsent(&apos;google-gtm&apos;)</code> instead;
+        identical output. Kept for backwards compatibility.
+      </Callout>
       <p>Returns consent in the exact shape Google Tag Manager expects for Consent Mode v2:</p>
       <CodeBlock
         lang="ts"
@@ -479,6 +678,15 @@ if (consent?.analytics === 'granted') {
 //   functionality_storage: 'granted',
 // }`}
       />
+      <p>
+        For the other vendor formats (<code>&apos;adobe&apos;</code>, <code>&apos;meta&apos;</code>,{' '}
+        <code>&apos;microsoft-clarity&apos;</code>, <code>&apos;twilio-segment&apos;</code>), see the
+        respective{' '}
+        <a href="/guides/frontend/adobe/">Adobe</a>,{' '}
+        <a href="/guides/frontend/meta/">Meta</a>,{' '}
+        <a href="/guides/frontend/clarity/">Microsoft Clarity</a>, and{' '}
+        <a href="/guides/frontend/segment/">Twilio Segment</a> integration guides.
+      </p>
 
       <h3>submitConsent(consent)</h3>
       <p>Programmatically submit consent — useful for custom UI flows:</p>
@@ -497,7 +705,7 @@ if (consent?.analytics === 'granted') {
         them is silently ignored.
       </Callout>
 
-      <h3>reConsent()</h3>
+      <h3>reConsent(resetAgeGate?)</h3>
       <p>
         Deletes the existing consent record and re-opens the banner. Use for "Change cookie
         settings" buttons:
@@ -508,6 +716,40 @@ if (consent?.analytics === 'granted') {
   widget.reConsent()
 })`}
       />
+      <p>
+        If the profile has an <code>ageGate</code> configured, <code>reConsent()</code> re-shows
+        the age-gate prompt too by default (not just the banner) — mirroring the original
+        first-visit flow. Pass <code>false</code> to skip it and go straight to the banner,
+        keeping the visitor&apos;s prior age-gate answer:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`widget.reConsent(false) // skip the age gate, just re-show the banner`}
+      />
+
+      <h3>forgetMe(resetAgeGate?)</h3>
+      <p>
+        The self-service &quot;right to be forgotten&quot; entry point — GDPR Art. 17, CCPA/CPRA,
+        LGPD Art. 18, and equivalent erasure rights. Same underlying erasure as{' '}
+        <code>reConsent()</code> (same <code>resetAgeGate</code> parameter), but dispatches{' '}
+        <code>consenti:forgetMeRequested</code> before and <code>consenti:forgotten</code> after,
+        so a host app can hook its own identity-verified erasure workflow across other systems
+        (CRM, DMP, analytics) — the CMP itself only ever erases its own consent record. This is
+        what powers the preference modal&apos;s &quot;Forget me&quot; button (
+        <code>preferenceModal.showForgetMe</code>), and is also the method to call for a custom
+        placement of the same action — a footer link or an account/privacy-settings page:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`document.querySelector('#delete-my-data')?.addEventListener('click', () => {
+  widget.forgetMe()
+})`}
+      />
+      <p>
+        See the <a href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</a> for the
+        full picture, including the server-side <code>DELETE /consent/:visitorId</code> endpoint
+        and its own <code>consent:erased</code> eventBus event.
+      </p>
 
       <h3>isCookieGranted(cookieId, requestValue?)</h3>
       <p>
@@ -639,7 +881,7 @@ mq.addEventListener('change', (e) => widget.setDarkMode(e.matches))`}
       <CodeBlock
         lang="ts"
         code={`// Switch primary colour on the fly (e.g. white-label tenant switch)
-widget.setTheme({ primaryColor: '#d32f2f', primaryTextColor: '#ffffff' })
+widget.setTheme({ colorPrimary: '#d32f2f', colorPrimaryText: '#ffffff' })
 
 // Only the provided keys are updated — other theme values are preserved
 widget.setTheme({ borderRadius: '0px' })`}
@@ -656,7 +898,7 @@ widget.setTheme({ borderRadius: '0px' })`}
         code={`// Update theme and dark mode together
 widget.setConfig({
   darkMode: true,
-  core: { theme: { primaryColor: '#1a73e8' } },
+  core: { theme: { colorPrimary: '#1a73e8' } },
 })
 
 // Disable powered-by branding at runtime
@@ -713,6 +955,67 @@ console.log(\`Consenti \${info.package} | profile \${info.profileVersion}\`)`}
         code={`// In a SPA router's cleanup callback:
 widget.destroy()`}
       />
+
+      <h3>getUserId() / setUserId(userId, reConsent?)</h3>
+      <p>
+        Ties the widget&apos;s consent record to your own logged-in application user, so consent
+        follows the visitor across devices and browser sessions instead of resetting every time
+        they sign in somewhere new. Call <code>setUserId()</code> after your own auth flow resolves
+        (on login) and again with <code>null</code> on logout:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`// After your app's login completes:
+await widget.setUserId('user_123')
+
+// On logout:
+await widget.setUserId(null)
+
+// Read it back anywhere:
+widget.getUserId() // 'user_123' | null`}
+      />
+      <p>
+        If the browser already has a stored consent record for a <em>different</em> user ID (a
+        shared device), <code>setUserId()</code> treats that as a different data subject:
+        by default it deletes the existing record and re-opens the banner (
+        <code>reConsent()</code>), and always logs a warning. Pass <code>reConsent: false</code> to
+        just update the identity without prompting again — the warning still logs, so you have a
+        record of the identity change:
+      </p>
+      <CodeBlock lang="ts" code={`await widget.setUserId('user_456', false)`} />
+      <p>
+        Calling <code>setUserId()</code> with the value it&apos;s already set to is a no-op, and
+        if there&apos;s no prior consent record to compare against (a true first-time visitor), it
+        just records the ID with no warning and no reconsent. You can also set the initial user ID
+        at construction time via <code>core.userId</code>, or drive identity from an existing
+        event bus by dispatching a <code>consenti:listener:identify</code> DOM event — see{' '}
+        <a href="/docs/ui/advanced-configuration/">Advanced Configuration</a> → <em>core</em>.
+      </p>
+
+      <h3>getVisitor()</h3>
+      <p>
+        A single snapshot of the current visitor&apos;s identity — useful for logging, debugging,
+        or deciding whether to call <code>setUserId()</code> in the first place:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`const visitor = widget.getVisitor()
+// {
+//   visitorId: 'visi_a1b2c3d4…' | null, — stable per-browser id
+//   type: 'authenticated' | 'anonymous',
+//   userId: 'user_123' | null,          — same value as getUserId()
+// }`}
+      />
+      <p>
+        <code>type</code> is <code>&apos;authenticated&apos;</code> whenever a <code>userId</code>{' '}
+        is set, <code>&apos;anonymous&apos;</code> otherwise. <code>visitorId</code> is{' '}
+        <code>null</code> until this browser has actually made a consent decision — Consenti never
+        mints or persists a visitor identifier just because <code>getVisitor()</code> was called,
+        only as a side effect of a real consent decision (manual submit, GPC auto-response, or a
+        decision relayed from another tab). Once a decision exists, the same <code>visitorId</code>{' '}
+        is also included in the <code>consenti:consentSubmitted</code> event payload and every
+        server-side consent record.
+      </p>
     </div>
   )
 }

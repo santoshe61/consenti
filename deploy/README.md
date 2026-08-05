@@ -51,7 +51,7 @@ See [`helm/consenti/values.yaml`](./helm/consenti/values.yaml) for every configu
 cd terraform
 cp example.tfvars terraform.tfvars   # fill in image_repository at minimum
 export TF_VAR_admin_password=$(openssl rand -base64 24)
-export TF_VAR_admin_jwt_secret=$(openssl rand -hex 32)
+export TF_VAR_admin_master_secret=$(openssl rand -hex 32)
 terraform init
 terraform plan
 terraform apply

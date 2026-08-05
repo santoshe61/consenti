@@ -63,6 +63,18 @@ values
 
 ---
 
+## Security note — cookie signing
+
+`core.cookieSigningKey` HMAC-signs this cookie so casual tampering (editing the value in DevTools)
+fails verification. In standalone `@consenti/ui` deployments (no backend), that key ships in the
+browser bundle — readable by anyone, so a determined attacker can read it and re-sign a forged
+cookie. It is tamper-*evidence*, not tamper-*proof*. For consent records that need to hold up as
+evidence, sign and verify server-side instead via `@consenti/api`'s `compliance.dataSigningHash`,
+where the signing key never reaches the browser. See `apps/ui/README.md` → "Security notes" and
+`SECURITY.md` → "Known Limitations" for the full picture.
+
+---
+
 # What are consent data
 
 

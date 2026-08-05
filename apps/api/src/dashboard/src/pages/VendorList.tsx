@@ -3,6 +3,9 @@ import { usePageTitle } from '../context/pageTitle'
 import { useT } from '../context/locale'
 import { apiFetch } from '../api/client'
 import { debounce } from '../../../utils/debounce'
+import { PermissionGate } from '../components/PermissionGate'
+import { TcfRegistrationPanel } from '../components/TcfRegistrationPanel'
+import { GppRegistrationPanel } from '../components/GppRegistrationPanel'
 
 interface Vendor {
   id: number
@@ -84,6 +87,11 @@ export function VendorList({ current }: { current: string }) {
 
   return (
     <>
+      <PermissionGate perm="settings:update">
+        <TcfRegistrationPanel />
+        <GppRegistrationPanel />
+      </PermissionGate>
+
       <div class="mb-5 p-4 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-900 space-y-2">
         <p class="font-semibold">{t('vendors.info.title')}</p>
         <p>

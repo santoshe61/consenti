@@ -33,6 +33,9 @@ export type EventName =
   | 'consenti:consentSubmitted'
   | 'consenti:closeRequest'
   | 'consenti:parentalConsentRequired'
+  | 'consenti:parentalConsentResolved'
+  | 'consenti:forgetMeRequested'
+  | 'consenti:forgotten'
 
 /**
  * Dispatches `CustomEvent` on `window` and optionally pushes to the GTM dataLayer.

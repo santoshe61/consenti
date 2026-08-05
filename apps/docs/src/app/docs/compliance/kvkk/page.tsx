@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'KVKK Compliance Guide (Turkey)',
@@ -28,6 +30,7 @@ export default function KVKKPage() {
   return (
     <div className="prose max-w-none">
       <h1>KVKK Compliance Guide (Turkey)</h1>
+      <ComplianceTierBadge tier="supported" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-in</code> — explicit consent required for
         sensitive personal data. Use <code>compliance: {"{ type: 'opt-in' }"}</code> in your{' '}
@@ -77,7 +80,7 @@ export default function KVKKPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Consent model</td>
+            <td>Compliance Group</td>
             <td>Opt-in — informed, related to a specific matter, based on free will</td>
           </tr>
           <tr>
@@ -163,9 +166,7 @@ export default function KVKKPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'kvkk',
-  },
+  compliance: { type: 'opt-in' },
 })`}
       />
 
@@ -173,23 +174,62 @@ export default function KVKKPage() {
       <CodeBlock
         lang="json"
         code={`{
-  "regulation": "kvkk",
-  "kvkk": {
-    "controllerName": "Acme Yazılım A.Ş.",
-    "contactEmail": "kvkk@acme.com.tr",
-    "purposeDescription": "Web sitesini işletmek ve işlem e-postaları göndermek."
-  }
+  "regulation": "kvkk"
 }`}
       />
       <p>
-        Turkish law requires the data controller's identity and contact information to be disclosed.
-        Setting <code>kvkk.controllerName</code> and <code>kvkk.contactEmail</code> renders these in
-        the consent modal footer automatically.
+        Unlike DPDPA (which has a dedicated <code>dpdpa</code> profile block rendered
+        automatically), KVKK has no dedicated metadata field yet. Turkish law requires the data
+        controller's identity and contact information to be disclosed — add it directly to{' '}
+        <code>preferenceModal.htmlText</code> (or <code>mainBanner.htmlText</code>) via{' '}
+        <code>profileOverride</code> or the dashboard's text editor.
       </p>
+
+      <h2>What Consenti does — and what it doesn&apos;t</h2>
+      <p>
+        Everything above is the consent-collection UX layer: opt-in capture, per-category records,
+        withdrawal, and erasure. KVKK imposes registry and transfer obligations beyond what a
+        consent widget can satisfy on its own. Consenti does <strong>not</strong>:
+      </p>
+      <ul>
+        <li>
+          Complete VERBİS (Data Controllers&apos; Registry) registration — that&apos;s an
+          administrative filing with the KVK Board you complete outside the product, if your
+          organisation meets the qualifying size/processing thresholds
+        </li>
+        <li>
+          Obtain KVK Board authorisation for a cross-border transfer that lacks an adequacy
+          decision or explicit data-subject consent — that&apos;s a legal/administrative step, not
+          a widget config
+        </li>
+        <li>
+          Guarantee data localisation for data subject to Turkey-specific storage expectations —
+          self-hosting <code>@consenti/api</code> means you control where it runs, not that it
+          runs in Turkey
+        </li>
+        <li>
+          Author sector-specific written consent forms some KVK Board guidance requires beyond
+          cookie consent — Consenti covers the cookie/tracking consent surface, not every KVKK
+          consent touchpoint your organisation may have
+        </li>
+      </ul>
+
+      <h2>Operator checklist</h2>
+      <p>Beyond configuring Consenti&apos;s opt-in consent group, an operator with KVKK exposure still needs to:</p>
+      <ol>
+        <li>Register in VERBİS if your organisation meets the KVK Board&apos;s size/processing thresholds, and keep that registration current</li>
+        <li>Confirm the cross-border transfer legal basis (consent, KVK Board authorisation, or adequacy) before routing data to non-Turkey infrastructure</li>
+        <li>Keep the data controller&apos;s identity and contact information current in <code>preferenceModal.htmlText</code> or <code>mainBanner.htmlText</code>, as required by Turkish law</li>
+        <li>Configure each cookie category with a genuinely distinct, specific purpose — KVKK does not recognise blanket consent, so the underlying per-category records need to reflect real purpose granularity even if your banner offers an &quot;accept all&quot; shortcut</li>
+      </ol>
 
       <h2>Erasure</h2>
       <p>KVKK Article 7 grants data subjects the right to request deletion. Use:</p>
       <CodeBlock lang="http" code={`DELETE /consenti/api/v1/consent/:visitorId`} />
+      <p>
+        For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 /**
- * Age-gate prompt shown before any other consent UI when `compliance.ageGate.enabled`.
+ * Age-gate prompt shown before any other consent UI when the resolved profile's `ageGate.enabled`.
  *
  * Two screens, built on demand (never both mounted at once):
  * - `buildPrompt()` — "Are you {minimumAge} or older?" Yes/No.
@@ -7,19 +7,27 @@
  *   `requireParentalConsent` is true; static message, no further input collected here
  *   (see `AGE_GATE.md` in docs — verification itself is left to the site owner).
  *
- * Text is hardcoded English, matching the rest of the widget's own UI chrome (banner close
- * button, locale switcher) — profile-authored/localized content is for consent copy, not
- * widget-internal controls.
+ * Text is translatable, per-locale profile content (`profile.ageGateModal`) — this is
+ * consumer-facing legal-notice copy, regulated per-locale, unlike the widget's own hardcoded UI
+ * chrome (banner close button, locale switcher). A profile that enables `ageGate` without
+ * authoring `ageGateModal` text falls back to the English defaults below, so nothing silently
+ * breaks for an existing profile that predates this option.
  */
 
 import { createOverlay } from './overlay'
+import type { AgeGateModalContent } from '../types'
 
 export class AgeGate {
   private el: HTMLElement | null = null
   private overlayEl: HTMLElement | null = null
 
   /** Builds the "are you old enough" prompt. Not yet inserted into the document. */
-  buildPrompt(minimumAge: number, onYes: () => void, onNo: () => void): HTMLElement {
+  buildPrompt(
+    minimumAge: number,
+    onYes: () => void,
+    onNo: () => void,
+    content?: AgeGateModalContent,
+  ): HTMLElement {
     const root = document.createElement('div')
     root.id = 'consenti-age-gate'
     root.className = 'consenti-age-gate'
@@ -29,12 +37,12 @@ export class AgeGate {
 
     const heading = document.createElement('div')
     heading.className = 'consenti-age-gate__heading'
-    heading.textContent = `Are you ${minimumAge} or older?`
+    heading.textContent = content?.heading || `Are you ${minimumAge} or older?`
     root.appendChild(heading)
 
     const text = document.createElement('div')
     text.className = 'consenti-age-gate__text'
-    text.textContent = 'Please confirm your age before we show you cookie preferences.'
+    text.innerHTML = content?.htmlText || 'Please confirm your age before we show you cookie preferences.'
     root.appendChild(text)
 
     const buttons = document.createElement('div')
@@ -43,14 +51,14 @@ export class AgeGate {
     const yes = document.createElement('button')
     yes.type = 'button'
     yes.className = 'consenti-btn consenti-btn--primary'
-    yes.textContent = 'Yes'
+    yes.textContent = content?.confirmButtonLabel || 'Yes'
     yes.addEventListener('click', onYes)
     buttons.appendChild(yes)
 
     const no = document.createElement('button')
     no.type = 'button'
     no.className = 'consenti-btn consenti-btn--secondary'
-    no.textContent = 'No'
+    no.textContent = content?.denyButtonLabel || 'No'
     no.addEventListener('click', onNo)
     buttons.appendChild(no)
 
@@ -62,7 +70,7 @@ export class AgeGate {
   }
 
   /** Builds the static "parental consent required" message (no overlay change needed — reuses the existing one). */
-  buildParentalConsentMessage(onAcknowledge: () => void): HTMLElement {
+  buildParentalConsentMessage(onAcknowledge: () => void, content?: AgeGateModalContent): HTMLElement {
     const root = document.createElement('div')
     root.id = 'consenti-age-gate'
     root.className = 'consenti-age-gate'
@@ -72,12 +80,12 @@ export class AgeGate {
 
     const heading = document.createElement('div')
     heading.className = 'consenti-age-gate__heading'
-    heading.textContent = 'Parental consent required'
+    heading.textContent = content?.parentalConsent?.heading || 'Parental consent required'
     root.appendChild(heading)
 
     const text = document.createElement('div')
     text.className = 'consenti-age-gate__text'
-    text.textContent = 'Only strictly necessary cookies will be used until a parent or guardian verifies consent on your behalf.'
+    text.innerHTML = content?.parentalConsent?.htmlText || 'Only strictly necessary cookies will be used until a parent or guardian verifies consent on your behalf.'
     root.appendChild(text)
 
     const buttons = document.createElement('div')
@@ -86,7 +94,7 @@ export class AgeGate {
     const ok = document.createElement('button')
     ok.type = 'button'
     ok.className = 'consenti-btn consenti-btn--primary'
-    ok.textContent = 'OK'
+    ok.textContent = content?.parentalConsent?.confirmButtonLabel || 'OK'
     ok.addEventListener('click', onAcknowledge)
     buttons.appendChild(ok)
 

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'PDPA Compliance Guide (Thailand)',
@@ -35,6 +37,7 @@ export default function PDPAThailandPage() {
   return (
     <div className="prose max-w-none">
       <h1>PDPA Compliance Guide (Thailand)</h1>
+      <ComplianceTierBadge tier="supported" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-in</code> — opt-in with cross-border transfer
         rules enforced. Use <code>compliance: {"{ type: 'opt-in' }"}</code> in your{' '}
@@ -81,7 +84,7 @@ export default function PDPAThailandPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Consent model</td>
+            <td>Compliance Group</td>
             <td>Opt-in — explicit, informed, freely given</td>
           </tr>
           <tr>
@@ -120,9 +123,7 @@ export default function PDPAThailandPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'pdpa-th',
-  },
+  compliance: { type: 'opt-in' },
 })`}
       />
 
@@ -130,14 +131,15 @@ export default function PDPAThailandPage() {
       <CodeBlock
         lang="json"
         code={`{
-  "regulation": "pdpa-th",
-  "pdpaTh": {
-    "dataControllerName": "Acme Co., Ltd.",
-    "dpoEmail": "dpo@acme.co.th",
-    "purposeDescription": "To operate the website and provide requested services."
-  }
+  "regulation": "pdpa-th"
 }`}
       />
+      <p>
+        Unlike DPDPA (India, which has a dedicated <code>dpdpa</code> profile block rendered
+        automatically), Thailand's PDPA has no dedicated metadata field yet. Add your Data
+        Controller name and DPO contact directly in <code>preferenceModal.htmlText</code> via{' '}
+        <code>profileOverride</code> or the dashboard's text editor.
+      </p>
 
       <h2>Cross-border transfers</h2>
       <p>
@@ -147,8 +149,50 @@ export default function PDPAThailandPage() {
         covers PDPA cross-border transfer requirements.
       </p>
 
+      <h2>What Consenti does — and what it doesn&apos;t</h2>
+      <p>
+        Everything above is the consent-collection UX layer: opt-in capture, per-category records,
+        withdrawal, and erasure. Thailand&apos;s PDPA imposes obligations beyond what a consent
+        widget can satisfy on its own. Consenti does <strong>not</strong>:
+      </p>
+      <ul>
+        <li>
+          Determine or execute the cross-border transfer legal basis (adequacy determination, SCCs,
+          or BCRs) required by Section 28 — that&apos;s a legal/contractual step you complete
+          outside the product
+        </li>
+        <li>
+          Appoint a Data Protection Officer — mandatory for large-scale or sensitive-data
+          processing under PDPA, and an organisational hire, not a config option
+        </li>
+        <li>
+          Distinguish the two minor-consent tiers PDPA requires — parental consent under age 10
+          versus at-minimum assent for ages 10–20. Consenti&apos;s age gate is a single
+          minimum-age/parental-consent threshold; the assent tier for 10–20 year-olds needs a
+          manual process alongside it
+        </li>
+        <li>
+          Guarantee data localisation — whether your storage adapter&apos;s host counts as an
+          adequate-protection destination is a legal determination, not something the widget
+          verifies
+        </li>
+      </ul>
+
+      <h2>Operator checklist</h2>
+      <p>Beyond configuring Consenti&apos;s opt-in consent group, an operator with PDPA exposure still needs to:</p>
+      <ol>
+        <li>Appoint a Data Protection Officer if your scale or data category triggers the mandatory threshold, and publish their contact alongside the Data Controller name mentioned above</li>
+        <li>Confirm the cross-border transfer legal basis before enabling a MongoDB/PostgreSQL adapter hosted outside Thailand, or before sending data to any foreign processor</li>
+        <li>Build a separate assent flow for the 10–20 age tier if you knowingly serve users in that range — the built-in age gate only distinguishes &quot;requires parental consent&quot; from &quot;doesn&apos;t&quot;</li>
+        <li>Keep the cross-border and Data Controller disclosures in <code>preferenceModal.htmlText</code> current as your actual vendor/processor list changes</li>
+      </ol>
+
       <h2>Erasure</h2>
       <CodeBlock lang="http" code={`DELETE /consenti/api/v1/consent/:visitorId`} />
+      <p>
+        For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
     </div>
   )
 }

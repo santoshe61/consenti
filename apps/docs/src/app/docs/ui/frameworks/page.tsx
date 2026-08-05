@@ -42,7 +42,8 @@ import { ConsentiSetup } from '@consenti/ui'
 export function ConsentSetup() {
   useEffect(() => {
     const widget = new ConsentiSetup({
-      core: { regulation: 'gdpr', locale: 'en' },
+      compliance: { type: 'opt-in' },
+      core: { locale: 'en' },
     })
     return () => widget.destroy()
   }, [])
@@ -105,7 +106,8 @@ export function ConsentSetup() {
     let widget: WidgetType
     import('@consenti/ui').then(({ ConsentiSetup }) => {
       widget = new ConsentiSetup({
-        core: { regulation: 'gdpr', locale: 'en', autoHonorGPC: true },
+        compliance: { type: 'opt-in' },
+        core: { locale: 'en' },
         api: { enabled: true, baseUrl: process.env.NEXT_PUBLIC_API_URL },
       })
       widgetRef.current = widget
@@ -141,7 +143,7 @@ let widget: Awaited<typeof import('@consenti/ui')>['ConsentiSetup'] | null = nul
 
 onMounted(async () => {
   const { ConsentiSetup } = await import('@consenti/ui')
-  widget = new ConsentiSetup({ core: { regulation: 'gdpr' } })
+  widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
 })
 
 onBeforeUnmount(() => widget?.destroy())
@@ -167,7 +169,7 @@ export class ConsentService implements OnDestroy {
   async init(config = {}) {
     if (!isPlatformBrowser(this.platformId)) return
     const { ConsentiSetup } = await import('@consenti/ui')
-    this.widget = new ConsentiSetup({ core: { regulation: 'gdpr' }, ...config })
+    this.widget = new ConsentiSetup({ compliance: { type: 'opt-in' }, ...config })
   }
 
   ngOnDestroy() {
@@ -217,7 +219,8 @@ export class MyComponent {
         code={`import { ConsentiSetup } from '@consenti/ui'
 
 const widget = new ConsentiSetup({
-  core: { regulation: 'gdpr', locale: 'en' },
+  compliance: { type: 'opt-in' },
+  core: { locale: 'en' },
 })
 
 // Open preference modal from a footer link

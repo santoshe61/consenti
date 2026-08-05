@@ -25,13 +25,12 @@ const config: ConsentiServerConfig = {
   },
   auth: {
     mode: 'local',
-    jwtSecret: process.env.CONSENTI_JWT_SECRET ?? 'consenti-docs-dev-secret-2026',
+    masterSecret: process.env.CONSENTI_MASTER_SECRET ?? 'consenti-docs-dev-secret-2026',
     adminEmail: process.env.CONSENTI_ADMIN_EMAIL ?? 'user@consenti.dev',
     adminPassword: process.env.CONSENTI_ADMIN_PASSWORD ?? 'Consenti@123',
   },
-  compliance: { type: 'opt-in', gpc: true },
+  compliance: { type: 'auto', gpc: true, dataRetention: { purgeAfterDays: 7 } },
   rateLimit: { enabled: true, windowMs: 60_000, maxRequests: 120 },
-  dataRetention: { purgeAfterDays: 7 },
 }
 
 export async function getConsenti(): Promise<ConsentReturnType | null> {

@@ -39,7 +39,7 @@ variable "admin_password" {
   sensitive   = true
 }
 
-variable "admin_jwt_secret" {
+variable "admin_master_secret" {
   description = "JWT signing secret. Provide via a secure source — never commit this to version control."
   type        = string
   sensitive   = true

@@ -1,11 +1,11 @@
-import type { ConsentiConfig, ResolvedProfile, ProfileConfig, RegisterableProfileConfig, PublicProfileResponse, GpcMode, ComplianceType, ComplianceGroupId, MainBanner, GpcBanner, PreferenceModal, DeepPartial } from '../types'
+import type { ConsentiConfig, ResolvedProfile, ProfileConfig, RegisterableProfileConfig, PublicProfileResponse, GpcMode, ComplianceType, ComplianceGroupId, MainBanner, GpcBanner, PreferenceModal, AgeGateModalContent, DeepPartial } from '../types'
 import { httpRequest } from '../utils/http'
 import { deepMerge, resolveLocale } from '../utils/locale'
 import { logger } from '../utils/console'
 import { getBrowserGeoHints, encodeGeoHints } from '../utils/geo-hints'
-import { EMBEDDED_COMPLIANCE_MAP } from '@consenti/utils'
+import { EMBEDDED_COMPLIANCE_MAP, resolveComplianceMapOverride, type ComplianceMapData } from '@consenti/utils'
 import { adaptEmbeddedProfile } from '../utils/profile-adapter'
-import { peekConsentLocale } from './consent-store'
+import { peekConsentLocale, peekConsentGroup } from './consent-store'
 
 // ─── Local profile registry ───────────────────────────────────────────────────
 
@@ -53,9 +53,17 @@ export function mapPublicProfileToResolved(resp: PublicProfileResponse): Resolve
     ...(resp.gpcBanner ? { gpcBanner: resp.gpcBanner } : {}),
     ...(gpcMode ? { gpcMode } : {}),
     ...(resp.darkMode !== undefined ? { darkMode: resp.darkMode } : {}),
-    ...(resp.complianceGroup ? { complianceGroup: resp.complianceGroup } : {}),
+    // `resolvedComplianceGroup` (set by the geo-resolve routes) carries the visitor's actual
+    // resolved group — including custom groups, which `complianceGroup`'s strict typing doesn't
+    // guarantee. Prefer it; callers that already know the group from their own request path
+    // (scenario2A/2B) additionally overwrite this after the call, so this is the fallback.
+    ...(resp.resolvedComplianceGroup ?? resp.complianceGroup
+      ? { complianceGroup: resp.resolvedComplianceGroup ?? resp.complianceGroup }
+      : {}),
     ...(resp.complianceConfig ? { complianceConfig: resp.complianceConfig } : {}),
     ...(resp.dpdpa ? { dpdpa: resp.dpdpa } : {}),
+    ...(resp.ageGate ? { ageGate: resp.ageGate } : {}),
+    ...(resp.ageGateModal ? { ageGateModal: resp.ageGateModal } : {}),
     ...(resp.hidePoweredBy !== undefined ? { hidePoweredBy: resp.hidePoweredBy } : {}),
     ...(resp.showFooterMetadata !== undefined ? { showFooterMetadata: resp.showFooterMetadata } : {}),
     ...(resp.enhanceAccessibility !== undefined ? { enhanceAccessibility: resp.enhanceAccessibility } : {}),
@@ -74,6 +82,9 @@ interface ResolvedUrlCache {
   tenantId: string
   locale: string
   expiresAt: number
+  /** Carried through from `/resolve-profile` so a cache hit doesn't lose the per-region
+   * sensitive-data opt-in carve-out that a fresh geo-resolve would otherwise recompute. */
+  requiresSensitiveOptIn?: boolean
 }
 
 export function getCachedResolution(
@@ -186,8 +197,17 @@ function resolveCountryFromHints(tz: string, langs: readonly string[]): string |
   return langCountries[0]
 }
 
-function resolveGroupFromHints(tz: string, langs: readonly string[]): ComplianceGroupId {
+function resolveGroupFromHints(tz: string, langs: readonly string[], overrideMap?: ComplianceMapData): ComplianceGroupId {
   const countryCode = resolveCountryFromHints(tz, langs)
+
+  // A custom complianceMap only overrides country→group mapping — country detection itself
+  // (above) always uses the embedded geo data, since operator-supplied maps don't carry the
+  // timezone/locale index that detection depends on.
+  if (overrideMap && countryCode) {
+    const overrideEntry = overrideMap.countries[countryCode]
+    if (overrideEntry) return (overrideEntry.default ?? overrideEntry.complianceGroup) as ComplianceGroupId
+  }
+
   const countries = EMBEDDED_COMPLIANCE_MAP.countries as Record<string, CountryEntry>
   const entry = countryCode ? countries[countryCode] : undefined
   if (entry?.default) return entry.default as ComplianceGroupId
@@ -202,6 +222,42 @@ function resolveGroupFromHints(tz: string, langs: readonly string[]): Compliance
   return 'opt-in'
 }
 
+/**
+ * Resolves a compliance group from an already-known `country`/`region` (as returned by a custom
+ * `compliance.geoDataProvider` function), mirroring `GeoResolverService.resolveGroup()`
+ * (`apps/api`) region-override-then-country-default precedence — deliberately kept in sync with
+ * that method rather than sharing an implementation, since one is server-side (`ComplianceMap`
+ * from `@consenti/utils`, always fully typed) and the other is client-standalone (also handles
+ * the loosely-typed `ComplianceMapData` override shape `resolveGroupFromHints` above already
+ * handles). No country at all → strictest safe default, same "never under-comply" rule used
+ * throughout this file.
+ */
+function resolveGroupForCountry(
+  country: string | null,
+  region: string | null,
+  overrideMap?: ComplianceMapData,
+): ComplianceGroupId {
+  if (!country) return 'opt-in'
+
+  if (overrideMap) {
+    const entry = overrideMap.countries[country]
+    if (entry) {
+      const regionGroup = region ? entry.overriddenRegions?.[region]?.complianceGroup : undefined
+      return (regionGroup ?? entry.default ?? entry.complianceGroup) as ComplianceGroupId
+    }
+  }
+
+  const countries = EMBEDDED_COMPLIANCE_MAP.countries as Record<string, {
+    default: ComplianceGroupId
+    complianceGroup: ComplianceGroupId
+    overriddenRegions?: Record<string, { complianceGroup: ComplianceGroupId }>
+  }>
+  const entry = countries[country]
+  if (!entry) return 'opt-in'
+  const regionGroup = region ? entry.overriddenRegions?.[region]?.complianceGroup : undefined
+  return regionGroup ?? entry.default ?? entry.complianceGroup
+}
+
 // ─── Scenario helpers ─────────────────────────────────────────────────────────
 
 function effectiveLocale(config: ConsentiConfig): string {
@@ -210,7 +266,7 @@ function effectiveLocale(config: ConsentiConfig): string {
   // Locale isn't persisted anywhere until a consent decision exists — an undecided visitor
   // always falls through to the browser's language on every page load. A returning, already
   // -consented visitor gets back the locale recorded with that decision.
-  const stored = peekConsentLocale(config.core?.storage ?? 'cookie')
+  const stored = peekConsentLocale(config.core?.storage ?? 'cookie', config.core?.cookieName)
   if (stored) return stored
   return navigator.language
 }
@@ -251,6 +307,8 @@ function toDeepPartialResolvedProfile(config: RegisterableProfileConfig): DeepPa
     ...(c.darkMode !== undefined ? { darkMode: c.darkMode } : {}),
     ...(c.allowedOrigins !== undefined ? { allowedOrigins: c.allowedOrigins } : {}),
     ...(c.dpdpa !== undefined ? { dpdpa: c.dpdpa } : {}),
+    ...(c.ageGate !== undefined ? { ageGate: c.ageGate } : {}),
+    ...(c.ageGateModal !== undefined ? { ageGateModal: c.ageGateModal } : {}),
     ...(c.complianceGroup !== undefined ? { complianceGroup: c.complianceGroup } : {}),
     ...(c.gpcMode !== undefined ? { gpcMode: c.gpcMode } : {}),
     ...(c.hidePoweredBy !== undefined ? { hidePoweredBy: c.hidePoweredBy } : {}),
@@ -281,8 +339,26 @@ async function resolveRegisteredOverride(complianceGroup: ComplianceGroupId, loc
 
 /** Scenario 1A — api disabled, compliance.type = 'auto' (client-side geo) */
 async function scenario1A(config: ConsentiConfig): Promise<ResolvedProfile> {
-  const { tz, lang, langs } = getBrowserGeoHints()
-  const complianceGroup = resolveGroupFromHints(tz, langs.length ? langs : [lang])
+  const { map: overrideMap } = await resolveComplianceMapOverride(config.compliance?.complianceMap, (msg) => logger.warn(msg))
+  const effectiveOverrideMap = overrideMap === EMBEDDED_COMPLIANCE_MAP ? undefined : overrideMap
+
+  const provider = config.compliance?.geoDataProvider
+  let complianceGroup: ComplianceGroupId
+
+  if (typeof provider === 'function') {
+    const result = await provider()
+    // A provider-returned `complianceGroup` is authoritative — it skips the country/region map
+    // lookup entirely (see `GeoResult.complianceGroup`'s doc comment, `@consenti/types`, for the
+    // server-side mirror of this). Otherwise fall back to resolving from whatever country/region
+    // the provider did return, against the same map `resolveGroupFromHints` below would use.
+    complianceGroup = result.complianceGroup
+      ? (result.complianceGroup as ComplianceGroupId)
+      : resolveGroupForCountry(result.country, result.region, effectiveOverrideMap)
+  } else {
+    const { tz, lang, langs } = getBrowserGeoHints()
+    complianceGroup = resolveGroupFromHints(tz, langs.length ? langs : [lang], effectiveOverrideMap)
+  }
+
   const locale = effectiveLocale(config)
 
   const override = await resolveRegisteredOverride(complianceGroup, locale)
@@ -327,8 +403,33 @@ async function scenario2A(config: ConsentiConfig): Promise<ResolvedProfile> {
         logger.error(`Domain ${window.location.origin} is not in allowedOrigins for this profile. Falling back to pre-built profile.`)
         return scenario1A(config)
       }
-      return mapPublicProfileToResolved(json)
+      // The cache entry's group is ground truth — it's what was actually requested — so it
+      // wins over whatever (possibly absent, for a custom group) `complianceGroup` field the
+      // static JSON file itself carries.
+      return {
+        ...mapPublicProfileToResolved(json),
+        complianceGroup: cached.complianceGroup,
+        ...(cached.requiresSensitiveOptIn ? { requiresSensitiveOptIn: true } : {}),
+      }
     }
+  }
+
+  // Returning, already-decided visitor — the compliance group is already known from their
+  // consent cookie, so skip the /resolve-profile geo round-trip entirely and fetch the group's
+  // profile directly (same hot path scenario2B uses). Keyed on complianceGroup, not the stored
+  // profile id, so a since-deactivated/replaced profile for that group is never silently served.
+  // Falls through to the normal geo-resolve below if the direct fetch fails or no group is known
+  // yet (genuinely undecided visitor, or a pre-existing cookie recorded before this field existed).
+  const knownGroup = peekConsentGroup(config.core?.storage ?? 'cookie', config.core?.cookieName)
+  if (knownGroup) {
+    const json = await fetchProfileJson(
+      `${base}/consenti/api/v1/profiles/${tenantId}/${knownGroup}/${encodeURIComponent(locale)}`,
+      config.api?.authToken,
+    ) ?? await fetchProfileJson(
+      `${base}/consenti/api/v1/profiles/${tenantId}/${knownGroup}/default`,
+      config.api?.authToken,
+    )
+    if (json && isDomainAllowed(json, trustDomain)) return { ...mapPublicProfileToResolved(json), complianceGroup: knownGroup }
   }
 
   const resolveUrl =
@@ -337,6 +438,7 @@ async function scenario2A(config: ConsentiConfig): Promise<ResolvedProfile> {
   let path: string | null
   let complianceGroup: ComplianceGroupId
   let resolvedLocale: string
+  let requiresSensitiveOptIn: boolean | undefined
 
   try {
     const resolved = await httpRequest<{
@@ -344,11 +446,13 @@ async function scenario2A(config: ConsentiConfig): Promise<ResolvedProfile> {
       complianceGroup: string
       locale: string
       found: boolean
+      requiresSensitiveOptIn?: boolean
     }>(resolveUrl, {}, config.api?.authToken)
 
     path = resolved.path
     complianceGroup = resolved.complianceGroup as ComplianceGroupId
     resolvedLocale = resolved.locale
+    requiresSensitiveOptIn = resolved.requiresSensitiveOptIn
 
     if (resolved.found && path) {
       setCachedResolution(tenantId, locale, cacheEnabled, {
@@ -357,6 +461,7 @@ async function scenario2A(config: ConsentiConfig): Promise<ResolvedProfile> {
         complianceGroup,
         tenantId,
         locale: resolvedLocale,
+        ...(requiresSensitiveOptIn ? { requiresSensitiveOptIn: true } : {}),
       })
     }
   } catch {
@@ -367,14 +472,20 @@ async function scenario2A(config: ConsentiConfig): Promise<ResolvedProfile> {
   // Server has a static file — serve it
   if (path) {
     const json = await fetchProfileJson(`${base}${path}`, config.api?.authToken)
-    if (json && isDomainAllowed(json, trustDomain)) return mapPublicProfileToResolved(json)
+    if (json && isDomainAllowed(json, trustDomain)) {
+      return {
+        ...mapPublicProfileToResolved(json),
+        complianceGroup,
+        ...(requiresSensitiveOptIn ? { requiresSensitiveOptIn: true } : {}),
+      }
+    }
   }
 
   // Server resolved the group but has no file (new tenant, seeding pending)
   // Fall back to embedded profile for that group
   if (complianceGroup) {
     const embedded = await loadPrebuiltProfile(complianceGroup, resolvedLocale)
-    if (embedded) return embedded
+    if (embedded) return { ...embedded, ...(requiresSensitiveOptIn ? { requiresSensitiveOptIn: true } : {}) }
   }
 
   return scenario1A(config)
@@ -407,7 +518,7 @@ async function scenario2B(complianceGroup: ComplianceGroupId, config: ConsentiCo
     return scenario1B(group, config)
   }
 
-  return mapPublicProfileToResolved(json)
+  return { ...mapPublicProfileToResolved(json), complianceGroup: group }
 }
 
 /**
@@ -435,6 +546,8 @@ function resolveLocalProfileConfig(localProfile: ProfileConfig, locale: string, 
       preferenceModal: localProfile.preferenceModal,
       ...(localProfile.darkMode !== undefined ? { darkMode: localProfile.darkMode } : {}),
       ...(localProfile.complianceGroup ? { complianceGroup: localProfile.complianceGroup } : {}),
+      ...(localProfile.ageGate ? { ageGate: localProfile.ageGate } : {}),
+      ...(localProfile.ageGateModal ? { ageGateModal: localProfile.ageGateModal } : {}),
     }
   }
 
@@ -442,6 +555,11 @@ function resolveLocalProfileConfig(localProfile: ProfileConfig, locale: string, 
   const mainBanner = deepMerge<MainBanner>(localProfile.mainBanner, resolved.mainBanner)
   const gpcBanner = localProfile.gpcBanner ? deepMerge<GpcBanner>(localProfile.gpcBanner, resolved.gpcBanner ?? {}) : false
   const preferenceModal = deepMerge<PreferenceModal>(localProfile.preferenceModal ?? {}, resolved.preferenceModal ?? {})
+  // Like `gpcBanner`: a locale override alone (a `DeepPartial`) isn't a complete
+  // `AgeGateModalContent` on its own, so it's only used to overlay a base — never standalone.
+  const ageGateModal = localProfile.ageGateModal
+    ? deepMerge<AgeGateModalContent>(localProfile.ageGateModal, resolved.ageGateModal ?? {})
+    : undefined
 
   return {
     id: localProfile.id,
@@ -456,6 +574,8 @@ function resolveLocalProfileConfig(localProfile: ProfileConfig, locale: string, 
     preferenceModal,
     ...(localProfile.darkMode !== undefined ? { darkMode: localProfile.darkMode } : {}),
     ...(localProfile.complianceGroup ? { complianceGroup: localProfile.complianceGroup } : {}),
+    ...(localProfile.ageGate ? { ageGate: localProfile.ageGate } : {}),
+    ...(ageGateModal ? { ageGateModal } : {}),
   }
 }
 
@@ -490,6 +610,13 @@ async function scenarioLocal(typeValue: Symbol, config: ConsentiConfig): Promise
 export async function resolveProfile(config: ConsentiConfig): Promise<ResolvedProfile> {
   const complianceType = config.compliance?.type ?? 'auto'
   const apiEnabled = config.api?.enabled ?? false
+
+  if (apiEnabled && config.compliance?.complianceMap) {
+    logger.warn('compliance.complianceMap is ignored when api.enabled is true — the server resolves the compliance group.')
+  }
+  if (apiEnabled && config.compliance?.geoDataProvider) {
+    logger.warn('compliance.geoDataProvider (widget config) is ignored when api.enabled is true — configure compliance.geoDataProvider on the @consenti/api server instead, the server resolves the compliance group.')
+  }
 
   if (complianceType === 'auto') {
     return apiEnabled ? scenario2A(config) : scenario1A(config)

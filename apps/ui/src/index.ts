@@ -20,6 +20,8 @@ export { CategoryAction } from './utils/category-action'
 export { CategoryScript } from './utils/category-script'
 export { BannerTrigger } from './utils/banner-trigger'
 export { scanConsentScripts } from './utils/script-scanner'
+export { resolveParentalConsent } from './utils/parental-consent'
+export { buildSyncGpcSnippet } from './utils/gpc-sync-snippet'
 
 export type { ConsentScriptOptions } from './utils/consent-script'
 export type { ConsentActionOptions, ConsentActionParams } from './utils/consent-action'
@@ -62,7 +64,10 @@ export type {
   ConsentiWidgetAPI,
   ConsentiEventName,
   ComplianceWidgetConfig,
-  AgeGateWidgetConfig,
   TcfWidgetConfig,
   ParentalConsentRequiredDetail,
+  ParentalConsentGrantedDetail,
+  IdentifyEventDetail,
+  VisitorIdentity,
 } from './types'
+export type { ParentalConsentApiConfig } from './utils/parental-consent'

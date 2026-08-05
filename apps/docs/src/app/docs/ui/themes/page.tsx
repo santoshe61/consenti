@@ -39,64 +39,74 @@ export default function UIThemesPage() {
         lang="css"
         code={`:root {
   /* Colors */
-  --consenti-primary-text: #1a3460;
-  --consenti-secondary-text: #555555;
-  --consenti-primary-bg: #ffffff;
-  --consenti-secondary-bg: #f5f5f5;
-  --consenti-overlay-bg: rgba(0, 0, 0, 0.5);
-
-  /* Buttons */
-  --consenti-btn-primary-bg: #1565c0;
-  --consenti-btn-primary-text: #ffffff;
-  --consenti-btn-secondary-bg: #f5f5f5;
-  --consenti-btn-secondary-text: #1a3460;
-  --consenti-btn-text-color: #1565c0;
-  --consenti-btn-radius: 6px;
-  --consenti-btn-padding: 0.5rem 1.25rem;
-  --consenti-btn-font-weight: 600;
-
-  /* Banner */
-  --consenti-banner-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
-  --consenti-banner-radius: 0;
-  --consenti-banner-padding: 1.5rem;
-  --consenti-banner-max-width: 960px;
-
-  /* Modal */
-  --consenti-modal-radius: 12px;
-  --consenti-modal-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
-  --consenti-modal-width: 560px;
-  --consenti-modal-max-height: 80vh;
-
-  /* Toggle (preference modal) */
-  --consenti-toggle-on: #1565c0;
-  --consenti-toggle-off: #ccc;
-  --consenti-toggle-disabled: #e0e0e0;
+  --consenti-color-bg: #ffffff;
+  --consenti-color-text: #1a2e4a;
+  --consenti-color-text-muted: #949dab;
+  --consenti-color-primary: #04111f;
+  --consenti-color-primary-text: #ffffff;
+  --consenti-color-secondary: #f0f4f8;
+  --consenti-color-secondary-text: #1a2e4a;
+  --consenti-color-border: #dbe4ee;
+  --consenti-color-secondary-border: #1a2e4a;
+  --consenti-color-overlay: #04111f;
+  --consenti-color-accent: #d32f2f;
+  --consenti-color-accent-text: #ffffff;
 
   /* Typography */
-  --consenti-font-size-base: 14px;
-  --consenti-font-size-mult: 1;
   --consenti-font-family: system-ui, -apple-system, sans-serif;
-  --consenti-heading-weight: 700;
+  --consenti-font-family-mono: ui-monospace, monospace;
+  --consenti-font-size-base: 14px;
+  --consenti-font-size-heading: 16px;
+  --consenti-font-weight-heading: 600;
+  --consenti-line-height: 1.5;
+
+  /* Spacing */
+  --consenti-spacing-xs: 5px;
+  --consenti-spacing-sm: 8px;
+  --consenti-spacing-md: 16px;
+  --consenti-spacing-lg: 24px;
+
+  /* Shape */
+  --consenti-border-radius: 8px;
+  --consenti-border-radius-btn: 0;
+  --consenti-shadow: 0 4px 24px rgba(21, 101, 192, 0.14);
+
+  /* Toggle (preference modal) */
+  --consenti-toggle-bg-on: #43a047;
+  --consenti-toggle-bg-partial: #97c098;
+  --consenti-toggle-bg-off: #9ca3af;
+  --consenti-toggle-knob: #ffffff;
+  --consenti-toggle-width: 52px;
+  --consenti-toggle-height: 28px;
+
+  /* Stacking */
+  --consenti-z-banner: 9999;
+  --consenti-z-overlay: 9998;
+  --consenti-z-modal: 10000;
 }`}
       />
 
       <h2>Via JS theme config</h2>
       <p>
-        Set theme tokens directly in the <code>ConsentiSetup</code> config (inlined as CSS vars on
-        the host element):
+        Set theme tokens directly in the <code>ConsentiSetup</code> config instead of (or in
+        addition to) a stylesheet — <code>theme</code> keys are inlined as the CSS custom
+        properties above on the host element. Every key is the camelCase form of its{' '}
+        <code>--consenti-*</code> variable (e.g. <code>--consenti-color-primary-text</code>{' '}
+        becomes <code>colorPrimaryText</code>), so the two lists always match 1:1.
       </p>
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: { regulation: 'gdpr' },
-  theme: {
-    primaryTextColor: '#0f172a',
-    secondaryTextColor: '#475569',
-    primaryBgColor: '#ffffff',
-    secondaryBgColor: '#f8fafc',
-    buttonBorderRadius: '9999px',    // pill-shaped buttons
-    modalBorderRadius: '20px',
-    fontSizeMultiplier: 1.1,
+  core: {
+    theme: {
+      colorPrimaryText: '#0f172a',
+      colorSecondaryText: '#475569',
+      colorBg: '#ffffff',
+      colorSecondary: '#f8fafc',
+      borderRadiusBtn: '9999px',   // pill-shaped buttons
+      borderRadius: '20px',        // modal/banner corner radius
+      fontSizeMultiplier: '1.1',   // scales font-size-base and font-size-heading
+    },
   },
 })`}
       />
@@ -308,17 +318,26 @@ export default function UIThemesPage() {
       </table>
 
       <h2>Dark mode</h2>
+      <p>
+        Consenti doesn&apos;t follow <code>prefers-color-scheme</code> automatically. Set{' '}
+        <code>darkMode: true</code> in the <code>ConsentiSetup</code> config (or via{' '}
+        <code>setDarkMode()</code>) to add a <code>.consenti-root--dark</code> class to the host
+        element, which overrides the token values below:
+      </p>
       <CodeBlock
         lang="css"
-        code={`@media (prefers-color-scheme: dark) {
-  :root {
-    --consenti-primary-bg: #1e293b;
-    --consenti-secondary-bg: #0f172a;
-    --consenti-primary-text: #f1f5f9;
-    --consenti-secondary-text: #94a3b8;
-    --consenti-btn-secondary-bg: #334155;
-    --consenti-btn-secondary-text: #f1f5f9;
-  }
+        code={`.consenti-root--dark {
+  --consenti-color-bg: #1e2535;
+  --consenti-color-text: #e2e8f0;
+  --consenti-color-text-muted: #a4acb9;
+  --consenti-color-primary: #e2e8f0;
+  --consenti-color-primary-text: #2a3447;
+  --consenti-color-secondary: #2a3447;
+  --consenti-color-secondary-text: #cbd5e1;
+  --consenti-color-border: #374151;
+  --consenti-color-overlay: rgba(0, 0, 0, 0.65);
+  --consenti-shadow: 0 4px 24px rgba(0, 0, 0, 0.4);
+  --consenti-toggle-bg-off: #6b7280;
 }`}
       />
 

@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 // EU GDPR + ePrivacy Directive: Art. 5(3) ePrivacy requires consent for any
 // non-strictly-necessary cookie storage regardless of GDPR Art. 6 legal basis,
@@ -23,11 +23,11 @@ export const OPT_IN_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'We use cookies and similar technologies to enhance your browsing experience, analyse site traffic, and show you personalised content. Non-essential cookies require your consent under the GDPR and ePrivacy Directive.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'reject-optional': {
             text: 'Reject Optional',
-            style: 'secondary',
-            action: 'submit',
+            style: 'primary',
+            action: 'custom',
             cookies: '!',
           },
           'manage-preferences': { text: 'Manage Preferences', style: 'text', action: 'manage' },
@@ -39,11 +39,11 @@ export const OPT_IN_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'Your browser is sending a Global Privacy Control signal. We have applied your preference and will not set non-essential cookies unless you change your settings below.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'confirm-settings': {
             text: 'Confirm Settings',
-            style: 'secondary',
-            action: 'submit',
+            style: 'primary',
+            action: 'custom',
             cookies: '!',
           },
           'manage-preferences': { text: 'Manage Preferences', style: 'text', action: 'manage' },
@@ -56,11 +56,11 @@ export const OPT_IN_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'You can choose which cookie categories you allow. Your choices apply to this site only. Essential cookies cannot be disabled as they are required for the site to function correctly.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'reject-optional': {
             text: 'Reject Optional',
-            style: 'secondary',
-            action: 'submit',
+            style: 'primary',
+            action: 'custom',
             cookies: '!',
           },
           'save-preferences': { text: 'Save My Preferences', style: 'primary', action: 'submit' },

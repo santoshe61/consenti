@@ -8,7 +8,8 @@ export class VisitorService {
     private visitors: VisitorRepo,
     private tenantId: string = 'default',
     private eventBus?: EventEmitter,
-  ) {}
+    private dataSigningHash: string = '',
+  ) { }
 
   async upsert(data: {
     visitorId: string
@@ -32,11 +33,11 @@ export class VisitorService {
       ...(data.country != null ? { country: data.country } : {}),
       ...(data.region != null ? { region: data.region } : {}),
       ...(data.city != null ? { city: data.city } : {}),
-      ...(data.ip ? { ipHash: hashIp(data.ip) } : {}),
+      ...(data.ip ? { ipHash: hashIp(data.ip, this.dataSigningHash) } : {}),
       ...(data.userAgent ? { userAgentHash: hashUserAgent(data.userAgent) } : {}),
     }
     const visitor = await this.visitors.create(input)
-    this.eventBus?.emit('visitor.created', visitor)
+    this.eventBus?.emit('visitor:created', visitor)
     return visitor
   }
 }

@@ -47,7 +47,7 @@ export default function BackendConsentFlowGuide() {
           <br />
           4. Service writes consent record to storage
           <br />
-          5. EventBus fires <code>consent.created</code>
+          5. EventBus fires <code>consent:created</code>
           <br />
           6. Response 201 → widget writes browser cookie
           <br />
@@ -152,7 +152,7 @@ createHash('sha256').update(req.ip).digest('hex')`}
         lang="typescript"
         code={`const { eventBus } = createConsenti({ /* ... */ })
 
-eventBus.on('consent.created', (record) => {
+eventBus.on('consent:created', (record) => {
   // record: full ConsentDbRecord
   myAnalyticsClient.track('consent_submitted', {
     visitorId: record.visitorId,
@@ -161,7 +161,7 @@ eventBus.on('consent.created', (record) => {
   })
 })
 
-eventBus.on('consent.updated', ({ previous, current }) => {
+eventBus.on('consent:updated', ({ previous, current }) => {
   // compare previous and current consent states
 })`}
       />
@@ -207,12 +207,12 @@ eventBus.on('consent.updated', ({ previous, current }) => {
 
       <p>
         This deletes the visitor record, all consent records, and all consent history for that
-        visitor. The operation fires a <code>consent.erased</code> event on the eventBus:
+        visitor. The operation fires a <code>consent:erased</code> event on the eventBus:
       </p>
 
       <CodeBlock
         lang="typescript"
-        code={`eventBus.on('consent.erased', ({ visitorId }) => {
+        code={`eventBus.on('consent:erased', ({ visitorId }) => {
   // Remove from your own DMP / analytics / CRM
   myDmpClient.deleteUser(visitorId)
 })`}
@@ -234,7 +234,7 @@ eventBus.on('consent.updated', ({ previous, current }) => {
           {
             href: '/docs/api/events/',
             label: 'Events',
-            desc: 'Every eventBus event — consent.created, consent.updated, consent.erased',
+            desc: 'Every eventBus event — consent:created, consent:updated, consent:erased',
           },
           {
             href: '/docs/api/routes/admin/',
@@ -287,7 +287,7 @@ eventBus.on('consent.updated', ({ previous, current }) => {
             answer: (
               <p className="m-0">
                 Use the <code>eventBus</code> returned by <code>createConsenti()</code> — subscribe
-                to <code>consent.created</code> and <code>consent.updated</code>. Alternatively,
+                to <code>consent:created</code> and <code>consent:updated</code>. Alternatively,
                 write a plugin that implements <code>afterConsentSave(record)</code> — the plugin is
                 called after every save automatically.
               </p>
@@ -299,7 +299,7 @@ eventBus.on('consent.updated', ({ previous, current }) => {
               <p className="m-0">
                 The admin dashboard shows full consent history per visitor under Consents → select
                 visitor → History. Via API:{' '}
-                <code>GET /consenti/admin/consents/:visitorId/history</code> (requires admin JWT).
+                <code>GET /consenti/admin/v1/consents/:visitorId/history</code> (requires admin JWT).
                 There is no public endpoint for visitors to self-serve their own history — you would
                 need to build that using the admin API from your own server-side code.
               </p>

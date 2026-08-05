@@ -3,8 +3,8 @@
  *
  * Watches a single consent parameter across *every* visitor's submission (not just one
  * browser's own state) and fires `onGrant`/`onDeny` when that parameter's status actually
- * changes — via the same `eventBus` `createConsenti()` already emits `consent.created`/
- * `consent.updated` on. Useful for server-side integrations (CRM sync, suppression lists,
+ * changes — via the same `eventBus` `createConsenti()` already emits `consent:created`/
+ * `consent:updated` on. Useful for server-side integrations (CRM sync, suppression lists,
  * downstream webhooks) that need to react to consent decisions without polling the database.
  *
  * There is no server equivalent of the widget's `ConsentScript` — injecting a `<script>` tag
@@ -50,7 +50,7 @@ export interface ConsentActionOptions {
 }
 
 /**
- * Watches a single consent parameter across every incoming `consent.created`/`consent.updated`
+ * Watches a single consent parameter across every incoming `consent:created`/`consent:updated`
  * event and fires `onGrant`/`onDeny` on transitions. Call {@link ConsentAction.destroy} to
  * remove the event listeners when the hook is no longer needed.
  */
@@ -60,8 +60,8 @@ export class ConsentAction {
     this.fire(current, previous)
 
   constructor(private readonly options: ConsentActionOptions) {
-    options.eventBus.on('consent.created', this.onCreated)
-    options.eventBus.on('consent.updated', this.onUpdated)
+    options.eventBus.on('consent:created', this.onCreated)
+    options.eventBus.on('consent:updated', this.onUpdated)
   }
 
   private fire(record: ConsentDbRecord, previous: ConsentDbRecord | undefined): void {
@@ -76,7 +76,7 @@ export class ConsentAction {
 
   /** Removes the event listeners. Call when the hook is no longer needed. */
   destroy(): void {
-    this.options.eventBus.off('consent.created', this.onCreated)
-    this.options.eventBus.off('consent.updated', this.onUpdated)
+    this.options.eventBus.off('consent:created', this.onCreated)
+    this.options.eventBus.off('consent:updated', this.onUpdated)
   }
 }

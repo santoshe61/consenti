@@ -63,11 +63,12 @@ async function createWidget(dark: boolean): Promise<WidgetHandle> {
       // disableCssTemplate: true,
     },
     api: {
-      enabled: false,
+      enabled: true,
       baseUrl: process.env.NEXT_PUBLIC_API_URL!,
     },
     plugins: [new DemoAnalyticsPlugin()],
     profileOverride: {
+      showFooterMetadata: true,
       mainBanner: {
         buttons: {
           'privacy-policy': {
@@ -80,6 +81,7 @@ async function createWidget(dark: boolean): Promise<WidgetHandle> {
         },
       },
       preferenceModal: {
+        overlayOpacity: 0,
         categories: {
           marketing: null,
           functional: null,

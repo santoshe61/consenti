@@ -7,6 +7,11 @@ import {
 } from '@consenti/utils'
 import { Callout } from '@/components/Callout'
 import { SortableTable, type SortableTableRow } from '@/components/SortableTable'
+import {
+  COMPLIANCE_TIER_LABELS,
+  COMPLIANCE_TIER_STYLES,
+  type ComplianceTier,
+} from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'Jurisdiction Coverage Map',
@@ -35,6 +40,9 @@ interface RegionEntry {
   type: 'region'
   complianceGroup: string
   description: string
+  /** Per-region carve-out: cookies tagged `cpraCategory: 'sensitive'` default to denied for
+   * this region even though the rest of `complianceGroup`'s cookies default to granted. */
+  requiresSensitiveOptIn?: boolean
 }
 
 interface CountryEntry {
@@ -74,7 +82,9 @@ const overrideRows: SortableTableRow[] = countries.flatMap(([countryCode, entry]
     region: region.name,
     code: regionCode,
     complianceGroup: region.complianceGroup,
-    note: region.description,
+    note: region.requiresSensitiveOptIn
+      ? `${region.description} — sensitive data requires opt-in`
+      : region.description,
   }))
 })
 
@@ -93,6 +103,54 @@ const OVERRIDE_TABLE_COLUMNS = [
   { key: 'complianceGroup', label: 'Compliance group', mono: true },
   { key: 'note', label: 'Note', className: 'text-xs' },
 ]
+
+const TIER_DEFINITIONS: Array<{ tier: ComplianceTier; description: string }> = [
+  {
+    tier: 'maintained',
+    description: 'Actively tracked as the law changes — the highest-confidence tier.',
+  },
+  {
+    tier: 'supported',
+    description: 'Code is complete and stable, but not tracked as closely as the maintained tier (no currency claim on recent legal changes).',
+  },
+  {
+    tier: 'in-development',
+    description: 'Supported today; encoding or rollout is still being finished (e.g. a phased legal rollout still landing).',
+  },
+  {
+    tier: 'partial',
+    description: 'A specific, named gap exists — spec-correct binary encoding needing an optional peer dependency, parental verification needing your own backend, etc. Each regulation’s own guide states the exact gap.',
+  },
+  {
+    tier: 'routing-only',
+    description: 'UX-template routing only — the country resolves to a compliance group so the banner behaves sensibly, but the regulation itself isn’t individually legal-maintained. Covers PIPL and 190+ other countries/territories not named below.',
+  },
+]
+
+const REGULATION_TIERS: Array<{ label: string; tier: ComplianceTier; href: string }> = [
+  { label: 'GDPR', tier: 'maintained', href: '/docs/compliance/gdpr/' },
+  { label: 'UK GDPR', tier: 'maintained', href: '/docs/compliance/uk-gdpr/' },
+  { label: 'CCPA', tier: 'maintained', href: '/docs/compliance/ccpa/' },
+  { label: 'CPRA', tier: 'maintained', href: '/docs/compliance/cpra/' },
+  { label: 'LGPD', tier: 'maintained', href: '/docs/compliance/lgpd/' },
+  { label: 'DPDPA (India)', tier: 'in-development', href: '/docs/compliance/dpdpa/' },
+  { label: 'PIPEDA / Law 25 (Canada)', tier: 'supported', href: '/docs/compliance/pipeda/' },
+  { label: 'POPIA (South Africa)', tier: 'supported', href: '/docs/compliance/popia/' },
+  { label: 'PDPA (Thailand)', tier: 'supported', href: '/docs/compliance/pdpa-th/' },
+  { label: 'APPI (Japan)', tier: 'supported', href: '/docs/compliance/appi/' },
+  { label: 'KVKK (Turkey)', tier: 'supported', href: '/docs/compliance/kvkk/' },
+  { label: 'COPPA (USA children)', tier: 'partial', href: '/docs/compliance/coppa/' },
+  { label: 'TCF v2.3 / GPP (IAB, programmatic ads)', tier: 'partial', href: '/docs/compliance/tcf-and-gpp-registration/' },
+  { label: 'PIPL (China)', tier: 'routing-only', href: '/docs/compliance/pipl/' },
+]
+
+function TierPill({ tier }: { tier: ComplianceTier }) {
+  return (
+    <span className={`inline-flex items-center gap-1.5 text-xs font-medium border rounded-full px-2.5 py-1 font-mono text-pre ${COMPLIANCE_TIER_STYLES[tier]}`}>
+      {COMPLIANCE_TIER_LABELS[tier]}
+    </span>
+  )
+}
 
 export default function JurisdictionCoverageMapPage() {
   return (
@@ -119,6 +177,55 @@ export default function JurisdictionCoverageMapPage() {
         country resolution feeds into this map.
       </Callout>
 
+      <h2 id="compliance-tiers">Compliance Tiers</h2>
+      <p>
+        Every named regulation guide carries a status badge — <strong>Maintained</strong>,{' '}
+        <strong>Supported</strong>, <strong>In-development</strong>, <strong>Partial</strong>, or{' '}
+        <strong>Routing-only</strong>. The tier reflects how confidently Consenti tracks that
+        regulation's ongoing legal changes, not just whether the code exists.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Tier</th>
+            <th>Meaning</th>
+          </tr>
+        </thead>
+        <tbody>
+          {TIER_DEFINITIONS.map(({ tier, description }) => (
+            <tr key={tier}>
+              <td><TierPill tier={tier} /></td>
+              <td>{description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h3>Regulation → tier</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Regulation</th>
+            <th>Tier</th>
+          </tr>
+        </thead>
+        <tbody>
+          {REGULATION_TIERS.map(({ label, tier, href }) => (
+            <tr key={label}>
+              <td><a href={href}>{label}</a></td>
+              <td><TierPill tier={tier} /></td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <p>
+        Every country not individually named above still resolves to a sensible compliance group
+        via the map below — that's the <strong>Routing-only</strong> tier in practice: UX-template
+        routing (opt-in / opt-out / notice-only behaviour) without per-country legal maintenance.
+      </p>
+
+      <hr />
+
       <h2>Compliance Groups</h2>
       <ol>
         {COMPLIANCE_GROUP_IDS.map(groupId => {
@@ -136,7 +243,7 @@ export default function JurisdictionCoverageMapPage() {
             The 8 groups above cover every country in the map, but a profile is not limited to them.
             Every profile has an optional <code>customComplianceGroup</code> field — a free-form,
             lower-kebab-case string that stands in for <code>complianceGroup</code> when a site
-            needs a consent model that doesn't map to any built-in group (a bespoke internal policy,
+            needs a Compliance Group that doesn't map to any built-in group (a bespoke internal policy,
             a jurisdiction not yet in the map, an A/B test variant, etc.).
           </p>
           <table>
@@ -213,6 +320,15 @@ export default function JurisdictionCoverageMapPage() {
         rows={overrideRows}
         defaultSortKey="country"
       />
+      <Callout type="info">
+        "Sensitive data requires opt-in" (Colorado) is a per-region carve-out, not a different
+        compliance group — cookies tagged <code>cpraCategory: 'sensitive'</code> default to denied
+        for that region while the rest of the group's cookies still default to granted. Only takes
+        effect with a <code>geoDataProvider</code> that resolves a US state (<code>'geoip'</code>,{' '}
+        <code>'maxmind'</code>, or <code>'hosted-geoip-lite'</code>) — see{' '}
+        <a href="/docs/compliance/ccpa/#colorados-sensitive-data-carve-out">the CCPA/CPRA guide</a>{' '}
+        for details.
+      </Callout>
 
       <hr />
 

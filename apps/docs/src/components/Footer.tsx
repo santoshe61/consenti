@@ -2,12 +2,24 @@
 
 import Image from 'next/image'
 import Link from 'next/link'
-import { FaGithub } from 'react-icons/fa'
+import { MessageSquare } from 'lucide-react'
+import { FaGithub, FaLinkedin } from 'react-icons/fa'
 import { SiNpm } from 'react-icons/si'
+import { type ConsentiWidgetAPI } from '@consenti/ui'
+import { useEffect, useState } from 'react'
+
+declare global {
+  interface Window {
+    consentiWidget?: ConsentiWidgetAPI
+  }
+}
 
 const DOCS_LINKS = [
   { href: '/docs/getting-started/', label: 'Introduction' },
   { href: '/docs/getting-started/quick-start/', label: 'Quick Start' },
+  { href: '/guides/', label: 'Guides' },
+  { href: '/guides/tutorials/', label: 'Tutorials' },
+  { href: '/guides/examples/', label: 'Examples' },
   { href: '/docs/changelog/', label: 'Changelog' },
   { href: '/demo-playground/frontend', label: 'UI Playground' },
   { href: '/demo-playground/backend', label: 'Admin Demo' },
@@ -35,6 +47,7 @@ const API_LINKS = [
   { href: '/docs/api/advanced-configuration/', label: 'Advanced Configuration' },
   { href: '/docs/api/routes/public/', label: 'Public Routes' },
   { href: '/docs/api/routes/admin/', label: 'Admin Routes' },
+  { href: '/docs/api/events/', label: 'Events' },
   { href: '/docs/api/dashboard/', label: 'Admin Dashboard' },
   { href: '/docs/api/plugins/', label: 'API Plugins' },
 ]
@@ -69,7 +82,36 @@ function FooterColumn({ title, links }: { title: string; links: { href: string; 
   )
 }
 
+const openConsentiModal = () => {
+  window.consentiWidget?.showModal();
+}
+
+const withdrawConsent = () => {
+  if (confirm("Are you sure to withdraw consent, All data related to your preferences will be deleted?")) {
+    window.consentiWidget?.forgetMe();
+  }
+}
+
 export function Footer() {
+  const [showWithdrawButton, setShowWithdrawButton] = useState(false)
+
+  useEffect(function () {
+    window.addEventListener('consenti:bannerInitialized', () => {
+      if (window.consentiWidget?.hasConsent()) {
+        setShowWithdrawButton(true)
+      }
+    })
+
+    window.addEventListener('consenti:consentSubmitted', () => {
+      setShowWithdrawButton(true)
+    })
+
+    window.addEventListener('consenti:forgotten', () => {
+      setShowWithdrawButton(false)
+    })
+
+  }, [])
+
   return (
     <footer className="bg-slate-950 text-slate-400">
       <div className="max-w-9xl mx-auto px-6 py-14">
@@ -93,18 +135,34 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Consenti on GitHub"
-                className="text-slate-500 hover:text-white transition-colors"
+                className="text-slate-500 hover:text-white transition-colors pr-2"
               >
-                <FaGithub size={20} />
+                <FaGithub size={24} />
               </a>
               <a
                 href="https://www.npmjs.com/org/consenti"
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label="Consenti on npm"
-                className="text-slate-500 hover:text-white transition-colors"
+                className="text-slate-500 hover:text-white transition-colors pr-2"
               >
-                <SiNpm size={22} />
+                <SiNpm size={24} />
+              </a>
+              <a
+                href="https://www.github.com/santoshe61/consenti/discussions"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-500 hover:text-white transition-colors pr-2"
+              >
+                <MessageSquare size={24} />
+              </a>
+              <a
+                href="https://www.linkedin.com/in/santoshe61"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-slate-500 hover:text-white transition-colors pr-2"
+              >
+                <FaLinkedin size={24} />
               </a>
             </div>
           </div>
@@ -130,8 +188,12 @@ export function Footer() {
           <span className="flex flex-wrap gap-x-4">
             <Link href="/privacy/" className="hover:text-slate-400 no-underline transition-colors">Privacy Policy</Link>
             <Link href="/terms/" className="hover:text-slate-400 no-underline transition-colors">Terms of Use</Link>
-            <Link href="/license/" className="hover:text-slate-400 no-underline transition-colors">License</Link>
             <Link href="/llms-full.txt" className="hover:text-slate-400 no-underline transition-colors">LLM Context</Link>
+            <button className="hover:text-slate-400 no-underline transition-colors" type='button' onClick={openConsentiModal}>Manage Preferences</button>
+            {
+              showWithdrawButton &&
+              <button className="hover:text-slate-400 no-underline transition-colors" type='button' onClick={withdrawConsent}>Withdraw Consent</button>
+            }
           </span>
           <span className="text-slate-700">
             TypeScript Strict · Zero Runtime Deps · Self-hosted · Node 20+

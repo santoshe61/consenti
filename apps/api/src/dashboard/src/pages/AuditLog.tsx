@@ -10,7 +10,7 @@ import { useT } from '../context/locale'
 import type { AuditLog, AuditLogSummary } from '@consenti/types'
 
 const BASE_HASH = '#/audit'
-const PROFILE_EDIT_ACTIONS = new Set(['profile.created', 'profile.updated'])
+const PROFILE_EDIT_ACTIONS = new Set(['profile:created', 'profile:updated'])
 
 /** Deep-links to the version history page, preselecting the version this audit entry produced
  * and, when it's not the very first version, comparing it against the one right before it. Needs
@@ -41,7 +41,7 @@ export function AuditLogPage({ current }: { current: string }) {
     setLoading(true)
     auditApi.list({ page: p, limit, ...(search ? { q: search } : {}) })
       .then(res => { setLogs(res.items); setTotal(res.total) })
-      .catch(() => {})
+      .catch(() => { })
       .finally(() => setLoading(false))
   }
 
@@ -61,7 +61,7 @@ export function AuditLogPage({ current }: { current: string }) {
   }, [page, pageSize, q])
 
   const openDetail = (id: string) => {
-    auditApi.get(id).then(setSelected).catch(() => {})
+    auditApi.get(id).then(setSelected).catch(() => { })
   }
 
   return (
@@ -110,20 +110,24 @@ export function AuditLogPage({ current }: { current: string }) {
           { key: 'createdAt', label: t('audit.col.time'), render: r => new Date((r as unknown as AuditLogSummary).createdAt).toLocaleString() },
           { key: 'action', label: t('audit.col.action') },
           { key: 'resourceType', label: t('audit.col.resource') },
-          { key: 'resourceId', label: t('audit.col.resourceId'), render: r => {
-            const log = r as unknown as AuditLogSummary
-            return log.resourceId ? (
-              <button onClick={() => openDetail(log.id)} class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">
-                {log.resourceId.slice(0, 12)}…
-              </button>
-            ) : '—'
-          }},
-          { key: 'userId', label: t('audit.col.actor'), render: r => {
-            const uid = (r as unknown as AuditLogSummary).userId
-            return uid
-              ? <span class="font-mono text-xs">{uid.slice(0, 8)}</span>
-              : <span class="text-gray-400">{t('audit.actor.system')}</span>
-          }},
+          {
+            key: 'resourceId', label: t('audit.col.resourceId'), render: r => {
+              const log = r as unknown as AuditLogSummary
+              return log.resourceId ? (
+                <button onClick={() => openDetail(log.id)} class="font-mono text-xs text-blue-600 dark:text-blue-400 hover:underline">
+                  {log.resourceId.slice(0, 12)}…
+                </button>
+              ) : '—'
+            }
+          },
+          {
+            key: 'userId', label: t('audit.col.actor'), render: r => {
+              const uid = (r as unknown as AuditLogSummary).userId
+              return uid
+                ? <span class="font-mono text-xs">{uid.slice(0, 8)}</span>
+                : <span class="text-gray-400">{t('audit.actor.system')}</span>
+            }
+          },
         ]}
         emptyText={t('audit.empty')}
       />

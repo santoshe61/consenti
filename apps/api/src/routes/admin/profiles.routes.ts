@@ -146,9 +146,13 @@ export function buildAdminProfileRoutes(
               return json(200, { conflict: { id: existing.id, name: existing.name }, requiresChoice: true })
             }
             if (choice === 'deactivate') {
+              // "Deactivate {name} and activate this one" — this profile must actually become active.
               await service.deactivate(existing.id)
+              input.profileJson.isActive = true
+            } else if (choice === 'inactive') {
+              // "Save this profile as inactive" — explicit, the other profile is left untouched.
+              input.profileJson.isActive = false
             }
-            // choice === 'inactive' → fall through; new profile saves without isActive
           }
 
           const profile = await service.create(input)
@@ -166,6 +170,9 @@ export function buildAdminProfileRoutes(
             }
             if (choice === 'deactivate') {
               await service.deactivate(existing.id)
+              input.profileJson.isActive = true
+            } else if (choice === 'inactive') {
+              input.profileJson.isActive = false
             }
           }
         }
@@ -218,7 +225,12 @@ export function buildAdminProfileRoutes(
               return json(200, { conflict: { id: existing.id, name: existing.name }, requiresChoice: true })
             }
             if (choice === 'deactivate') {
+              // "Deactivate {name} and activate this one" — this profile must actually become active.
               await service.deactivate(existing.id)
+              input.profileJson!.isActive = true
+            } else if (choice === 'inactive') {
+              // "Save this profile as inactive" — explicit, the other profile is left untouched.
+              input.profileJson!.isActive = false
             }
           }
 
@@ -235,6 +247,9 @@ export function buildAdminProfileRoutes(
             }
             if (choice === 'deactivate') {
               await service.deactivate(existing.id)
+              input.profileJson!.isActive = true
+            } else if (choice === 'inactive') {
+              input.profileJson!.isActive = false
             }
           }
         }

@@ -221,7 +221,7 @@ const profile = new ConsentiProfile({
         htmlText: 'We use cookies to improve your experience.',
         buttons: {
           'accept-all': { text: 'Accept All',          style: 'primary',    action: 'custom', cookies: '*' },
-          'reject-optional': { text: 'Reject Optional',          style: 'secondary',  action: 'custom', cookies: '!' },
+          'reject-optional': { text: 'Reject Optional',          style: 'primary',  action: 'custom', cookies: '!' },
           'customize': { text: 'Customize',  style: 'secondary',  action: 'manage' },
         },
       },
@@ -287,7 +287,7 @@ new ConsentiSetup({
         htmlText: 'We use cookies.',
         buttons: {
           'accept-all': { text: 'Accept All',  style: 'primary',   action: 'custom', cookies: '*' },
-          'reject-optional': { text: 'Reject Optional',  style: 'secondary', action: 'custom', cookies: '!' },
+          'reject-optional': { text: 'Reject Optional',  style: 'primary', action: 'custom', cookies: '!' },
         },
       },
       preferenceModal: {
@@ -305,7 +305,7 @@ new ConsentiSetup({
         htmlText: 'Nous utilisons des cookies.',
         buttons: {
           'tout-accepter': { text: 'Tout accepter',  style: 'primary',   action: 'custom', cookies: '*' },
-          'tout-refuser': { text: 'Tout refuser',   style: 'secondary', action: 'custom', cookies: '!' },
+          'tout-refuser': { text: 'Tout refuser',   style: 'primary', action: 'custom', cookies: '!' },
         },
       },
       preferenceModal: {
@@ -555,8 +555,9 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
             </td>
             <td>No</td>
             <td>
-              Per-profile GPC handling. Overridden at runtime by <code>core.autoHonorGPC</code> when
-              that&apos;s explicitly set.
+              Per-profile GPC handling. Defaults to the resolved compliance group's own default
+              (<code>'honor'</code> for <code>opt-out</code>/<code>opt-out-strict</code>,{' '}
+              <code>'ignore'</code> otherwise) unless set explicitly here.
             </td>
           </tr>
           <tr>
@@ -1080,6 +1081,35 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
               omitted.
             </td>
           </tr>
+          <tr>
+            <td>
+              <code>showForgetMe</code>
+            </td>
+            <td>
+              <code>boolean</code>
+            </td>
+            <td>No</td>
+            <td>
+              Renders a &quot;Forget me&quot; button below the categories, for visitors who already
+              have a stored consent decision — the widget-side entry point for GDPR Art. 17 /
+              CCPA-CPRA / LGPD Art. 18 and equivalent erasure rights. Authored on the linked UI
+              Template&apos;s Preference Modal step. See the{' '}
+              <a href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</a>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>forgetMeLabel</code>
+            </td>
+            <td>
+              <code>string</code>
+            </td>
+            <td>No</td>
+            <td>
+              Label for the &quot;Forget me&quot; button (shown when <code>showForgetMe</code> is
+              true). Falls back to a default when omitted.
+            </td>
+          </tr>
         </tbody>
       </table>
 
@@ -1130,9 +1160,12 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
             <td>Yes</td>
             <td>
               Visual appearance only — never affects click behaviour.
-              <code>primary</code> = filled accent; <code>secondary</code> = outlined/ghost;{' '}
-              <code>text</code> = no border, link-like; <code>accent</code> = destructive red (uses{' '}
-              <code>--consenti-accent-color</code>).
+              <ul>
+                <li><code>primary</code> = filled button</li>
+                <li><code>secondary</code> = outlined/ghost</li>
+                <li><code>text</code> = no border, link-like</li>
+                <li><code>accent</code> = destructive red, uses <code>--consenti-accent-color</code></li>
+              </ul>
             </td>
           </tr>
           <tr>
@@ -1147,11 +1180,27 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
             </td>
             <td>Yes</td>
             <td>
-              What happens on click. <code>custom</code> = grant/deny the IDs in{' '}
-              <code>cookies</code>; <code>manage</code> = open the preference modal;{' '}
-              <code>submit</code> = save the current modal toggle state; <code>close</code> =
-              dismiss without saving; <code>link</code> = navigate to <code>url</code> (opens in a
-              new tab).
+              What happens on click — see the worked example and warning below before choosing
+              between
+              <ul>
+                <li><code>manage</code> = open the preference modal without saving</li>
+                <li><code>close</code> = dismiss banner/modal without saving</li>
+                <li><code>link</code> = navigate to{' '} <code>url</code> (opens in a new tab) (
+                  <strong>only</strong> action that reads <code>url</code>)</li>
+                <li><code>custom</code> = grant and submit exactly the cookie IDs in <code>cookies</code> (
+                  <strong>only</strong> action that reads <code>cookies</code>)
+                </li>
+                <li><code>submit</code> = submit whatever consent state already exists elsewhere —
+                  <ol className='ml-4'>
+                    <li>In the{' '} <strong>preference modal</strong> that means the live toggle states the visitor just set;</li>
+                    <li>In the <strong>banner</strong> (no toggles to read) it means mandatory-only</li>
+                    <li>If widget API methods updated consent based on internal action/logics</li>
+                  </ol>
+                  <p>Without any user/method action, every cookie will fall back to its own <code>preGrant</code>/compliance-group
+                    default for <code>action: 'submit'</code></p>
+                </li>
+              </ul>
+              <code>custom</code> and <code>submit</code>, they are easy to confuse.{' '}
             </td>
           </tr>
           <tr>
@@ -1162,11 +1211,26 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
               <code>&apos;*&apos; | &apos;!&apos; | string[]</code>
             </td>
             <td>
-              When <code>action: &apos;custom&apos;</code>
+              Only when <code>action: &apos;custom&apos;</code>
             </td>
             <td>
-              Which cookie IDs to affect. <code>&apos;*&apos;</code> = grant all;{' '}
-              <code>&apos;!&apos;</code> = deny all; <code>string[]</code> = specific IDs only.
+              Which cookie IDs to affect.
+              <ul>
+                <li>
+                  <code>&apos;*&apos;</code> = grant all;
+                </li>
+                <li>
+                  <code>&apos;!&apos;</code> = deny all non-mandatory
+                </li>
+                <li>
+                  <code>string[]</code> = grant these specific IDs only.
+                </li>
+              </ul>
+              <p>Setting <code>cookies</code> on any other than <code>action: 'custom'</code> does nothing — it is silently ignored by the click handler, not
+                validated, so a typo&apos;d <code>action</code> here fails silently rather than with
+                an error</p>
+              <p>Mandatory cookies are always granted regardless, so <code>&apos;!&apos;</code> is how you author a real &quot;Reject All&quot; or &quot;Reject Optional&quot; button</p>
+              See the warning below.
             </td>
           </tr>
           <tr>
@@ -1182,10 +1246,52 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
             <td>
               Target URL for the link button. Opens in a new tab. Typically used for privacy policy
               or terms links rendered below the banner body.
+
+              <p>Setting <code>url</code> on any other than <code>action: 'link'</code> does nothing — it is silently ignored by the click handler
+                an error</p>
             </td>
           </tr>
         </tbody>
       </table>
+      <Callout type="warning">
+        On consent-based (opt-in) profiles, give <code>accept-all</code> and <code>reject-optional</code>{' '}
+        the <strong>same</strong> <code>style</code> — regulators (e.g. CNIL) treat making "reject" visually
+        smaller, greyer, or less prominent than "accept" as invalid consent. Avoid <code>accent</code>{' '}
+        (documented above as "destructive red") for a reject button specifically — framing rejection as
+        a warning/destructive action nudges the visitor toward accepting. Consenti's own default opt-in
+        profile ships both as <code>primary</code>.
+      </Callout>
+      <Callout type="warning">
+        <code>cookies</code> is <strong>only</strong> read when <code>action: &apos;custom&apos;</code>.
+        A button authored as <code>{'{ action: \'submit\', cookies: \'!\' }'}</code> will ignores <code>cookies</code>{' '}
+        entirely for <code>submit</code> and just submits whatever state already exists (mandatory
+        cookies only, in a banner). Two buttons that only differ by their <code>cookies</code>{' '}
+        value but share <code>action: &apos;submit&apos;</code> will always produce the{' '}
+        <strong>identical</strong> consent outcome, regardless of their labels or which one was
+        clicked,
+        so it is worth double-checking your own authored buttons against the table below.
+        <code className='inner-code-block'>{`buttons: {
+  // All cookies will be granted
+  'accept-all':      { text: 'Accept All',        action: 'custom', cookies: '*' }, // suggested style: 'primary'
+  
+  // Mandatory cookies stay granted
+  'reject-optional': { text: 'Reject Optional',   action: 'custom', cookies: '!' },  // suggested style: 'primary' on opt-in profiles — same visual weight as accept-all
+  
+  // Grant/deny a named subset — e.g. a "Reject marketing only" shortcut.
+  'reject-marketing': { text: 'Reject Marketing', action: 'custom', cookies: ['non_marketing_1', 'non_marketing_2' ...] },
+  'accept-only-performance': { text: 'Accept Only Performance', action: 'custom', cookies: ['performance_1', 'performance_2' ...] },
+  
+  // To open preference modal
+  'manage':          { text: 'Manage',            action: 'manage' }, // suggested style: 'text'
+
+  // To set privacy policy & other anchor links
+  'manage':          { text: 'Manage',            action: 'link', url: '/privacy-policy' }, // suggested style: 'text'
+  
+  // Inside the preference modal only — reads the toggles the visitor already set, so it never authors a cookies field.
+  'save-preferences': { text: 'Save Preferences', action: 'submit' }, // suggested style: 'primary'
+
+}`}</code>
+      </Callout>
 
       <h3 id="category-type">Category type</h3>
       <p>
@@ -1303,7 +1409,10 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
       </p>
       <p>
         Common uses: adjusting banner position per-page, swapping button copy for A/B tests, or
-        running the widget with no backend at all by providing the entire profile inline.
+        running the widget with no backend at all by providing the entire profile inline. If what
+        you actually need is different content <em>per country/compliance group</em>, see{' '}
+        <a href="#compliancegroupsoverride">complianceGroupsOverride</a> below instead — it saves
+        you from authoring a separate profile for each group.
       </p>
 
       <Callout type="info">
@@ -1311,6 +1420,44 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
         deep-merged key by key. Since <code>cookies</code> and{' '}
         <code>preferenceModal.categories</code> are keyed maps, you can add or override a single
         parameter/category ID without needing to repeat every other one.
+      </Callout>
+
+      <h3 id="removing-a-key">Removing a key: set it to <code>null</code></h3>
+      <p>
+        The merge follows{' '}
+        <a href="https://www.rfc-editor.org/rfc/rfc7396" target="_blank" rel="noopener noreferrer">
+          JSON Merge Patch
+        </a>{' '}
+        semantics: a key set to <code>null</code> is <em>deleted</em> from the resolved profile,
+        rather than being set to <code>null</code> or left as-is. This works anywhere the resolved
+        profile has a keyed map — <code>cookies</code>, <code>preferenceModal.categories</code>, and{' '}
+        <code>mainBanner.buttons</code> / <code>gpcBanner.buttons</code> /{' '}
+        <code>preferenceModal.buttons</code> — so you can drop an inherited cookie, category, or
+        button without redefining everything else.
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  profileOverride: {
+    cookies: {
+      marketing: null, // removes the "marketing" cookie/purpose entirely
+    },
+    preferenceModal: {
+      categories: {
+        marketing: null, // removes the "marketing" category from the modal
+      },
+      buttons: {
+        'reject-optional': null, // removes the "Reject Optional" button
+      },
+    },
+  },
+})`}
+      />
+      <Callout type="warning">
+        Setting a key to <code>undefined</code> (or just omitting it) is different — it leaves the
+        base value untouched. Only an explicit <code>null</code> deletes the key. This applies the
+        same way under <a href="#compliancegroupsoverride">complianceGroupsOverride</a>.
       </Callout>
 
       <h3>Override banner copy and buttons only</h3>
@@ -1324,7 +1471,7 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
       htmlText: 'We use analytics cookies to improve the site.',
       buttons: {
         'accept': { text: 'Accept',  style: 'primary',   action: 'custom', cookies: '*' },
-        'decline': { text: 'Decline', style: 'secondary',  action: 'custom', cookies: '!' },
+        'decline': { text: 'Decline', style: 'primary',  action: 'custom', cookies: '!' },
       },
     },
   },
@@ -1366,7 +1513,7 @@ new ConsentiSetup({
       htmlText: 'We use cookies to improve your experience and personalise ads.',
       buttons: {
         'accept-all': { text: 'Accept All',         style: 'primary',   action: 'custom', cookies: '*' },
-        'reject-optional': { text: 'Reject Optional',         style: 'secondary', action: 'custom', cookies: '!' },
+        'reject-optional': { text: 'Reject Optional',         style: 'primary', action: 'custom', cookies: '!' },
         'customize': { text: 'Customize', style: 'secondary', action: 'manage' },
       },
     },
@@ -1441,6 +1588,50 @@ new ConsentiSetup({
 })`}
       />
 
+      <h2 id="compliancegroupsoverride">complianceGroupsOverride — per-group content, one config object</h2>
+      <p>
+        Without <code>complianceGroupsOverride</code>, giving every jurisdiction its own text,
+        buttons, or cookie set means authoring a separate profile per{' '}
+        <a href="/docs/compliance/compliance-groups/">Compliance Group</a> — one for each of the 8
+        built-in groups plus one per custom group you add — and wiring{' '}
+        <code>compliance.type</code> to pick the right one. That gets tedious fast: 8 built-in +
+        5 custom groups is 13 profiles to create and keep in sync.
+      </p>
+      <p>
+        <code>complianceGroupsOverride</code> replaces that with a single config object, keyed by
+        compliance group id, deep-merged onto whichever profile the visitor's resolved group
+        loads:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`new ConsentiSetup({
+  compliance: { type: 'auto' },
+  complianceGroupsOverride: {
+    // Built-in group — override just the banner heading for GDPR/UK visitors
+    'opt-in': {
+      mainBanner: { heading: 'We respect your privacy' },
+    },
+    // Custom group — same shape as a dashboard-authored customComplianceGroup profile
+    // (see /docs/compliance/jurisdiction-coverage-map/#custom-compliance-groups),
+    // targeted by your own compliance map
+    'my-custom-group': {
+      mainBanner: { heading: 'Cookie settings' },
+      cookies: { marketing: { listenGpc: true } },
+    },
+  },
+})`}
+      />
+
+      <Callout type="info">
+        <code>complianceGroupsOverride</code> is applied before <code>profileOverride</code>,
+        which still always applies last — so a flat <code>profileOverride</code> still wins if it
+        touches the same field. Works identically in standalone mode and with{' '}
+        <code>api.enabled: true</code>, and accepts any group id — one of the 8 built-in{' '}
+        <code>ComplianceGroupId</code>s, or a custom one. Each per-group entry merges with the same{' '}
+        <a href="#removing-a-key">null-removes-the-key</a> rule as <code>profileOverride</code> — set
+        a cookie, category, or button to <code>null</code> to drop it for that group only.
+      </Callout>
+
       <hr />
 
       <h2>Using the backend API</h2>
@@ -1493,8 +1684,8 @@ new ConsentiSetup({
   Cookie,                     // single parameter definition
   CookieMap,                  // Record<string, Cookie> — cookies shape
   ResolvedProfile,            // what profileOverride accepts (Partial<ResolvedProfile>)
+  ComplianceGroupId,          // the 8 built-in group ids — complianceGroupsOverride's key type
   ComplianceWidgetConfig,     // compliance section
-  AgeGateWidgetConfig,        // compliance.ageGate section
   TcfWidgetConfig,            // compliance.tcf section
   WidgetCountryResolverFn,    // custom geo resolver function type
   NonEmptyArray,              // [T, ...T[]] — at least one element

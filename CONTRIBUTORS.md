@@ -8,7 +8,7 @@ Thank you to everyone who has contributed to Consenti.
 
 | Name | Role | GitHub |
 |------|------|--------|
-| Santosh Ojha | Founder & Maintainer | [@santoshe61](https://github.com/santoshe61) |
+| Santosh Ojha | Maintainer | [@santoshe61](https://github.com/santoshe61) |
 
 ---
 

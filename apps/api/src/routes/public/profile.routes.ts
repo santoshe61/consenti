@@ -99,14 +99,15 @@ export function buildProfileRoutes(
         }
 
         const geo = await geoResolver.resolve({ ip, language, timezone })
+        const sensitiveOptIn = geo.requiresSensitiveOptIn ? { requiresSensitiveOptIn: true } : {}
 
         if (!geo.complianceGroup) {
-          return json(200, { path: null, complianceGroup: 'opt-in', locale: requestedLocale || 'en', found: false })
+          return json(200, { path: null, complianceGroup: 'opt-in', locale: requestedLocale || 'en', found: false, ...sensitiveOptIn })
         }
 
         const profile = await profiles.findActiveByComplianceGroup(geo.complianceGroup)
         if (!profile) {
-          return json(200, { path: null, complianceGroup: geo.complianceGroup, locale: requestedLocale || 'en', found: false })
+          return json(200, { path: null, complianceGroup: geo.complianceGroup, locale: requestedLocale || 'en', found: false, ...sensitiveOptIn })
         }
 
         // Determine best locale for this profile
@@ -146,7 +147,7 @@ export function buildProfileRoutes(
           ? `${basePath}/profiles/${tenantId}/${complianceGroup}/${resolvedLocale}`
           : null
 
-        return json(200, { path: servePath, complianceGroup, locale: resolvedLocale, found })
+        return json(200, { path: servePath, complianceGroup, locale: resolvedLocale, found, ...sensitiveOptIn })
       }),
 
     // Legacy: single-param profile route (by ID)
@@ -185,7 +186,11 @@ export function buildProfileRoutes(
         if (!profile) return errorResponse(404, `No active profile found for compliance group: ${geo.complianceGroup}`)
         const result = await profiles.getResolved(profile.id, locale)
         if (!result) return errorResponse(404, 'Profile not found')
-        return json(200, { ...result, resolvedComplianceGroup: geo.complianceGroup })
+        return json(200, {
+          ...result,
+          resolvedComplianceGroup: geo.complianceGroup,
+          ...(geo.requiresSensitiveOptIn ? { requiresSensitiveOptIn: true } : {}),
+        })
       }),
   }
 }

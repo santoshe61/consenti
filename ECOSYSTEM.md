@@ -20,21 +20,21 @@ Built into `@consenti/ui` as subpath exports — no separate install needed.
 | Framework | Import path | Status |
 |-----------|------------|--------|
 | React | `@consenti/ui/react` | `useConsent()` hook — available |
-| Vue | `@consenti/ui/vue` | Planned |
-| Angular | `@consenti/ui/angular` | Planned |
-| Svelte | `@consenti/ui/svelte` | Planned |
+| Vue | `@consenti/ui/vue` | `useConsent()` composable — available |
+| Angular | `@consenti/ui/angular` | `useConsent()` service — available |
+| Svelte | `@consenti/ui/svelte` | planned |
 
 ---
 
 ## Analytics & Data Warehouse Plugins
 
-Consenti ships a plugin API for forwarding consent events to analytics platforms. The following plugins are documented in `apps/docs/plugins-*.md`.
+Consenti ships a plugin API for forwarding consent events to analytics platforms. The following plugins are documented in `apps/docs/src/app/docs/api/plugins/` and `apps/docs/src/app/docs/ui/plugins/`.
 
 | Plugin | Destination | Docs |
 |--------|------------|------|
-| BigQuery | Google BigQuery | [plugins-bigquery.md](./apps/docs/plugins-bigquery.md) |
-| Segment | Twilio Segment | [plugins-segment.md](./apps/docs/plugins-segment.md) |
-| Snowflake | Snowflake Data Cloud | [plugins-snowflake.md](./apps/docs/plugins-snowflake.md) |
+| BigQuery | Google BigQuery | [plugins-bigquery](apps/docs/src/app/docs/api/plugins/bigquery/page.tsx) |
+| Segment | Twilio Segment | [plugins-segment](apps/docs/src/app/docs/api/plugins/segment/page.tsx) |
+| Snowflake | Snowflake Data Cloud | [plugins-snowflake](apps/docs/src/app/docs/api/plugins/snowflake/page.tsx) |
 
 All plugins are implemented via the `PluginBase` class. See `plans/api/feature-plugin-system.md` for the full plugin authoring spec.
 
@@ -61,27 +61,35 @@ Consenti integrates with tag managers and consent signal protocols without addit
 |------------|-----|
 | Google Tag Manager | Built-in `dataLayer` push on consent change |
 | Google Consent Mode v2 | Built-in — pushes `consent` command with all GCM keys |
-| IAB TCF v2.2 | Built-in TC string generation and `__tcfapi` stub |
+| IAB TCF v2.3 | Built-in TC string generation and `__tcfapi` stub — Partial: spec-correct binary encoding needs `publisherCC` config + the optional `@iabtechlabtcf/core` peer dependency, simplified format otherwise. Only relevant for programmatic/RTB ad monetization — see the [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration) |
+| IAB GPP (US National section) | Built-in GPP string generation and `__gpp` stub — Partial: spec-correct binary encoding needs the optional `@iabgpp/cmpapi` peer dependency, simplified format otherwise. Same registration-only-for-programmatic-ads caveat as TCF |
 | Global Privacy Control (GPC) | Built-in `navigator.globalPrivacyControl` detection |
+| Automated cookie/tracker scanning | `@consenti/scanner` — local CLI, crawls a site under none/reject-all/accept-all consent states, reports undeclared trackers, fully offline |
 
 ---
 
 ## Compliance Regulations Covered
 
+Status reflects how confidently we track ongoing legal changes, not just whether code exists.
+"Maintained" = actively tracked as the law changes. "In development" = supported today, encoding
+or rollout still being finished. "Supported" (no currency claim) = code is complete and stable,
+but not tracked as closely as the maintained tier.
+
 | Regulation | Region | Status |
 |-----------|--------|--------|
-| GDPR | EU / EEA | Supported |
-| UK-GDPR | United Kingdom | Supported |
-| CCPA | California, USA | Supported |
-| CPRA | California, USA | Supported |
-| LGPD | Brazil | Supported |
-| DPDPA | India | Supported |
+| GDPR | EU / EEA | Maintained |
+| UK-GDPR | United Kingdom | Maintained |
+| CCPA | California, USA | Maintained |
+| CPRA | California, USA | Maintained |
+| LGPD | Brazil | Maintained |
+| DPDPA | India | In development — tracking India's phased 2025–2027 rules rollout |
 | PIPEDA / Law 25 | Canada / Quebec | Supported |
 | POPIA | South Africa | Supported |
 | PDPA-TH | Thailand | Supported |
 | APPI | Japan | Supported |
 | KVKK | Turkey | Supported |
-| IAB TCF v2.2 | Global (programmatic) | Supported |
+| IAB TCF v2.3 | Global (programmatic) | Partial — spec-correct binary TC-string encoding available (set `publisherCC` + install optional `@iabtechlabtcf/core`); simplified format otherwise. Registration only needed if you monetize via programmatic/RTB ads — see the [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration) |
+| IAB GPP (US National section) | Global (programmatic, US MSPA) | Partial — spec-correct binary GPP-string encoding available (install optional `@iabgpp/cmpapi`); simplified format otherwise. Same registration-only-for-programmatic-ads caveat as TCF |
 
 ---
 

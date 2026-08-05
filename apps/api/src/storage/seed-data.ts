@@ -92,6 +92,7 @@ const consentRecords: TableDef = {
     { n: 'age_verified',           t: 'bool', def: false },
     { n: 'parental_consent_token', t: 'longtext', null: true },
     { n: 'tcf_string',             t: 'longtext', null: true },
+    { n: 'gpp_string',             t: 'longtext', null: true },
     { n: 'signature',              t: 'longtext', null: true },
     { n: 'created_at',             t: 'ts', def: '$now' },
     { n: 'updated_at',             t: 'ts', def: '$now', mysqlUpd: true },
@@ -266,6 +267,11 @@ const tenantSettings: TableDef = {
     { n: 'admin_allowed_origins_json',  t: 'json', def: '$arr' },
     // First-run setup wizard completion flag — set once, never reset (see setup.routes.ts).
     { n: 'setup_completed',             t: 'bool', def: false },
+    // Whether POST /setup/seed-profiles has been called at least once (empty groups:[] counts).
+    { n: 'profiles_seeded',             t: 'bool', def: false },
+    // RegistrationConfirmation JSON — hash only, never the live cmpId/cmpVersion (see api.ts).
+    { n: 'tcf_confirmation_json',       t: 'json', null: true },
+    { n: 'gpp_confirmation_json',       t: 'json', null: true },
     { n: 'updated_at',                  t: 'ts', def: '$now', mysqlUpd: true },
   ],
   pk: ['tenant_id'],

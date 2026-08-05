@@ -15,6 +15,11 @@
  *
  * A consent receipt checkbox is optionally rendered when `core.allowReceipt: true`.
  * It resets to unchecked each time the modal is opened so the user must opt in per submission.
+ *
+ * A "Forget me" button is optionally rendered below the categories when the profile's
+ * `preferenceModal.showForgetMe` is true — GDPR Art. 17 / CCPA-CPRA / LGPD Art. 18 and
+ * equivalent erasure rights, only shown to visitors who already have a stored consent decision.
+ * See `ConsentiSetup.forgetMe()`.
  */
 
 import type { PreferenceModal, Category, CategoryMap, CookieMap, ConsentValue, ConsentStatus, Button } from '../types'
@@ -182,6 +187,11 @@ export class Modal {
     container.appendChild(body)
     if (allowReceipt) {
       body.appendChild(this.buildReceiptOption(config.receiptLabel, config.receiptDescription))
+    }
+    // Only shown to visitors who already have a stored consent decision — nothing to erase
+    // otherwise. `initialConsent` is `{}` for a first-time visitor (see `showModal()`).
+    if (config.showForgetMe && Object.keys(initialConsent).length > 0) {
+      body.appendChild(this.buildForgetMeOption(config.forgetMeLabel, handlers.onForgetMe))
     }
 
     if (dpdpaConfig) {
@@ -474,6 +484,30 @@ export class Modal {
     desc.textContent = description ?? 'A JSON file will be downloaded to your device when you save your preferences.'
     wrapper.appendChild(desc)
 
+    return wrapper
+  }
+
+  /**
+   * Builds the "Forget me" control — GDPR Art. 17 / CCPA-CPRA / LGPD Art. 18 and equivalent
+   * erasure rights, exercised from the widget itself (see `ConsentiSetup.forgetMe()`). Confirms
+   * before erasing since the action is destructive and cannot be undone.
+   */
+  private buildForgetMeOption(label_: string | undefined, onForgetMe: () => void): HTMLElement {
+    const wrapper = document.createElement('div')
+    wrapper.className = 'consenti-modal__forget-me'
+
+    const btn = document.createElement('button')
+    btn.type = 'button'
+    btn.id = 'consenti-forget-me'
+    btn.className = 'consenti-btn consenti-btn--text consenti-modal__forget-me-btn'
+    btn.textContent = label_ ?? 'Forget me'
+    btn.addEventListener('click', () => {
+      if (window.confirm('Erase your stored consent record? This cannot be undone.')) {
+        onForgetMe()
+      }
+    })
+
+    wrapper.appendChild(btn)
     return wrapper
   }
 

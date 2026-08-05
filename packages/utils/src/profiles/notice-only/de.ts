@@ -1,4 +1,4 @@
-import type { LocaleTextContent } from '../types'
+import type { LocaleTextContent } from '../types.js'
 
 export const NOTICE_ONLY_DE: LocaleTextContent = {
   mainBanner: {

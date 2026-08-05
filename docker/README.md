@@ -10,7 +10,7 @@ From the repo root:
 
 ```bash
 CONSENTI_ADMIN_PASSWORD=$(openssl rand -base64 24) \
-CONSENTI_ADMIN_JWT_SECRET=$(openssl rand -hex 32) \
+CONSENTI_ADMIN_MASTER_SECRET=$(openssl rand -hex 32) \
 docker compose up
 ```
 
@@ -18,7 +18,7 @@ docker compose up
 - Public API: `http://localhost:3000/consenti/api/v1/`
 - Data persists in the `consenti-data` named volume (see `docker-compose.yml`).
 
-`CONSENTI_ADMIN_PASSWORD` and `CONSENTI_ADMIN_JWT_SECRET` are required — the compose file fails
+`CONSENTI_ADMIN_PASSWORD` and `CONSENTI_ADMIN_MASTER_SECRET` are required — the compose file fails
 fast with a clear error if either is missing, rather than silently booting with demo credentials.
 
 ## Using PostgreSQL or MongoDB instead
@@ -47,7 +47,7 @@ reads them directly, no extra wiring needed. Common ones:
 |---|---|
 | `CONSENTI_ADMIN_EMAIL` | Bootstrap super-admin email |
 | `CONSENTI_ADMIN_PASSWORD` | Bootstrap super-admin password (required, no default in compose) |
-| `CONSENTI_ADMIN_JWT_SECRET` | JWT signing secret (required, no default in compose) |
+| `CONSENTI_ADMIN_MASTER_SECRET` | JWT signing secret (required, no default in compose) |
 | `CONSENTI_DB_DRIVER` | `node:sqlite` (default in this image), `postgresql`, `mysql`, `mongodb`, `json` |
 | `CONSENTI_DB_PATH` | SQLite/JSON storage directory |
 | `CONSENTI_DB_HOST` / `CONSENTI_DB_URI` | Postgres/MySQL/MongoDB connection |

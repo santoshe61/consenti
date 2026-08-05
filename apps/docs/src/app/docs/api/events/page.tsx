@@ -35,6 +35,13 @@ export default function APIEventsPage() {
         database or modifying routes.
       </p>
 
+      <Callout type="info">
+        Consenti does not ship built-in webhook configuration in the dashboard for self-hosted
+        installs. Instead, you register your own webhook by listening on <code>eventBus</code> and
+        making the HTTP call yourself — see the{' '}
+        <a href="/guides/backend/webhooks/">Webhooks guide</a> for a detailed walkthrough.
+      </Callout>
+
       <CodeBlock
         lang="ts"
         filename="Basic usage"
@@ -42,7 +49,7 @@ export default function APIEventsPage() {
 
 const { eventBus, ready } = createConsenti({ /* ... */ })
 
-eventBus.on('consent.created', (record) => {
+eventBus.on('consent:created', (record) => {
   console.log('New consent from visitor', record.visitorId)
 })
 
@@ -70,7 +77,7 @@ await ready`}
           </tr>
           <tr>
             <td>
-              <code>consent.created</code>
+              <code>consent:created</code>
             </td>
             <td>A new consent record is saved for the first time</td>
             <td>
@@ -79,7 +86,7 @@ await ready`}
           </tr>
           <tr>
             <td>
-              <code>consent.updated</code>
+              <code>consent:updated</code>
             </td>
             <td>An existing consent record is updated</td>
             <td>
@@ -88,7 +95,7 @@ await ready`}
           </tr>
           <tr>
             <td>
-              <code>consent.erased</code>
+              <code>consent:erased</code>
             </td>
             <td>A visitor&apos;s data is erased (GDPR right to erasure)</td>
             <td>
@@ -97,7 +104,7 @@ await ready`}
           </tr>
           <tr>
             <td>
-              <code>visitor.created</code>
+              <code>visitor:created</code>
             </td>
             <td>A new visitor record is created</td>
             <td>
@@ -106,7 +113,7 @@ await ready`}
           </tr>
           <tr>
             <td>
-              <code>profile.created</code>
+              <code>profile:created</code>
             </td>
             <td>A consent profile is created</td>
             <td>
@@ -115,7 +122,7 @@ await ready`}
           </tr>
           <tr>
             <td>
-              <code>profile.updated</code>
+              <code>profile:updated</code>
             </td>
             <td>A consent profile is updated (version bumped)</td>
             <td>
@@ -124,7 +131,7 @@ await ready`}
           </tr>
           <tr>
             <td>
-              <code>profile.deleted</code>
+              <code>profile:deleted</code>
             </td>
             <td>A consent profile is deleted</td>
             <td>
@@ -176,8 +183,8 @@ consenti.eventBus.on('ready', () => {
 })`}
       />
 
-      {/* ── consent.created ───────────────────────────────────────────────── */}
-      <h2>consent.created</h2>
+      {/* ── consent:created ───────────────────────────────────────────────── */}
+      <h2>consent:created</h2>
       <p>
         Fires after a new <code>ConsentDbRecord</code> is persisted — after plugins&apos;{' '}
         <code>afterConsentSave</code> hooks run. Useful for webhooks, audit side-cars, or real-time
@@ -187,7 +194,7 @@ consenti.eventBus.on('ready', () => {
         lang="ts"
         code={`import type { ConsentDbRecord } from '@consenti/api'
 
-eventBus.on('consent.created', async (record: ConsentDbRecord) => {
+eventBus.on('consent:created', async (record: ConsentDbRecord) => {
   await fetch('https://webhook.example.com/consent-created', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -202,8 +209,8 @@ eventBus.on('consent.created', async (record: ConsentDbRecord) => {
 })`}
       />
 
-      {/* ── consent.updated ───────────────────────────────────────────────── */}
-      <h2>consent.updated</h2>
+      {/* ── consent:updated ───────────────────────────────────────────────── */}
+      <h2>consent:updated</h2>
       <p>
         Fires when a visitor submits new consent choices that differ from their existing record. The
         payload includes both the previous and current state so you can compute a diff.
@@ -212,7 +219,7 @@ eventBus.on('consent.created', async (record: ConsentDbRecord) => {
         lang="ts"
         code={`import type { ConsentDbRecord } from '@consenti/api'
 
-eventBus.on('consent.updated', ({ previous, current }: {
+eventBus.on('consent:updated', ({ previous, current }: {
   previous: ConsentDbRecord
   current: ConsentDbRecord
 }) => {
@@ -231,8 +238,8 @@ eventBus.on('consent.updated', ({ previous, current }: {
       <h2>ConsentAction / CategoryAction</h2>
       <p>
         Server-side counterparts to the widget&apos;s <code>ConsentAction</code>/
-        <code>CategoryAction</code> — thin wrappers around <code>consent.created</code>/
-        <code>consent.updated</code> that fire <code>onGrant</code>/<code>onDeny</code> only on an
+        <code>CategoryAction</code> — thin wrappers around <code>consent:created</code>/
+        <code>consent:updated</code> that fire <code>onGrant</code>/<code>onDeny</code> only on an
         actual transition (not on every event), across every visitor&apos;s submissions. Prefer
         these over listening to the raw events directly when you only care about one parameter or
         category — they handle the previous-vs-current comparison for you.
@@ -270,22 +277,22 @@ new CategoryAction({
         no longer needed.
       </p>
 
-      {/* ── consent.erased ────────────────────────────────────────────────── */}
-      <h2>consent.erased</h2>
+      {/* ── consent:erased ────────────────────────────────────────────────── */}
+      <h2>consent:erased</h2>
       <p>
         Fires after a visitor exercises their GDPR right to erasure. The visitor&apos;s consent
         record and visitor row are deleted from storage before this event fires.
       </p>
       <CodeBlock
         lang="ts"
-        code={`eventBus.on('consent.erased', ({ visitorId }: { visitorId: string }) => {
+        code={`eventBus.on('consent:erased', ({ visitorId }: { visitorId: string }) => {
   // Mirror the deletion to a data warehouse or external DMP
   myDmpClient.deleteVisitor(visitorId)
 })`}
       />
 
-      {/* ── visitor.created ───────────────────────────────────────────────── */}
-      <h2>visitor.created</h2>
+      {/* ── visitor:created ───────────────────────────────────────────────── */}
+      <h2>visitor:created</h2>
       <p>
         Fires when Consenti creates a new visitor row — typically on first consent submission from
         that visitor. IPs are never available here; the record stores only the SHA-256 hash (
@@ -295,15 +302,15 @@ new CategoryAction({
         lang="ts"
         code={`import type { Visitor } from '@consenti/api'
 
-eventBus.on('visitor.created', (visitor: Visitor) => {
+eventBus.on('visitor:created', (visitor: Visitor) => {
   console.log('New visitor in region:', visitor.region ?? 'unknown')
 })`}
       />
 
       {/* ── profile.* ─────────────────────────────────────────────────────── */}
-      <h2>profile.created / profile.updated / profile.deleted</h2>
+      <h2>profile:created / profile:updated / profile:deleted</h2>
       <p>
-        Profile lifecycle events. <code>profile.updated</code> fires whenever a profile version is
+        Profile lifecycle events. <code>profile:updated</code> fires whenever a profile version is
         bumped — useful for cache invalidation in edge deployments. The previous profile is included
         so you can compare changes.
       </p>
@@ -311,11 +318,11 @@ eventBus.on('visitor.created', (visitor: Visitor) => {
         lang="ts"
         code={`import type { Profile } from '@consenti/api'
 
-eventBus.on('profile.created', (profile: Profile) => {
+eventBus.on('profile:created', (profile: Profile) => {
   console.log('New profile:', profile.id, 'v' + profile.version)
 })
 
-eventBus.on('profile.updated', ({ previous, current }: {
+eventBus.on('profile:updated', ({ previous, current }: {
   previous: Profile
   current: Profile
 }) => {
@@ -323,7 +330,7 @@ eventBus.on('profile.updated', ({ previous, current }: {
     previous.version + ' to v' + current.version)
 })
 
-eventBus.on('profile.deleted', ({ id, previous }: { id: string; previous: Profile }) => {
+eventBus.on('profile:deleted', ({ id, previous }: { id: string; previous: Profile }) => {
   console.log('Profile deleted:', id, '(was v' + previous.version + ')')
 })`}
       />

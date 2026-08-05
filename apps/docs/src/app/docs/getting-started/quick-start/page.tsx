@@ -100,7 +100,10 @@ function PathChooser() {
               <span className="text-green-500">✓</span> Banner + preference modal
             </li>
             <li className="flex items-center gap-2">
-              <span className="text-green-500">✓</span> GDPR, CCPA &amp; 8 compliance groups
+              <span className="text-green-500">✓</span> GDPR, CCPA &amp;{' '}
+              <Link href="/docs/compliance/compliance-groups/" className="underline decoration-dotted">
+                8 compliance groups
+              </Link>
             </li>
             <li className="flex items-center gap-2">
               <span className="text-green-500">✓</span> Consent stored in browser cookie
@@ -210,7 +213,7 @@ widget.on('consentSubmitted', ({ consent }) => {
       />
 
       <Callout type="info">
-        That&apos;s enough to be GDPR-compliant. The sections below are optional improvements.
+        That&apos;s a working GDPR-style opt-in setup. The sections below are optional improvements.
       </Callout>
 
       <h2>Optional: React / Next.js</h2>

@@ -8,11 +8,16 @@ import { RecordDetailModal } from '../components/RecordDetailModal'
 import { useT } from '../context/locale'
 import { usersApi } from '../api/users'
 import { rolesApi } from '../api/roles'
+import { apiErrorMessage } from '../api/client'
 import { apiFetch } from '../api/client'
 import { useAuth } from '../context/auth'
 import type { DashboardAdminUser, Role } from '@consenti/types'
 
 interface Tenant { id: string; name: string; slug: string }
+
+/** Matches the seeded `role_super_admin` id — locked against edit/delete server-side too
+ * (see users.routes.ts), so hide the controls rather than let them fail on click. */
+const SUPER_ADMIN_ROLE_ID = 'role_super_admin'
 
 export function UserList({ current }: { current: string }) {
   const { user: me } = useAuth()
@@ -76,8 +81,8 @@ export function UserList({ current }: { current: string }) {
       setShowPassword(false)
       setShowConfirmPassword(false)
       load()
-    } catch {
-      setError(t('users.createForm.error'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('users.createForm.error')))
     }
   }
 
@@ -122,8 +127,8 @@ export function UserList({ current }: { current: string }) {
       })
       setEditingUser(null)
       load()
-    } catch {
-      setEditError(t('users.edit.error.save'))
+    } catch (err) {
+      setEditError(apiErrorMessage(err, t('users.edit.error.save')))
     }
   }
 
@@ -366,6 +371,9 @@ export function UserList({ current }: { current: string }) {
             render: r => {
               const u = r as unknown as DashboardAdminUser
               if (u.id === me?.sub) return <span class="text-xs text-gray-400">{t('common.you')}</span>
+              if (u.roles?.some(role => role.id === SUPER_ADMIN_ROLE_ID)) {
+                return <span class="text-xs text-gray-400" title={t('users.superAdminLocked')}>{t('common.locked')}</span>
+              }
               return (
                 <div class="flex gap-2">
                   <PermissionGate perm="user:update">

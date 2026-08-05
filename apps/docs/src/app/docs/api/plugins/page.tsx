@@ -86,6 +86,108 @@ const app = createConsenti({
 })`}
       />
 
+      <h2>Example: Webhook Notifier</h2>
+      <p>Posts the consent record as JSON to a webhook URL after every save or update.</p>
+      <CodeBlock
+        lang="ts"
+        filename="@consenti-plugin-webhook/src/index.ts"
+        code={`import { ConsentiServerPlugin } from '@consenti/api'
+import type { ConsentDbRecord } from '@consenti/api'
+
+export class WebhookPlugin extends ConsentiServerPlugin {
+  name = 'webhook'
+
+  constructor(private webhookUrl: string, private secret?: string) { super() }
+
+  async afterConsentSave(record: ConsentDbRecord): Promise<void> {
+    await this.post(record)
+  }
+
+  async afterConsentUpdate(record: ConsentDbRecord): Promise<void> {
+    await this.post(record)
+  }
+
+  private async post(record: ConsentDbRecord): Promise<void> {
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' }
+    if (this.secret) {
+      // HMAC-SHA256 signature so the receiver can verify authenticity.
+      const { createHmac } = await import('node:crypto')
+      headers['x-consenti-signature'] = createHmac('sha256', this.secret)
+        .update(JSON.stringify(record))
+        .digest('hex')
+    }
+    await fetch(this.webhookUrl, { method: 'POST', headers, body: JSON.stringify(record) })
+  }
+}`}
+      />
+      <p>
+        <strong>Package structure:</strong>
+      </p>
+      <CodeBlock
+        lang="text"
+        code={`@consenti-plugin-webhook/
+├── src/
+│   └── index.ts
+├── package.json
+└── README.md`}
+      />
+      <CodeBlock
+        lang="json"
+        filename="package.json"
+        code={`{
+  "name": "@consenti-plugin-webhook",
+  "version": "1.0.0",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "peerDependencies": {
+    "@consenti/api": ">=0.1.0"
+  }
+}`}
+      />
+
+      <h2>Example: Slack Notifier</h2>
+      <p>Sends a Slack message via Incoming Webhook after each consent submission.</p>
+      <CodeBlock
+        lang="ts"
+        filename="@consenti-plugin-slack/src/index.ts"
+        code={`import { ConsentiServerPlugin } from '@consenti/api'
+import type { ConsentDbRecord, PluginContext } from '@consenti/api'
+
+interface SlackOptions {
+  webhookUrl: string
+  channel?: string
+}
+
+export class SlackPlugin extends ConsentiServerPlugin {
+  name = 'slack'
+  private webhookUrl: string
+  private channel?: string
+
+  constructor(options: SlackOptions) {
+    super()
+    this.webhookUrl = options.webhookUrl
+    this.channel = options.channel
+  }
+
+  async afterConsentSave(record: ConsentDbRecord): Promise<void> {
+    const grantedCount = Object.values(record.consentJson).filter(s => s === 'granted').length
+    const total = Object.keys(record.consentJson).length
+    const text = \`New consent recorded: \${grantedCount}/\${total} categories granted\${record.gpcDetected ? ' (GPC signal)' : ''}\`
+
+    const body: Record<string, unknown> = { text }
+    if (this.channel) body['channel'] = this.channel
+
+    await fetch(this.webhookUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+  }
+}`}
+      />
+
       <h2>Available hooks</h2>
       <table>
         <thead>
@@ -168,19 +270,19 @@ const app = createConsenti({
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 not-prose mt-4">
         {[
           {
-            href: '/docs/plugins/bigquery/',
+            href: '/docs/api/plugins/bigquery/',
             name: 'BigQuery',
             desc: 'Stream consent records to Google BigQuery for analytics',
             pkg: '@consenti-plugin-bigquery',
           },
           {
-            href: '/docs/plugins/segment/',
+            href: '/docs/api/plugins/segment/',
             name: 'Segment',
             desc: 'Fire Consent Given events to Segment / Twilio Engage',
             pkg: '@consenti-plugin-segment',
           },
           {
-            href: '/docs/plugins/snowflake/',
+            href: '/docs/api/plugins/snowflake/',
             name: 'Snowflake',
             desc: 'Load consent records into Snowflake data warehouse',
             pkg: '@consenti-plugin-snowflake',

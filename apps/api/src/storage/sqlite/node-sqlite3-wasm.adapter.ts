@@ -70,6 +70,7 @@ interface RawConsent {
   locale: string; consent_json: string
   gpc_detected: number; source: string; created_at: string; updated_at: string
   age_verified?: number; parental_consent_token?: string | null; tcf_string?: string | null
+  gpp_string?: string | null
   signature?: string | null
 }
 interface RawConsentSummary {
@@ -274,6 +275,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
       ...(row.age_verified != null && row.age_verified !== 0 ? { ageVerified: true } : {}),
       ...(row.parental_consent_token != null ? { parentalConsentToken: row.parental_consent_token } : {}),
       ...(row.tcf_string != null ? { tcfString: row.tcf_string } : {}),
+      ...(row.gpp_string != null ? { gppString: row.gpp_string } : {}),
       ...(row.signature != null ? { signature: row.signature } : {}),
       createdAt: row.created_at, updatedAt: row.updated_at,
     }
@@ -295,8 +297,8 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     const id = randomConsentId()
     const now = new Date().toISOString()
     this.stmt(
-      'INSERT INTO consent_records (id,tenant_id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,age_verified,parental_consent_token,tcf_string,signature,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).run([id, data.tenantId, data.visitorId, data.profileId, data.locale, JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source, data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.signature ?? null, now, now])
+      'INSERT INTO consent_records (id,tenant_id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,age_verified,parental_consent_token,tcf_string,gpp_string,signature,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).run([id, data.tenantId, data.visitorId, data.profileId, data.locale, JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source, data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.gppString ?? null, data.signature ?? null, now, now])
     const histId = randomUUID()
     this.stmt(
       'INSERT INTO consent_history (id,tenant_id,consent_record_id,visitor_id,old_json,new_json,action,created_at) VALUES (?,?,?,?,?,?,?,?)'
@@ -816,13 +818,16 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   }
 
   async getSettings(tenantId: string): Promise<TenantSettings> {
-    const row = this.stmt('SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed FROM tenant_settings WHERE tenant_id = ?')
-      .get(tenantId) as { allowed_origins_json: string; admin_allowed_origins_json: string; setup_completed: number } | null
+    const row = this.stmt('SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json FROM tenant_settings WHERE tenant_id = ?')
+      .get(tenantId) as { allowed_origins_json: string; admin_allowed_origins_json: string; setup_completed: number; profiles_seeded: number; tcf_confirmation_json: string | null; gpp_confirmation_json: string | null } | null
     return row
       ? {
         allowedOrigins: JSON.parse(row.allowed_origins_json) as string[],
         adminAllowedOrigins: JSON.parse(row.admin_allowed_origins_json) as string[],
         setupCompleted: !!row.setup_completed,
+        profilesSeeded: !!row.profiles_seeded,
+        tcfConfirmation: row.tcf_confirmation_json ? JSON.parse(row.tcf_confirmation_json) : undefined,
+        gppConfirmation: row.gpp_confirmation_json ? JSON.parse(row.gpp_confirmation_json) : undefined,
       }
       : {}
   }
@@ -831,9 +836,13 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     const current = await this.getSettings(tenantId)
     const merged = { ...current, ...data }
     this.stmt(
-      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, updated_at) VALUES (?,?,?,?,?)
-       ON CONFLICT(tenant_id) DO UPDATE SET allowed_origins_json = excluded.allowed_origins_json, admin_allowed_origins_json = excluded.admin_allowed_origins_json, setup_completed = excluded.setup_completed, updated_at = excluded.updated_at`,
-    ).run([tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ? 1 : 0, new Date().toISOString()])
+      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json, updated_at) VALUES (?,?,?,?,?,?,?,?)
+       ON CONFLICT(tenant_id) DO UPDATE SET allowed_origins_json = excluded.allowed_origins_json, admin_allowed_origins_json = excluded.admin_allowed_origins_json, setup_completed = excluded.setup_completed, profiles_seeded = excluded.profiles_seeded, tcf_confirmation_json = excluded.tcf_confirmation_json, gpp_confirmation_json = excluded.gpp_confirmation_json, updated_at = excluded.updated_at`,
+    ).run([
+      tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ? 1 : 0,
+      merged.profilesSeeded ? 1 : 0, merged.tcfConfirmation ? JSON.stringify(merged.tcfConfirmation) : null, merged.gppConfirmation ? JSON.stringify(merged.gppConfirmation) : null,
+      new Date().toISOString(),
+    ])
     return this.getSettings(tenantId)
   }
 
@@ -847,13 +856,6 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
       this.stmt('DELETE FROM consent_records WHERE visitor_id = ?').run(visitor_id)
     }
     return toDelete.length
-  }
-
-  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
-    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
-    const { count } = this.stmt('SELECT COUNT(*) AS count FROM audit_logs WHERE created_at < ?').get(cutoff) as { count: number }
-    this.stmt('DELETE FROM audit_logs WHERE created_at < ?').run(cutoff)
-    return count
   }
 
   // ── API Keys ───────────────────────────────────────────────────────────────

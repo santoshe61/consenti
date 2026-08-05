@@ -45,12 +45,21 @@ export function ModalUIEditor({ value, onChange, cookieOptions }: ModalUIEditorP
           [
             ['showClose', <span class="flex items-center gap-1">Show <X size={10} /> close button</span>],
             ['showLocaleSwitcher', '🌐 Show locale switcher'],
+            ['showForgetMe', t('uiTemplates.editor.showForgetMe')],
             ['persistent', 'Persistent (block outside-click dismiss)'],
             ['hasSubheading', 'Include subheading field'],
             ['trapFocus', t('uiTemplates.editor.trapFocus')],
           ] as [keyof TemplateModalUI, ComponentChild][]
         ).map(([k, lbl]) => (
-          <label key={k as string} class="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer" title={k === 'trapFocus' ? t('uiTemplates.editor.trapFocusHint') : undefined}>
+          <label
+            key={k as string}
+            class="flex items-center gap-2 text-xs font-medium text-gray-600 cursor-pointer"
+            title={
+              k === 'trapFocus' ? t('uiTemplates.editor.trapFocusHint')
+                : k === 'showForgetMe' ? t('uiTemplates.editor.showForgetMeHint')
+                  : undefined
+            }
+          >
             <input
               type="checkbox"
               class="w-4 h-4"

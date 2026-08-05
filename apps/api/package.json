@@ -1,8 +1,12 @@
 {
   "name": "@consenti/api",
   "version": "0.3.0",
-  "description": "Zero-dependency GDPR-compliant Consent Management Platform backend",
+  "description": "GDPR-style consent management platform backend — no required runtime dependencies, optional peer deps for extra storage drivers and spec-correct IAB TCF encoding",
   "license": "Apache-2.0",
+  "author": {
+    "name": "Santosh Ojha",
+    "url": "https://santosh.top"
+  },
   "keywords": [
     "gdpr",
     "consent-management",
@@ -45,38 +49,49 @@
     "dev:server": "tsx --watch scripts/dev-server.ts",
     "dev:dashboard": "vite --config src/dashboard/vite.config.ts",
     "dev": "npm run dev:dashboard & npm run dev:server",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/__tests__/*.integration.ts"
   },
   "devDependencies": {
     "@consenti/types": "*",
     "@consenti/utils": "*",
+    "@iabgpp/cmpapi": "^3.1.9",
+    "@iabtechlabtcf/core": "^1.5.21",
     "@preact/preset-vite": "^2.10.6",
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^26.1.1",
     "@types/pg": "^8.11.0",
     "autoprefixer": "^10.5.4",
-    "lucide-react": "^1.25.0",
+    "lucide-react": "^1.28.0",
     "mongodb": "^7.5.0",
     "mysql2": "^3.23.1",
-    "node-sqlite3-wasm": "^0.8.59",
+    "node-sqlite3-wasm": "^0.8.60",
     "pg": "^8.0.0",
-    "postcss": "^8.5.20",
+    "postcss": "^8.5.25",
     "preact": "^10.29.7",
     "tailwindcss": "^4.3.3",
     "tsup": "^8.5.0",
     "typescript": "^6.0.3",
-    "vite": "^8.1.5"
+    "vite": "^8.2.0"
   },
   "peerDependencies": {
+    "@iabgpp/cmpapi": ">=3.0.0",
+    "@iabtechlabtcf/core": ">=1.5.0",
     "better-sqlite3": "^12.11.1",
     "geoip-lite": ">=1.4.0",
     "mongodb": ">=6.0.0",
     "mysql2": ">=3.0.0",
-    "node-sqlite3-wasm": "^0.8.59",
+    "node-sqlite3-wasm": "^0.8.60",
     "pg": ">=8.0.0"
   },
   "peerDependenciesMeta": {
+    "@iabgpp/cmpapi": {
+      "optional": true
+    },
+    "@iabtechlabtcf/core": {
+      "optional": true
+    },
     "node-sqlite3-wasm": {
       "optional": true
     },

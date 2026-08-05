@@ -5,7 +5,8 @@ import { CodeBlock, Terminal } from '@/components/CodeBlock'
 export const metadata: Metadata = {
   title: 'Backend API Overview',
   description:
-    'The Consenti backend module records consent to a database, serves the REST API, provides an admin dashboard, and runs server-side plugins — zero external runtime dependencies.',
+    'The Consenti backend module is a self-hosted Consent Management Platform for Node.js — records consent to a database, serves the REST API, provides an admin dashboard, and runs server-side plugins, with zero external runtime dependencies.',
+  keywords: ['Consent Management Platform Node.js', 'Self-hosted CMP', 'open source CMP backend'],
   alternates: { canonical: '/docs/api' },
   openGraph: {
     title: 'Backend API Overview',
@@ -151,8 +152,8 @@ app.listen(3000)`}
               <code>EventEmitter</code>
             </td>
             <td>
-              Subscribe to lifecycle events: <code>consent.created</code>,{' '}
-              <code>profile.updated</code>, <code>cache:warm</code>, etc.
+              Subscribe to lifecycle events: <code>consent:created</code>,{' '}
+              <code>profile:updated</code>, <code>cache:warm</code>, etc.
             </td>
           </tr>
           <tr>

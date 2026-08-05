@@ -39,8 +39,8 @@ export function ConsentTemplateList({ current }: { current: string }) {
     } catch (err) {
       if (err instanceof ApiError && err.status === 422) {
         try {
-          const body = JSON.parse(err.message) as { profiles?: BlockingProfile[] }
-          if (body.profiles?.length) { setDeleteBlockedBy(body.profiles); return }
+          const body = JSON.parse(err.message) as { details?: { profiles?: BlockingProfile[] } }
+          if (body.details?.profiles?.length) { setDeleteBlockedBy(body.details.profiles); return }
         } catch { /* fall through */ }
       }
     }
@@ -149,11 +149,36 @@ export function ConsentTemplateList({ current }: { current: string }) {
         keyFn={r => r['id'] as string}
         rows={templates as unknown as Record<string, unknown>[]}
         emptyText={t('consentTemplates.empty.title')}
-        search={{ placeholder: t('consentTemplates.search.placeholder'), keys: r => [r['name'] as string] }}
+        search={{
+          placeholder: t('consentTemplates.search.placeholder'),
+          keys: r => {
+            const tmpl = r as unknown as ServerConsentTemplate
+            return [
+              tmpl.name,
+              ...Object.keys(tmpl.cookies),
+              ...Object.values(tmpl.categories).map(c => c.heading),
+            ]
+          },
+        }}
         columns={[
           {
             key: 'name', label: t('consentTemplates.col.name'),
             render: r => <span class="font-medium text-sm text-gray-900">{(r as unknown as ServerConsentTemplate).name}</span>,
+          },
+          {
+            key: 'categories', label: t('consentTemplates.col.categories'),
+            render: r => {
+              const tmpl = r as unknown as ServerConsentTemplate
+              return (
+                <div class="flex flex-wrap gap-1 max-w-xs">
+                  {Object.values(tmpl.categories).map(cat => (
+                    <span key={cat.heading} class="text-xs px-2 py-0.5 rounded-full bg-purple-100 text-purple-700">
+                      {cat.heading}
+                    </span>
+                  ))}
+                </div>
+              )
+            },
           },
           {
             key: 'cookies', label: t('consentTemplates.col.cookies'),

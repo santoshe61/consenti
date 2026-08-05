@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: 'Framework Integrations — Frontend Guide — Consenti',
   description:
     'Complete working snippets for integrating Consenti with React, Next.js, Vue 3, Angular, and Vanilla JS.',
+  keywords: ['GDPR cookie banner React', 'Vue cookie consent', 'Angular cookie consent'],
   alternates: { canonical: '/guides/frontend/frameworks' },
   openGraph: {
     title: 'Framework Integrations — Frontend Guide — Consenti',
@@ -132,7 +133,6 @@ export function ConsentSetup() {
           enabled: true,
           baseUrl: process.env.NEXT_PUBLIC_API_URL,
         },
-        core: { autoHonorGPC: true },
       })
       widgetRef.current = widget
     })
@@ -305,7 +305,7 @@ document.querySelector('#cookie-settings')
           {
             href: '/docs/ui/configuration/',
             label: 'Configuration',
-            desc: 'core.locale, autoHonorGPC, and other options used above',
+            desc: 'core.locale, compliance.type, and other options used above',
           },
         ]}
       />

@@ -34,26 +34,12 @@ const tiers = [
     Icon: CreditCard,
     // color: 'bg-green-700 hover:bg-green-800',
   },
-  {
-    label: 'Ko-fi',
-    desc: 'Buy me a coffee — one-time or monthly',
-    url: 'https://ko-fi.com/santoshe61',
-    Icon: Coffee,
-    // color: 'bg-red-700 hover:bg-red-800',
-  },
-  {
-    label: 'PayPal',
-    desc: 'One-time donation via PayPal',
-    url: 'https://paypal.me/santoshe61',
-    Icon: CreditCard,
-    // color: 'bg-blue-700 hover:bg-blue-800',
-  },
 ]
 
 const whySupport = [
   'Consenti is built and maintained solo, in spare time.',
   'Zero external dependencies keeps it lightweight — but it takes effort to build correctly.',
-  'Your support helps fund time to build TCF v2.2, multi-tenant, and enterprise features.',
+  'Your support helps fund time to build TCF v2.3, multi-tenant, and enterprise features.',
   'Every contribution, however small, matters and is appreciated.',
 ]
 
@@ -85,41 +71,41 @@ export default function SupportPage() {
       </div>
 
       {/* Donation options */}
-      <div className="mb-12 grid md:grid-cols-3 gap-4">
+      <div className="mb-12 grid md:grid-cols-2 lg:grid-cols-4 gap-4">
         {tiers.map(t => (
           <a
             key={t.label}
             href={t.url}
             target="_blank"
             rel="noopener noreferrer"
-            className={`flex items-center gap-4 bg-gray-500 hover:bg-gray-700 text-white px-6 py-4 rounded-2xl no-underline transition-colors shadow-sm`}
+            className={`flex flex-col gap-4 bg-gray-500 hover:bg-gray-700 text-white px-6 py-4 rounded-2xl no-underline transition-colors shadow-sm`}
           >
-            <t.Icon size={24} className="shrink-0" />
-            <div>
-              <div className="font-bold text-base">{t.label}</div>
-              <div className="text-sm text-white/80">{t.desc}</div>
+            <div className="font-bold text-base flex">
+              <t.Icon size={24} className="shrink-0 mr-2" />
+              {t.label}
+              <ExternalLink size={18} className="ml-auto text-white/60 shrink-0" />
             </div>
-            <ExternalLink size={18} className="ml-auto text-white/60 shrink-0" />
+            <div className="text-xs text-white/80">{t.desc}</div>
           </a>
         ))}
+        {/* GitHub */}
+        <div className="border col-span-3 border-slate-200 rounded-2xl p-6 text-center">
+          <h2 className="font-bold text-slate-900 mb-2">Other ways to support</h2>
+          <p className="text-sm text-slate-500 mb-4">
+            Stars, issues, PRs, and spreading the word all help Consenti grow.
+          </p>
+          <a
+            href="https://github.com/santoshe61/consenti"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-xl text-lg font-semibold no-underline hover:bg-slate-800 transition-colors"
+          >
+            <FaGithub size={22} />
+            Star on GitHub
+          </a>
+        </div>
       </div>
 
-      {/* GitHub */}
-      <div className="border border-slate-200 rounded-2xl p-6 text-center">
-        <h2 className="font-bold text-slate-900 mb-2">Other ways to support</h2>
-        <p className="text-sm text-slate-500 mb-4">
-          Stars, issues, PRs, and spreading the word all help Consenti grow.
-        </p>
-        <a
-          href="https://github.com/santoshe61/consenti"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="inline-flex items-center gap-2 bg-slate-900 text-white px-8 py-4 rounded-xl text-lg font-semibold no-underline hover:bg-slate-800 transition-colors"
-        >
-          <FaGithub size={22} />
-          Star on GitHub
-        </a>
-      </div>
 
       {/* Contact */}
       <div className="mt-8 border border-slate-200 dark:border-gray-800 rounded-2xl p-6 text-center">
@@ -133,7 +119,7 @@ export default function SupportPage() {
       {/* Built by */}
       <div className="mt-10 pt-8 border-t border-slate-100 dark:border-gray-800 flex items-center justify-center gap-2 text-sm text-slate-400 dark:text-gray-500">
         <Code2 size={14} className="shrink-0" />
-        Built and maintained by{' '}
+        An open-source project by{' '}
         <a
           href="https://santosh.top"
           target="_blank"
@@ -142,6 +128,7 @@ export default function SupportPage() {
         >
           Santosh Ojha
         </a>
+        & Developer community
       </div>
 
       <div className="text-center mt-6">

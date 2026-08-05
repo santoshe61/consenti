@@ -1,10 +1,12 @@
 import { EventEmitter } from 'node:events'
+import { randomBytes } from 'node:crypto'
 import { readFile } from 'node:fs/promises'
 import { join, extname, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PluginEngine } from './core/plugin-engine'
 import { buildConsentiRuntimeConfig, buildConsentiConfigScript, injectConfigScript } from './utils/handle-config'
 import { startGvlRefresh, stopGvlRefresh } from './tcf/gvl-cache'
+import { startCmpListRefresh, stopCmpListRefresh } from './tcf/cmp-list-cache'
 import { OPENAPI_PUBLIC_SPEC, OPENAPI_ADMIN_SPEC } from './openapi/spec'
 import { BetterSqlite3Adapter } from './storage/sqlite/better-sqlite3.adapter'
 import { NodeSqlite3WasmAdapter } from './storage/sqlite/node-sqlite3-wasm.adapter'
@@ -22,6 +24,7 @@ import { StatsService } from './services/stats.service'
 import { UserRepo } from './repositories/user.repo'
 import { ProfileService } from './services/profile.service'
 import { GeoResolverService } from './services/geo-resolver.service'
+import { startComplianceMapRefresh } from './services/compliance-map-refresh'
 import { LocaleJsonCacheService } from './services/locale-json-cache.service'
 import { ConsentService } from './services/consent.service'
 import { VisitorService } from './services/visitor.service'
@@ -31,6 +34,8 @@ import { LocalAuth } from './auth/local.auth'
 import { buildProfileRoutes } from './routes/public/profile.routes'
 import { buildConsentRoutes } from './routes/public/consent.routes'
 import { buildNoticeRoutes } from './routes/public/notice.routes'
+import { buildTcfStatusRoutes } from './routes/public/tcf-status.routes'
+import { buildGppStatusRoutes } from './routes/public/gpp-status.routes'
 import { buildAdminAuthRoutes } from './routes/admin/auth.routes'
 import { buildAdminProfileRoutes } from './routes/admin/profiles.routes'
 import { buildAdminConsentRoutes } from './routes/admin/consents.routes'
@@ -44,6 +49,7 @@ import { buildAdminApiKeyRoutes } from './routes/admin/apikeys.routes'
 import { buildAdminTenantRoutes } from './routes/admin/tenants.routes'
 import { buildAdminSettingsRoutes } from './routes/admin/settings.routes'
 import { buildAdminTcfRoutes } from './routes/admin/tcf.routes'
+import { buildAdminGppRoutes } from './routes/admin/gpp.routes'
 import { buildAdminConsentTemplateRoutes } from './routes/admin/consent-templates.routes'
 import { buildAdminUITemplateRoutes } from './routes/admin/ui-templates.routes'
 import { buildAdminAnalyticsRoutes } from './routes/admin/analytics.routes'
@@ -309,8 +315,9 @@ const DEFAULT_CONFIG: ConsentiServerConfig = {
     mode: 'local',
     adminEmail: process.env['CONSENTI_ADMIN_EMAIL'] ?? 'user@consenti.dev',
     adminPassword: process.env['CONSENTI_ADMIN_PASSWORD'] ?? 'Consenti@123',
-    ...(process.env['CONSENTI_ADMIN_JWT_SECRET'] ? { jwtSecret: process.env['CONSENTI_ADMIN_JWT_SECRET'] } : {}),
+    ...(process.env['CONSENTI_ADMIN_MASTER_SECRET'] ? { masterSecret: process.env['CONSENTI_ADMIN_MASTER_SECRET'] } : {}),
   },
+  ...(process.env['CONSENTI_DATA_SIGNING_HASH'] ? { compliance: { dataSigningHash: process.env['CONSENTI_DATA_SIGNING_HASH'] } } : {}),
   rateLimit: {
     windowMs: process.env['CONSENTI_RATE_LIMIT_WINDOW_MS'] ? Number(process.env['CONSENTI_RATE_LIMIT_WINDOW_MS']) : 60_000,
     maxRequests: process.env['CONSENTI_RATE_LIMIT_MAX_REQUESTS'] ? Number(process.env['CONSENTI_RATE_LIMIT_MAX_REQUESTS']) : 60,
@@ -320,6 +327,18 @@ const DEFAULT_CONFIG: ConsentiServerConfig = {
     appName: "Consenti",
     hidePoweredBy: false,
   }
+}
+
+// ── Secret generation ──────────────────────────────────────────────────────────
+
+/** 256-bit hex secret — used whenever `auth.masterSecret`/`compliance.dataSigningHash` is left
+ * unset, so signing/hashing never silently runs on an empty string. Generated fresh in memory on
+ * every boot (not persisted), so restarting the process invalidates anything signed under the
+ * previous value — admin sessions (masterSecret) and ownership cookies / parental-consent tokens
+ * / stored signatures (dataSigningHash). Fine for trying Consenti out; set the env var explicitly
+ * for anything that needs to survive a restart. */
+function generateSecret(): string {
+  return randomBytes(32).toString('hex')
 }
 
 // ── Factory ────────────────────────────────────────────────────────────────────
@@ -348,6 +367,23 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   const usingJsonStorage = config.storage?.driver === 'json'
   const usingDefaultCredentials = !userConfig.auth && !process.env['CONSENTI_ADMIN_PASSWORD']
 
+  // Secrets that are fine to silently auto-generate/default for a local trial become real
+  // footguns in production: an admin password published in this file's source, or a signing
+  // secret regenerated on every restart (invalidating sessions/signatures each time). Refuse to
+  // boot rather than warn-and-continue when NODE_ENV=production and any of these were left unset.
+  if (process.env['NODE_ENV'] === 'production') {
+    const unset: string[] = []
+    if (usingDefaultCredentials) unset.push('auth.adminPassword / CONSENTI_ADMIN_PASSWORD (currently the published default "Consenti@123")')
+    if (!config.auth?.masterSecret) unset.push('auth.masterSecret / CONSENTI_ADMIN_MASTER_SECRET')
+    if (!config.compliance?.dataSigningHash) unset.push('compliance.dataSigningHash / CONSENTI_DATA_SIGNING_HASH')
+    if (unset.length > 0) {
+      throw new Error(
+        `[Consenti] Refusing to boot with NODE_ENV=production while unset or default: ${unset.join('; ')}. ` +
+        'These are fine to leave auto-generated for a local trial, but not for production — set them explicitly. See SECURITY.md.',
+      )
+    }
+  }
+
   if (usingJsonStorage) {
     console.warn('[Consenti] Using the JSON file storage driver — fine for development, but switch to a database driver (node:sqlite, postgresql, mysql, mongodb) for production. Set storage.driver or CONSENTI_DB_DRIVER.')
   }
@@ -357,6 +393,10 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
 
   const storageConfig = config.storage!
   const authConfig = config.auth!
+  if (!authConfig.masterSecret) {
+    authConfig.masterSecret = generateSecret()
+    console.warn('[Consenti] auth.masterSecret not set — generated a random one for this process. Admin sessions will be invalidated on every restart. Set auth.masterSecret or CONSENTI_ADMIN_MASTER_SECRET for production.')
+  }
 
   const storagePaths = resolveStoragePaths(
     storageConfig.path ?? './consenti-data',
@@ -378,7 +418,12 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   const pluginEngine = new PluginEngine()
   if (config.plugins?.length) pluginEngine.register(config.plugins)
 
-  const compliance = config.compliance ?? {}
+  if (!config.compliance) config.compliance = {}
+  const compliance = config.compliance
+  if (!compliance.dataSigningHash) {
+    compliance.dataSigningHash = generateSecret()
+    console.warn('[Consenti] compliance.dataSigningHash not set — generated a random one for this process. Ownership cookies, parental-consent tokens, and stored consent-record signatures will all be invalidated on every restart. Set compliance.dataSigningHash or CONSENTI_DATA_SIGNING_HASH for production.')
+  }
   const complianceType = compliance.type ?? 'auto'
   const needsGeo = complianceType === 'auto'
 
@@ -390,23 +435,33 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
     ? new GeoResolverService(compliance.geoDataProvider ?? 'default', EMBEDDED_COMPLIANCE_MAP)
     : undefined
 
+  // Embedded map above is the immediately-available default — a configured complianceMap
+  // (inline object or URL) resolves in the background and hot-swaps it via setMap() once ready,
+  // so createConsenti() itself never has to become async.
+  const complianceMapRefresh = geoResolver
+    ? startComplianceMapRefresh(compliance.complianceMap, geoResolver)
+    : undefined
+
   if (complianceType === 'auto' && !compliance.geoDataProvider) {
     console.info("[Consenti] compliance.geoDataProvider not set — defaulting to timezone+language heuristic")
   }
   if (complianceType !== 'auto' && compliance.geoDataProvider) {
     console.warn('[Consenti] compliance.geoDataProvider is ignored when compliance.type is a fixed group')
   }
+  if (complianceType !== 'auto' && compliance.complianceMap) {
+    console.warn('[Consenti] compliance.complianceMap is ignored when compliance.type is a fixed group')
+  }
 
   const profileService = new ProfileService(profileRepo, auditRepo, 'default', storage, eventBus, localeCache, profilesDir, config.handleCache, config.s3Api)
-  const visitorService = new VisitorService(visitorRepo, 'default', eventBus)
+  const visitorService = new VisitorService(visitorRepo, 'default', eventBus, compliance.dataSigningHash)
   const noticeService = new NoticeService(noticeRepo, 'default')
   const consentService = new ConsentService(
     consentRepo, visitorRepo, profileRepo, auditRepo, 'default', config.compliance,
-    pluginEngine, eventBus, config.tcf, storage, config.consentSigningKey,
+    pluginEngine, eventBus, compliance.tcf, storage, compliance.dataSigningHash, compliance.gpp,
   )
   const userService = new UserService(userRepo, auditRepo)
 
-  const adminSecret = authConfig.jwtSecret ?? ''
+  const adminSecret = authConfig.masterSecret ?? ''
   const localAuth = new LocalAuth(storage, adminSecret)
 
   const rl = config.rateLimit!
@@ -422,7 +477,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
 
   const basePath = config.basePath!
   const apiBase = `${basePath}/api/v1`
-  const adminBase = `${basePath}/admin`
+  const adminBase = `${basePath}/admin/v1`
   const docsPath = `${basePath}/api`
 
   const dashboardEnabled = !!config.dashboard
@@ -468,8 +523,10 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
         rateLimit: true,
         routes: {
           ...buildProfileRoutes(profileService, geoResolver, profilesDir, apiBase),
-          ...buildConsentRoutes(consentService, visitorService, profileService, resolveTenantId, storage, adminSecret),
+          ...buildConsentRoutes(consentService, visitorService, profileService, resolveTenantId, storage, compliance.dataSigningHash, eventBus, compliance.parentalConsentTokenTtlDays ?? 7),
           ...buildNoticeRoutes(noticeService),
+          ...buildTcfStatusRoutes(storage, compliance.tcf),
+          ...buildGppStatusRoutes(storage, compliance.gpp),
         },
       },
       {
@@ -500,7 +557,8 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
           ...buildAdminApiKeyRoutes(storage, authConfig, adminSecret),
           ...buildAdminTenantRoutes(storage, authConfig, adminSecret),
           ...buildAdminSettingsRoutes(storage, authConfig, adminSecret),
-          ...buildAdminTcfRoutes(storage, authConfig, adminSecret),
+          ...buildAdminTcfRoutes(storage, authConfig, adminSecret, compliance.tcf),
+          ...buildAdminGppRoutes(storage, authConfig, adminSecret, compliance.gpp),
           ...buildAdminConsentTemplateRoutes(storage, authConfig, adminSecret),
           ...buildAdminUITemplateRoutes(storage, authConfig, adminSecret),
           ...buildAdminAnalyticsRoutes(storage, authConfig, adminSecret),
@@ -514,7 +572,6 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   )
 
   let retentionTimer: ReturnType<typeof setInterval> | null = null
-  let auditRetentionTimer: ReturnType<typeof setInterval> | null = null
 
   // Resolves after storage.connect() + bootstrap() complete — consumers can await
   // this before accepting requests to guarantee the admin user already exists.
@@ -532,26 +589,18 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
       eventBus.emit('ready')
       resolveReady()
 
-      if (config.tcf?.enabled) {
+      if (compliance.tcf?.enabled) {
         startGvlRefresh()
+        startCmpListRefresh()
       }
 
-      if (config.dataRetention?.purgeAfterDays) {
-        const days = config.dataRetention.purgeAfterDays
+      if (compliance.dataRetention?.purgeAfterDays) {
+        const days = compliance.dataRetention.purgeAfterDays
         const purge = () => storage.purgeExpiredConsents(days)
           .then(n => { if (n > 0) console.warn(`[consenti] Purged ${n} consent records older than ${days} days`) })
           .catch((err: unknown) => console.warn('[consenti] Data retention purge failed:', err))
         void purge()
         retentionTimer = setInterval(() => { void purge() }, 24 * 60 * 60_000)
-      }
-
-      if (config.dataRetention?.auditLogPurgeAfterDays) {
-        const days = config.dataRetention.auditLogPurgeAfterDays
-        const purgeAudit = () => storage.purgeExpiredAuditLogs(days)
-          .then(n => { if (n > 0) console.warn(`[consenti] Purged ${n} audit log entries older than ${days} days`) })
-          .catch((err: unknown) => console.warn('[consenti] Audit log retention purge failed:', err))
-        void purgeAudit()
-        auditRetentionTimer = setInterval(() => { void purgeAudit() }, 24 * 60 * 60_000)
       }
     })
     .catch((err: unknown) => {
@@ -628,6 +677,16 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
     res: ServerResponse,
     next: (err?: unknown) => void,
   ): void {
+    const rawProto = req.headers['x-forwarded-proto']
+    const proto = rawProto === 'https' ? 'https' : 'http'
+    const host = req.headers['host'] ?? 'localhost'
+    const { pathname } = new URL(req.url ?? '/', `${proto}://${host}`)
+
+    if (pathname !== '/robots.txt' && !pathname.startsWith(basePath)) {
+      next()
+      return
+    }
+
     nodeHandler(req, res)
       .then(() => { if (!res.writableEnded) next() })
       .catch(next)
@@ -710,9 +769,9 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
     ready,
     destroy: async () => {
       if (retentionTimer) clearInterval(retentionTimer)
-      if (auditRetentionTimer) clearInterval(auditRetentionTimer)
       statsService.dispose()
-      if (config.tcf?.enabled) stopGvlRefresh()
+      if (compliance.tcf?.enabled) { stopGvlRefresh(); stopCmpListRefresh() }
+      complianceMapRefresh?.stop()
       await pluginEngine.destroy()
     },
   }

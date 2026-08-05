@@ -78,6 +78,10 @@ export interface TemplateModalUI {
   buttons: TemplateButton[]
   /** Trap keyboard Tab focus within the consent root while this modal is visible. */
   trapFocus?: boolean
+  /** Renders a "Forget me" button below the categories, for visitors with a stored consent
+   * decision — the widget-side entry point for GDPR Art. 17 / CCPA-CPRA / LGPD Art. 18 and
+   * equivalent erasure rights. */
+  showForgetMe?: boolean
 }
 
 /** A Consent Template — parameters + the categories that own their legal basis, edited together. */
@@ -122,6 +126,22 @@ export interface LocaleContent {
     /** Label + description for the optional consent-receipt checkbox (shown when the profile's `allowReceipt` is true). */
     receiptLabel?: string
     receiptDescription?: string
+    /** Label for the "Forget me" button (shown when the UI template's `showForgetMe` is true). */
+    forgetMeLabel?: string
+  }
+  /** Only meaningful when the profile's `ageGate.enabled` is true. Buttons are plain labels, not
+   * a template button map — the age-gate prompt's Yes/No (and parental-consent OK) buttons are
+   * fixed, never authored per-UI-template. */
+  ageGateModal?: {
+    heading?: string
+    htmlText?: string
+    confirmButtonLabel?: string
+    denyButtonLabel?: string
+    parentalConsent?: {
+      heading?: string
+      htmlText?: string
+      confirmButtonLabel?: string
+    }
   }
 }
 
@@ -257,7 +277,7 @@ export function defaultUISettings(): Omit<UITemplate, 'id' | 'name' | 'createdAt
       headingTag: 'h2',
       buttons: [
         { id: 'accept-all', type: 'primary', action: 'custom', cookies: '*' },
-        { id: 'reject-optional', type: 'accent', action: 'custom', cookies: '!' },
+        { id: 'reject-optional', type: 'primary', action: 'custom', cookies: '!' },
         { id: 'customize', type: 'secondary', action: 'manage' },
       ],
     },
@@ -282,6 +302,11 @@ export function defaultUISettings(): Omit<UITemplate, 'id' | 'name' | 'createdAt
         { id: 'save-preferences', type: 'primary', action: 'submit' },
         { id: 'accept-all', type: 'secondary', action: 'custom', cookies: '*' },
       ],
+      // Self-service erasure (GDPR Art. 17 / CCPA-CPRA / LGPD Art. 18 and equivalents) is the
+      // documented Art. 15/17 answer for @consenti/api-backed profiles — default new templates
+      // to exposing it rather than leaving it opt-in. The button confirms before erasing
+      // (see ui/modal.ts buildForgetMeOption), so this is safe as a default, not just a preference.
+      showForgetMe: true,
     },
   }
 }
@@ -297,10 +322,18 @@ const BUTTON_LABEL_DEFAULTS: Record<string, string> = {
 
 /** Falls back to a Title Case label derived from the id (`'accept-everything'` → `'Accept Everything'`) for
  * any button id not in `BUTTON_LABEL_DEFAULTS` — e.g. after an author renames a button's id — so the preview
- * always shows readable placeholder text instead of going blank. */
-function defaultButtonLabel(id: string): string {
+ * always shows readable placeholder text instead of going blank. Exported so the Profile Editor's step-2
+ * preview (before any real locale content is authored) can show the same id-derived placeholder labels. */
+export function defaultButtonLabel(id: string): string {
   return BUTTON_LABEL_DEFAULTS[id] ?? id.split('-').filter(Boolean).map(w => w[0]!.toUpperCase() + w.slice(1)).join(' ')
 }
+
+/** Generic placeholder heading/body shown wherever no real locale content has been authored yet
+ * (the UI Template Editor's preview, which never has real text, and the Profile Editor's step-2
+ * preview before Steps 3-5 are reached) — same text in both places, since both are the same
+ * "authoring hasn't happened here" state. */
+export const SAMPLE_HEADING = 'Sample heading text'
+export const SAMPLE_DESCRIPTION = 'This is sample description text, this text and <b>above heading</b> can be configured in the profile editor'
 
 function defaultButtonLabels(buttons: TemplateButton[]): Record<string, string> {
   const result: Record<string, string> = {}
@@ -329,18 +362,18 @@ export function defaultLocaleContent(categories: TemplateCategoryDef[], ui?: Omi
   }
   return {
     mainBanner: {
-      heading: 'We value your privacy',
-      htmlText: 'We use cookies to improve your experience, analyze site usage, and for marketing. Please accept or manage your preferences.',
+      heading: SAMPLE_HEADING,
+      htmlText: SAMPLE_DESCRIPTION,
       buttonLabels: ui ? defaultButtonLabels(ui.mainBanner.buttons) : {},
     },
     gpcBanner: {
-      heading: 'Global Privacy Control Detected',
-      htmlText: 'We detected a GPC signal from your browser. Your preferences have been automatically adjusted.',
+      heading: SAMPLE_HEADING,
+      htmlText: SAMPLE_DESCRIPTION,
       buttonLabels: ui ? defaultButtonLabels(ui.gpcBanner.buttons) : {},
     },
     preferenceModal: {
-      heading: 'Privacy Preferences',
-      subheading: 'Manage your cookie preferences below.',
+      heading: SAMPLE_HEADING,
+      subheading: SAMPLE_DESCRIPTION,
       htmlText: '',
       buttonLabels: ui ? defaultButtonLabels(ui.preferenceModal.buttons) : {},
       categories: categories.map(cat => ({
@@ -350,6 +383,7 @@ export function defaultLocaleContent(categories: TemplateCategoryDef[], ui?: Omi
       })),
       receiptLabel: 'Get a copy of my consent choices (JSON)',
       receiptDescription: 'A JSON file will be downloaded to your device when you save your preferences.',
+      forgetMeLabel: 'Forget me',
     },
   }
 }
@@ -440,6 +474,7 @@ export function composeProfileJson(
         overlayOpacity: ui.preferenceModal.overlayOpacity,
         showClose: ui.preferenceModal.showClose,
         ...(ui.preferenceModal.showLocaleSwitcher ? { showLocaleSwitcher: true } : {}),
+        ...(ui.preferenceModal.showForgetMe ? { showForgetMe: true } : {}),
         persistent: ui.preferenceModal.persistent,
         headingTag: ui.preferenceModal.headingTag,
         heading: content.preferenceModal.heading,
@@ -449,6 +484,7 @@ export function composeProfileJson(
         ...(content.preferenceModal.htmlText ? { htmlText: content.preferenceModal.htmlText } : {}),
         ...(content.preferenceModal.receiptLabel ? { receiptLabel: content.preferenceModal.receiptLabel } : {}),
         ...(content.preferenceModal.receiptDescription ? { receiptDescription: content.preferenceModal.receiptDescription } : {}),
+        ...(content.preferenceModal.forgetMeLabel ? { forgetMeLabel: content.preferenceModal.forgetMeLabel } : {}),
         buttons: resolvedButtonsMap(ui.preferenceModal.buttons, content.preferenceModal.buttonLabels),
         categories: Object.fromEntries(categories.map(cat => {
           const ct = content.preferenceModal.categories.find(c => c.id === cat.id)
@@ -502,6 +538,7 @@ export function extractFromProfileJson(profileJson: unknown): {
         position?: string; overlayOpacity?: number; showClose?: boolean; persistent?: boolean; headingTag?: string; heading?: string; subheading?: string; htmlText?: string; buttons?: RawButtonMap
         categories?: Record<string, { heading: string; headingTag?: string; htmlText?: string; legalBasis?: string; legitimateInterestDescription?: string; cookies?: string[] }>
         receiptLabel?: string; receiptDescription?: string
+        showForgetMe?: boolean; forgetMeLabel?: string
       }
     }
     const translations = (pj['translations'] ?? {}) as Record<string, RawLocale>
@@ -543,6 +580,7 @@ export function extractFromProfileJson(profileJson: unknown): {
         headingTag: firstLocale.preferenceModal.headingTag ?? 'h2',
         hasSubheading: !!firstLocale.preferenceModal.subheading,
         buttons: Object.entries(firstLocale.preferenceModal.buttons ?? {}).map(([id, b]) => migrateButton(id, b)),
+        showForgetMe: firstLocale.preferenceModal.showForgetMe ?? false,
       },
     }
 
@@ -574,6 +612,7 @@ export function extractFromProfileJson(profileJson: unknown): {
           })),
           ...(data.preferenceModal.receiptLabel !== undefined ? { receiptLabel: data.preferenceModal.receiptLabel } : {}),
           ...(data.preferenceModal.receiptDescription !== undefined ? { receiptDescription: data.preferenceModal.receiptDescription } : {}),
+          ...(data.preferenceModal.forgetMeLabel !== undefined ? { forgetMeLabel: data.preferenceModal.forgetMeLabel } : {}),
         },
       }
     }

@@ -9,7 +9,11 @@ interface IconProps { size?: number; className?: string }
 const Maximize2Icon = Maximize2 as unknown as FunctionComponent<IconProps>
 const Minimize2Icon = Minimize2 as unknown as FunctionComponent<IconProps>
 
-export type PreviewMode = 'main' | 'gpc' | 'modal'
+// 'ageGate' is controlled-only (passed explicitly as `previewMode`), never offered on the
+// uncontrolled toggle — switching to it away from the main/gpc/modal tabs without a full iframe
+// reload would leave the age-gate DOM overlapping whatever was already showing (see `buildSrcdoc`).
+export type PreviewMode = 'main' | 'gpc' | 'modal' | 'ageGate'
+type ToggleableMode = Exclude<PreviewMode, 'ageGate'>
 
 interface PreviewPaneProps {
   draft: object
@@ -19,7 +23,7 @@ interface PreviewPaneProps {
   previewMode?: PreviewMode
 }
 
-const PREVIEW_MODE_LABELS: Record<PreviewMode, string> = {
+const PREVIEW_MODE_LABELS: Record<ToggleableMode, string> = {
   main: 'Main Banner',
   gpc: 'GPC Banner',
   modal: 'Modal',
@@ -58,31 +62,57 @@ function buildSrcdoc(draft: object, dark: boolean, mode: PreviewMode): string {
   const mainBanner = withButtons(locale?.['mainBanner'] as Record<string, unknown> | undefined)
   const gpcBanner = withButtons(locale?.['gpcBanner'] as Record<string, unknown> | undefined)
   const preferenceModal = withButtons(locale?.['preferenceModal'] as Record<string, unknown> | undefined)
+  // ageGateModal has no button map of its own (fixed Yes/No/OK labels, not a template button
+  // map — see `LocaleContent.ageGateModal` in the dashboard) so no `withButtons()` needed.
+  const ageGateModal = locale?.['ageGateModal'] as Record<string, unknown> | undefined
+  const ageGate = d['ageGate'] as Record<string, unknown> | undefined
 
   const needsLocales =
     hasLocaleSwitcher(locale?.['mainBanner'] as Record<string, unknown> | undefined) ||
     hasLocaleSwitcher(locale?.['gpcBanner'] as Record<string, unknown> | undefined) ||
     hasLocaleSwitcher(locale?.['preferenceModal'] as Record<string, unknown> | undefined)
 
-  const override = {
+  // A standalone ConsentiProfile — not a `profileOverride` — so the preview shows exactly this
+  // draft and nothing else. `profileOverride` deep-merges onto whatever `resolveProfile()` finds
+  // (geo-detected or built-in), so with no `translations` key here (only the resolved top-level
+  // mainBanner/gpcBanner/preferenceModal) it would union the draft's buttons with an unrelated
+  // embedded profile's buttons — e.g. a US visitor previewing a template with 3 authored buttons
+  // would also see "opt-out-strict"'s own 3 buttons rendered alongside them.
+  const profileConfig = {
+    id: 'preview',
     defaultLocale,
-    ...(needsLocales ? { locales: ['en', 'fr'] } : {}),
+    // `locales` isn't read from here — a registered ConsentiProfile derives it from
+    // `Object.keys(translations)`, so a second (empty, unused) locale entry is what actually
+    // makes the locale switcher preview render a second option.
+    ...(needsLocales ? { translations: { fr: {} } } : {}),
     cookies: d['cookies'],
     mainBanner,
     gpcBanner,
     preferenceModal,
+    // Only wired up for the 'ageGate' mode — main/gpc/modal previews must stay exactly as they
+    // were before this field existed, so a profile with age gate enabled doesn't have its
+    // banner/modal previews silently replaced by the age-gate prompt on init().
+    ...(mode === 'ageGate' && ageGate ? { ageGate, ageGateModal } : {}),
   }
 
-  const profileJson = JSON.stringify(override)
+  const profileJson = JSON.stringify(profileConfig)
   const bgColor = dark ? '#111827' : '#f5f5f5'
 
-  // Initial script to show the right element when the iframe first loads
+  // Initial script to show the right element when the iframe first loads. 'ageGate' relies on
+  // `reConsent()`'s default `resetAgeGate: true` (see `ConsentiSetup`) rather than a `show*()`
+  // call — there is no public "show age gate" method, since it's normally only ever shown
+  // automatically during init() for a visitor with no existing consent. On a fresh iframe that
+  // already happens without any script; `reConsent()` here is only a safety net for the case
+  // where a previous preview in the same iframe origin left a stale consent record behind,
+  // which would otherwise make init() skip the age gate entirely.
   const initScript =
     mode === 'modal'
       ? `w.onReady(function() { w.showModal() })`
       : mode === 'gpc'
         ? `w.onReady(function() { w.deleteConsent().then(function() { w.showBanner(true) }) })`
-        : `w.onReady(function() { w.deleteConsent().then(function() { w.showBanner() }) })`
+        : mode === 'ageGate'
+          ? `w.onReady(function() { w.reConsent() })`
+          : `w.onReady(function() { w.deleteConsent().then(function() { w.showBanner() }) })`
 
   // postMessage listener to switch modes without reloading the iframe
   const switchScript = `
@@ -97,6 +127,8 @@ window.addEventListener('message', function(e) {
     w.showBanner(true)
   } else if (type === 'preview:modal') {
     if (!w.modalVisibility()) w.showModal()
+  } else if (type === 'preview:ageGate') {
+    w.reConsent()
   }
 })`
 
@@ -111,11 +143,12 @@ window.addEventListener('message', function(e) {
 <body>
 <script>${widgetJs}</script>
 <script>
-const { ConsentiSetup } = window.Consenti
+const { ConsentiSetup, ConsentiProfile } = window.Consenti
+const previewProfile = new ConsentiProfile(${profileJson})
 const w = new ConsentiSetup({
   darkMode: ${dark},
   core: { profileId: 0 },
-  profileOverride: ${profileJson},
+  compliance: { type: previewProfile.getType() },
 })
 ${initScript}
 ${switchScript}
@@ -129,7 +162,7 @@ export function PreviewPane({ draft, debounceMs = 600, expandable = false, heigh
   const isDark = theme === 'dark'
   const [expanded, setExpanded] = useState(false)
   const isControlled = previewMode !== undefined
-  const [internalMode, setInternalMode] = useState<PreviewMode>('main')
+  const [internalMode, setInternalMode] = useState<ToggleableMode>('main')
   const activeMode: PreviewMode = isControlled ? previewMode : internalMode
 
   const [srcdoc, setSrcdoc] = useState(() => buildSrcdoc(draft, isDark, activeMode))
@@ -184,7 +217,7 @@ export function PreviewPane({ draft, debounceMs = 600, expandable = false, heigh
           </div>
           {!isControlled && (
             <div class="flex items-center gap-1">
-              {(Object.keys(PREVIEW_MODE_LABELS) as PreviewMode[]).map(m => (
+              {(Object.keys(PREVIEW_MODE_LABELS) as ToggleableMode[]).map(m => (
                 <button
                   key={m}
                   type="button"

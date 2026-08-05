@@ -1,14 +1,14 @@
 'use client'
 
-import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
+import { ArrowUp } from "lucide-react"
 
 export function ScrollToTop() {
-  const pathname = usePathname()
 
-  useEffect(() => {
+  const scrollToTop = function () {
     window.scrollTo(0, 0)
-  }, [pathname])
+  }
 
-  return null
+  return <button aria-label='Scroll to top' type='button' onClick={scrollToTop} className="bg-green-600/70 hover:bg-green-600/100 p-3 rounded-full text-center fixed right-4 bottom-4">
+    <ArrowUp className="size-4 text-white" />
+  </button>
 }

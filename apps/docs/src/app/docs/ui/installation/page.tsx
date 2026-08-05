@@ -47,7 +47,7 @@ export default function UIInstallationPage() {
         code={`<script src="https://cdn.jsdelivr.net/npm/@consenti/ui/dist/index.umd.js"></script>
 <script>
   const { ConsentiSetup } = ConsentiUI
-  new ConsentiSetup({ core: { regulation: 'gdpr' } })
+  new ConsentiSetup({ compliance: { type: 'opt-in' } })
 </script>`}
       />
 
@@ -56,7 +56,7 @@ export default function UIInstallationPage() {
         lang="html"
         code={`<script type="module">
   import { ConsentiSetup } from 'https://esm.sh/@consenti/ui'
-  new ConsentiSetup({ core: { regulation: 'gdpr' } })
+  new ConsentiSetup({ compliance: { type: 'opt-in' } })
 </script>`}
       />
 
@@ -117,7 +117,7 @@ export default function UIInstallationPage() {
         code={`import type { ConsentiConfig, ConsentValue, ConsentiProfile } from '@consenti/ui'
 
 const config: ConsentiConfig = {
-  core: { regulation: 'gdpr' },
+  compliance: { type: 'opt-in' },
 }`}
       />
 
