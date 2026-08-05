@@ -167,7 +167,13 @@ export const DOMAIN_KNOWLEDGE_BASE: DomainKnowledgeEntry[] = [
   // Video Analytics & Embedded Trackers
   { domainSuffix: 'vimeo.com', vendor: 'Vimeo', category: 'analytics', confidence: 'confirmed' },
   { domainSuffix: 'vimeocdn.com', vendor: 'Vimeo', category: 'analytics', confidence: 'confirmed' },
-  { domainSuffix: 'youtube.com', vendor: 'YouTube Video Tracking', category: 'marketing', confidence: 'confirmed' }{ domainSuffix: 'youtube-nocookie.com', vendor: 'YouTube Video Tracking', category: 'functional', confidence: 'confirmed' }{ domainSuffix: 'wistia.com', vendor: 'Wistia', category: 'analytics', confidence: 'confirmed' }{ domainSuffix: 'fast.wistia.net', vendor: 'Wistia', category: 'analytics', confidence: 'confirmed' },// Server-Side Event Orchestration & Affiliate Tracking{ domainSuffix: 'elevar.com', vendor: 'Elevar', category: 'analytics', confidence: 'confirmed' },
+  { domainSuffix: 'youtube.com', vendor: 'YouTube Video Tracking', category: 'marketing', confidence: 'confirmed' },
+  { domainSuffix: 'youtube-nocookie.com', vendor: 'YouTube Video Tracking', category: 'functional', confidence: 'confirmed' },
+  { domainSuffix: 'wistia.com', vendor: 'Wistia', category: 'analytics', confidence: 'confirmed' },
+  { domainSuffix: 'fast.wistia.net', vendor: 'Wistia', category: 'analytics', confidence: 'confirmed' },
+
+  // Server-Side Event Orchestration & Affiliate Tracking
+  { domainSuffix: 'elevar.com', vendor: 'Elevar', category: 'analytics', confidence: 'confirmed' },
   { domainSuffix: 'rakutenadvertising.io', vendor: 'Rakuten Advertising', category: 'marketing', confidence: 'confirmed' },
   { domainSuffix: 'impact.com', vendor: 'Impact Radius', category: 'marketing', confidence: 'confirmed' },
   { domainSuffix: 'awin.com', vendor: 'Awin', category: 'marketing', confidence: 'confirmed' },

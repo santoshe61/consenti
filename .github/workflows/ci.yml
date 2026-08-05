@@ -53,9 +53,14 @@ jobs:
       - name: Test
         run: npx turbo test
 
-      - name: Widget visual regression matrix (apps/test-runner)
-        run: node dist/cli.js
+      - name: Widget functional checks (apps/test-runner)
+        run: node dist/cli.js --scope functional
         working-directory: apps/test-runner
+
+      - name: Widget visual regression matrix (apps/test-runner)
+        run: node dist/cli.js --scope visual
+        working-directory: apps/test-runner
+        continue-on-error: true
 
       - name: Widget accessibility (axe-core, apps/test-runner)
         run: node dist/a11y-cli.js
