@@ -46,7 +46,7 @@ export default function BackendServerSideEnforcementGuide() {
       <p>
         Returns <code>{'{ valid: boolean, reasons: string[], ... }'}</code>. <code>valid</code> is{' '}
         <code>false</code> whenever the profile has changed since the visitor decided, the consent
-        has expired, or — when <code>consentSigningKey</code> is configured — the stored signature
+        has expired, or — when <code>compliance.dataSigningHash</code> is configured — the stored signature
         doesn&apos;t match (<code>hmac_invalid</code>). Treat any of these the same way you&apos;d
         treat &quot;no valid consent&quot;: don&apos;t fire the tag.
       </p>
@@ -169,7 +169,7 @@ export default async function handler(req: Request): Promise<Response> {
                 the visitor&apos;s own ownership cookie instead of a Bearer token. If your
                 server-side caller isn&apos;t forwarding a real browser request (e.g. a scheduled
                 batch job with no visitor cookie to hand), use the admin API&apos;s{' '}
-                <code>GET /consenti/admin/consents/:visitorId</code> with a Bearer token instead —
+                <code>GET /consenti/admin/v1/consents/:visitorId</code> with a Bearer token instead —
                 it returns the same record without the cookie-ownership requirement, since admin
                 auth already proves who&apos;s asking.
               </p>

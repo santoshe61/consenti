@@ -57,29 +57,28 @@ export default function FrontendThemesGuide() {
         filename="styles/consent-theme.css"
         code={`:root {
   /* Primary button and active states */
-  --consenti-btn-primary-bg: #7c3aed;
-  --consenti-btn-primary-text: #ffffff;
+  --consenti-color-primary: #7c3aed;
+  --consenti-color-primary-text: #ffffff;
 
   /* Secondary button */
-  --consenti-btn-secondary-bg: #f5f0ff;
-  --consenti-btn-secondary-text: #7c3aed;
+  --consenti-color-secondary: #f5f0ff;
+  --consenti-color-secondary-text: #7c3aed;
 
-  /* Banner background */
-  --consenti-primary-bg: #ffffff;
-  --consenti-primary-text: #1a1a2e;
+  /* Banner & modal background */
+  --consenti-color-bg: #ffffff;
+  --consenti-color-text: #1a1a2e;
 
-  /* Border radius — pill buttons */
-  --consenti-btn-radius: 999px;
-  --consenti-banner-radius: 12px;
-  --consenti-modal-radius: 16px;
+  /* Border radius — pill buttons, rounded modal/banner corners */
+  --consenti-border-radius-btn: 999px;
+  --consenti-border-radius: 16px;
 
   /* Typography */
   --consenti-font-family: 'Inter', system-ui, sans-serif;
   --consenti-font-size-base: 14px;
 
   /* Toggle colours */
-  --consenti-toggle-on: #7c3aed;
-  --consenti-toggle-off: #d1d5db;
+  --consenti-toggle-bg-on: #7c3aed;
+  --consenti-toggle-bg-off: #d1d5db;
 }`}
       />
 
@@ -95,16 +94,16 @@ export default function FrontendThemesGuide() {
   compliance: { type: 'opt-in' },
   core: {
     theme: {
-      primaryColor: '#7c3aed',       // maps to --consenti-btn-primary-bg
-      primaryTextColor: '#ffffff',
-      secondaryColor: '#f5f0ff',
-      secondaryTextColor: '#7c3aed',
+      colorPrimary: '#7c3aed',       // maps to --consenti-color-primary
+      colorPrimaryText: '#ffffff',
+      colorSecondary: '#f5f0ff',
+      colorSecondaryText: '#7c3aed',
       borderRadius: '12px',
-      buttonBorderRadius: '999px',   // pill buttons
+      borderRadiusBtn: '999px',   // pill buttons
       fontFamily: 'Inter, system-ui, sans-serif',
       fontSizeBase: '14px',
-      bgColor: '#ffffff',
-      textColor: '#1a1a2e',
+      colorBg: '#ffffff',
+      colorText: '#1a1a2e',
     },
   },
 })`}
@@ -122,7 +121,7 @@ export default function FrontendThemesGuide() {
         code={`const widget = new ConsentiSetup({ /* ... */ })
 
 // Later — e.g. when a theme switcher is toggled
-widget.setTheme({ primaryColor: '#e11d48' }) // swap accent colour only`}
+widget.setTheme({ colorPrimary: '#e11d48' }) // swap accent colour only`}
       />
 
       <h2>Dark mode</h2>
@@ -168,24 +167,21 @@ widget.setDarkMode(false)   // force light`}
           </thead>
           <tbody className="divide-y divide-slate-100 dark:divide-gray-700 text-xs font-mono">
             {[
-              ['--consenti-primary-bg', '#ffffff', 'Banner & modal background'],
-              ['--consenti-primary-text', '#1a1a1a', 'Main text colour'],
-              ['--consenti-secondary-bg', '#f5f5f5', 'Secondary surfaces'],
-              ['--consenti-secondary-text', '#555555', 'Secondary text'],
-              ['--consenti-btn-primary-bg', '#1565c0', 'Primary button background'],
-              ['--consenti-btn-primary-text', '#ffffff', 'Primary button text'],
-              ['--consenti-btn-secondary-bg', '#f5f5f5', 'Secondary button background'],
-              ['--consenti-btn-secondary-text', '#1a3460', 'Secondary button text'],
-              ['--consenti-btn-radius', '6px', 'Button border radius'],
-              ['--consenti-btn-padding', '0.5rem 1.25rem', 'Button padding'],
-              ['--consenti-banner-padding', '1.5rem', 'Banner inner padding'],
-              ['--consenti-banner-radius', '0', 'Banner border radius'],
-              ['--consenti-banner-shadow', '0 -4px 24px rgba(0,0,0,.12)', 'Banner box shadow'],
-              ['--consenti-modal-width', '560px', 'Modal max width'],
-              ['--consenti-modal-radius', '12px', 'Modal border radius'],
-              ['--consenti-modal-shadow', '0 8px 32px rgba(0,0,0,.24)', 'Modal box shadow'],
-              ['--consenti-toggle-on', '#1565c0', 'Toggle on-state colour'],
-              ['--consenti-toggle-off', '#ccc', 'Toggle off-state colour'],
+              ['--consenti-color-bg', '#ffffff', 'Banner & modal background'],
+              ['--consenti-color-text', '#1a2e4a', 'Main text colour'],
+              ['--consenti-color-text-muted', '#949dab', 'Secondary/muted text'],
+              ['--consenti-color-primary', '#04111f', 'Primary button background & accents'],
+              ['--consenti-color-primary-text', '#ffffff', 'Primary button text'],
+              ['--consenti-color-secondary', '#f0f4f8', 'Secondary button/surface background'],
+              ['--consenti-color-secondary-text', '#1a2e4a', 'Secondary button/surface text'],
+              ['--consenti-color-border', '#dbe4ee', 'Default border colour'],
+              ['--consenti-color-overlay', '#04111f', 'Full-screen modal backdrop'],
+              ['--consenti-color-accent', '#d32f2f', 'Destructive/attention accent'],
+              ['--consenti-border-radius', '8px', 'Banner & modal corner radius'],
+              ['--consenti-border-radius-btn', '0', 'Button corner radius'],
+              ['--consenti-shadow', '0 4px 24px rgba(21,101,192,.14)', 'Banner & modal box shadow'],
+              ['--consenti-toggle-bg-on', '#43a047', 'Toggle on-state colour'],
+              ['--consenti-toggle-bg-off', '#9ca3af', 'Toggle off-state colour'],
               ['--consenti-font-family', 'system-ui, sans-serif', 'Widget font family'],
               ['--consenti-font-size-base', '14px', 'Base font size'],
             ].map(([token, defaultVal, desc], i) => (
@@ -270,11 +266,11 @@ widget.setDarkMode(false)   // force light`}
             question: 'How do I theme the modal differently from the banner?',
             answer: (
               <p className="m-0">
-                The modal and banner share most tokens, but modal-specific ones (
-                <code>--consenti-modal-radius</code>, <code>--consenti-modal-shadow</code>,{' '}
-                <code>--consenti-modal-width</code>) let you style them independently. For deeper
-                per-element customisation, target BEM classes directly in your stylesheet — e.g.{' '}
-                <code>.consenti-modal {'{ background: #f8f0ff; }'}</code>.
+                The modal and banner share every CSS custom property — there&apos;s no
+                modal-specific token. For per-element customisation, target BEM classes directly
+                in your stylesheet — e.g.{' '}
+                <code>.consenti-modal {'{ background: #f8f0ff; }'}</code> — while leaving the
+                banner&apos;s <code>.consenti-banner</code> rules untouched.
               </p>
             ),
           },

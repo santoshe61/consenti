@@ -11,6 +11,7 @@ import {
   type TemplateCookie, type TemplateCategoryDef,
 } from '../utils/templates'
 import { consentTemplatesApi } from '../api/templates'
+import { apiErrorMessage } from '../api/client'
 
 function emptyCookieRow(): TemplateCookie {
   return { id: '', listenGpc: true }
@@ -100,7 +101,7 @@ function buildFieldInfo(t: (key: TranslationKey) => string): FieldInfo[] {
         'Without vendor IDs, the TC String will be invalid and compliant ad platforms will refuse to fire their tags.',
       ],
       laws: [
-        { name: 'IAB TCF v2.2', text: 'A TC String must encode both purpose consents and vendor consents. Each vendor must be explicitly listed by its GVL ID — blanket consent is not permitted.' },
+        { name: 'IAB TCF v2.3', text: 'A TC String must encode both purpose consents and vendor consents. Each vendor must be explicitly listed by its GVL ID — blanket consent is not permitted.' },
         { name: 'GDPR Art. 6(1)(a)', text: 'Consent must be specific to each vendor and each purpose. Bundling all vendors into one consent decision is invalid.' },
         { name: 'GDPR Art. 13/14', text: 'Your privacy notice must name every processor. TCF vendor IDs correspond to the processors you must disclose.' },
         { name: 'ePrivacy Dir.', text: 'TCF is the standard mechanism for obtaining valid ad-tech consent under ePrivacy across the EU/EEA.' },
@@ -268,8 +269,8 @@ export function ConsentTemplateEditor({ id, current }: { id?: string; current: s
       if (isNew) await consentTemplatesApi.create({ name, cookies: cookiesMap, categories: categoriesMap })
       else await consentTemplatesApi.update(id!, { name, cookies: cookiesMap, categories: categoriesMap })
       window.location.hash = '#/banners/consent-templates'
-    } catch {
-      setError(t('consentTemplates.editor.error.failed'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('consentTemplates.editor.error.failed')))
     } finally {
       setSaving(false)
     }

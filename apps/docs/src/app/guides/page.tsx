@@ -1,6 +1,6 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { Layout, Server, BookOpen } from 'lucide-react'
+import { Layout, Server, BookOpen, Flame, CircleQuestionMark, Radar } from 'lucide-react'
 
 export const metadata: Metadata = {
   title: 'Guides — Consenti',
@@ -23,6 +23,19 @@ export const metadata: Metadata = {
     images: ['/og-image.jpg'],
   },
 }
+
+const LEARN_GUIDES = [
+  {
+    href: '/guides/what-is-consenti/',
+    title: 'Consenti, What-Why-How?',
+    desc: 'What it is, why it detects jurisdiction in the browser, and how it plans to stay compliant.',
+  },
+  {
+    href: '/guides/frontend-only-mode/',
+    title: 'Frontend-Only Mode',
+    desc: '31 widget methods, 8 events, native framework hooks, six analytics integrations — no backend required.',
+  },
+]
 
 const FRONTEND_GUIDES = [
   {
@@ -49,6 +62,31 @@ const FRONTEND_GUIDES = [
     href: '/guides/frontend/gtm/',
     title: 'GTM & Google Consent Mode v2',
     desc: 'Wire Consenti to GTM and push consent signals to your dataLayer automatically.',
+  },
+  {
+    href: '/guides/frontend/adobe/',
+    title: 'Adobe Analytics & Experience Platform',
+    desc: 'Read Adobe-shaped consent and wire it to Launch, AppMeasurement, or the Web SDK.',
+  },
+  {
+    href: '/guides/frontend/meta/',
+    title: 'Meta Pixel & Conversions API',
+    desc: 'Sync the fbq consent flag and gate what you forward to the server-side CAPI.',
+  },
+  {
+    href: '/guides/frontend/clarity/',
+    title: 'Microsoft Clarity',
+    desc: 'Gate session recordings and heatmaps behind analytics consent.',
+  },
+  {
+    href: '/guides/frontend/segment/',
+    title: 'Twilio Segment',
+    desc: 'Gate identify, page, and track calls independently instead of an all-or-nothing switch.',
+  },
+  {
+    href: '/guides/frontend/hotjar/',
+    title: 'Hotjar & Others',
+    desc: 'Tools with no dedicated vendor format — pick the right getConsent() call and gate the script.',
   },
   {
     href: '/guides/frontend/themes/',
@@ -100,6 +138,62 @@ const BACKEND_GUIDES = [
   },
 ]
 
+const HOT_TOPICS = [
+  {
+    href: '/guides/hot-topics/google-consent-mode-v2-explained/',
+    title: 'Google Consent Mode v2 Explained',
+    desc: 'What the seven consent signals mean, and basic vs. advanced mode.',
+  },
+  {
+    href: '/guides/hot-topics/gdpr-vs-dpdpa/',
+    title: 'GDPR vs DPDPA',
+    desc: 'Where the EU and India opt-in laws agree — and where they don’t.',
+  },
+  {
+    href: '/guides/hot-topics/dpdpa-cookie-compliance-guide/',
+    title: 'DPDPA Cookie Compliance Guide',
+    desc: 'A practical checklist for an India-compliant opt-in banner.',
+  },
+  {
+    href: '/guides/hot-topics/cpra-implementation-guide/',
+    title: 'CPRA Implementation Guide',
+    desc: 'Do Not Sell/Share, GPC auto-honour, and sensitive data opt-in.',
+  },
+  {
+    href: '/guides/hot-topics/right-to-erasure/',
+    title: 'Right to Erasure ("Right to Be Forgotten")',
+    desc: 'The erasure endpoint, the preference modal\'s "Forget me" button, and what events fire.',
+  },
+  {
+    href: '/guides/hot-topics/google-consent-mode-for-gtm/',
+    title: 'Google Consent Mode for GTM',
+    desc: 'Configuring consent checks and triggers inside the GTM console.',
+  },
+  {
+    href: '/guides/hot-topics/self-hosting-a-cmp/',
+    title: 'Self-hosting a CMP',
+    desc: 'The four pieces a self-hosted consent stack actually needs.',
+  },
+  {
+    href: '/guides/hot-topics/open-source-alternatives-to-onetrust/',
+    title: 'Open-source alternatives to OneTrust',
+    desc: 'Scoped to the cookie consent module, not the full GRC suite.',
+  },
+  {
+    href: '/guides/hot-topics/open-source-alternatives-to-cookiebot/',
+    title: 'Open-source alternatives to Cookiebot',
+    desc: 'Self-hosted options compared feature-for-feature.',
+  },
+]
+
+const ECOSYSTEM_GUIDES = [
+  {
+    href: '/guides/ecosystem/scanner/',
+    title: '@consenti/scanner',
+    desc: 'Offline CLI that crawls your site under three consent states and reports undeclared third-party trackers.',
+  },
+]
+
 function GuideCard({ href, title, desc }: { href: string; title: string; desc: string }) {
   return (
     <Link
@@ -131,9 +225,22 @@ export default function GuidesPage() {
         </p>
       </div>
 
+      {/* Learn */}
+      <div className="not-prose mb-10">
+        <div className="flex items-center gap-2 mb-4 pt-4 border-t border-slate-100">
+          <CircleQuestionMark size={16} className="text-brand-500" />
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-200 m-0">Learn</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {LEARN_GUIDES.map(g => (
+            <GuideCard key={g.href} {...g} />
+          ))}
+        </div>
+      </div>
+
       {/* Frontend */}
       <div className="not-prose mb-10">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 pt-4 border-t border-slate-100">
           <Layout size={16} className="text-brand-500" />
           <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-200 m-0">
             Frontend — @consenti/ui
@@ -148,7 +255,7 @@ export default function GuidesPage() {
 
       {/* Backend */}
       <div className="not-prose mb-10">
-        <div className="flex items-center gap-2 mb-4">
+        <div className="flex items-center gap-2 mb-4 pt-4 border-t border-slate-100">
           <Server size={16} className="text-emerald-600" />
           <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-200 m-0">
             Backend — @consenti/api
@@ -156,6 +263,32 @@ export default function GuidesPage() {
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           {BACKEND_GUIDES.map(g => (
+            <GuideCard key={g.href} {...g} />
+          ))}
+        </div>
+      </div>
+
+      {/* Hot Topics */}
+      <div className="not-prose mb-10">
+        <div className="flex items-center gap-2 mb-4 pt-4 border-t border-slate-100">
+          <Flame size={16} className="text-orange-500" />
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-200 m-0">Hot Topics</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {HOT_TOPICS.map(g => (
+            <GuideCard key={g.href} {...g} />
+          ))}
+        </div>
+      </div>
+
+      {/* Ecosystem */}
+      <div className="not-prose mb-10">
+        <div className="flex items-center gap-2 mb-4 pt-4 border-t border-slate-100">
+          <Radar size={16} className="text-purple-500" />
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-gray-200 m-0">Ecosystem</h2>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {ECOSYSTEM_GUIDES.map(g => (
             <GuideCard key={g.href} {...g} />
           ))}
         </div>

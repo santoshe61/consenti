@@ -31,6 +31,7 @@ interface RowConsent {
   locale: string; consent_json: ConsentValue
   gpc_detected: boolean; source: string; created_at: string; updated_at: string
   age_verified?: boolean; parental_consent_token?: string | null; tcf_string?: string | null
+  gpp_string?: string | null
   signature?: string | null
 }
 interface RowConsentSummary {
@@ -100,6 +101,7 @@ function mapConsent(r: RowConsent): ConsentDbRecord {
     ...(r.age_verified != null ? { ageVerified: r.age_verified } : {}),
     ...(r.parental_consent_token != null ? { parentalConsentToken: r.parental_consent_token } : {}),
     ...(r.tcf_string != null ? { tcfString: r.tcf_string } : {}),
+    ...(r.gpp_string != null ? { gppString: r.gpp_string } : {}),
     ...(r.signature != null ? { signature: r.signature } : {}),
   }
 }
@@ -340,11 +342,11 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
     const id = randomConsentId()
     const rows = await this.q<RowConsent>(
-      `INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, signature)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12) RETURNING *`,
+      `INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
       [id, data.tenantId, data.visitorId, data.profileId,
         data.locale, JSON.stringify(data.consentJson), data.gpcDetected, data.source,
-        data.ageVerified ?? false, data.parentalConsentToken ?? null, data.tcfString ?? null, data.signature ?? null],
+        data.ageVerified ?? false, data.parentalConsentToken ?? null, data.tcfString ?? null, data.gppString ?? null, data.signature ?? null],
     )
     const row = rows[0]
     if (!row) throw new Error('Consent creation failed')
@@ -905,20 +907,35 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async getSettings(tenantId: string): Promise<TenantSettings> {
-    const rows = await this.q<{ allowed_origins_json: string[]; admin_allowed_origins_json: string[]; setup_completed: boolean }>(
-      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed FROM tenant_settings WHERE tenant_id=$1', [tenantId],
+    const rows = await this.q<{
+      allowed_origins_json: string[]; admin_allowed_origins_json: string[]; setup_completed: boolean
+      profiles_seeded: boolean; tcf_confirmation_json: TenantSettings['tcfConfirmation'] | null; gpp_confirmation_json: TenantSettings['gppConfirmation'] | null
+    }>(
+      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json FROM tenant_settings WHERE tenant_id=$1', [tenantId],
     )
     const r = rows[0]
-    return r ? { allowedOrigins: r.allowed_origins_json, adminAllowedOrigins: r.admin_allowed_origins_json, setupCompleted: r.setup_completed } : {}
+    return r
+      ? {
+        allowedOrigins: r.allowed_origins_json,
+        adminAllowedOrigins: r.admin_allowed_origins_json,
+        setupCompleted: r.setup_completed,
+        profilesSeeded: r.profiles_seeded,
+        ...(r.tcf_confirmation_json ? { tcfConfirmation: r.tcf_confirmation_json } : {}),
+        ...(r.gpp_confirmation_json ? { gppConfirmation: r.gpp_confirmation_json } : {}),
+      }
+      : {}
   }
 
   async updateSettings(tenantId: string, data: Partial<TenantSettings>): Promise<TenantSettings> {
     const current = await this.getSettings(tenantId)
     const merged = { ...current, ...data }
     await this.q(
-      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, updated_at) VALUES ($1,$2::jsonb,$3::jsonb,$4,NOW())
-       ON CONFLICT (tenant_id) DO UPDATE SET allowed_origins_json=$2::jsonb, admin_allowed_origins_json=$3::jsonb, setup_completed=$4, updated_at=NOW()`,
-      [tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ?? false],
+      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json, updated_at) VALUES ($1,$2::jsonb,$3::jsonb,$4,$5,$6::jsonb,$7::jsonb,NOW())
+       ON CONFLICT (tenant_id) DO UPDATE SET allowed_origins_json=$2::jsonb, admin_allowed_origins_json=$3::jsonb, setup_completed=$4, profiles_seeded=$5, tcf_confirmation_json=$6::jsonb, gpp_confirmation_json=$7::jsonb, updated_at=NOW()`,
+      [
+        tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ?? false,
+        merged.profilesSeeded ?? false, merged.tcfConfirmation ? JSON.stringify(merged.tcfConfirmation) : null, merged.gppConfirmation ? JSON.stringify(merged.gppConfirmation) : null,
+      ],
     )
     return this.getSettings(tenantId)
   }
@@ -934,13 +951,6 @@ export class PostgreSQLAdapter implements StorageAdapter {
     await this.q(`DELETE FROM consent_history WHERE visitor_id IN (${placeholders})`, ids)
     await this.q(`DELETE FROM consent_records WHERE visitor_id IN (${placeholders})`, ids)
     return ids.length
-  }
-
-  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
-    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
-    const rows = await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM audit_logs WHERE created_at < $1', [cutoff])
-    await this.q('DELETE FROM audit_logs WHERE created_at < $1', [cutoff])
-    return Number(rows[0]?.total ?? 0)
   }
 
   // Template methods — not yet implemented for PostgreSQL adapter

@@ -7,8 +7,9 @@ const REDACTED = '••••••••'
  * "resolved configuration" step. Allowlist-based, not a denylist — every field shown here is
  * named explicitly, so a future secret-bearing field added to `ConsentiServerConfig` is hidden
  * by default instead of leaking until someone remembers to redact it. Function-valued fields
- * (`validateUser`, `handleCache`, a custom `geoDataProvider`/`autoComplianceMap`) aren't
- * meaningful to display and are omitted rather than serialized.
+ * (`validateUser`, `handleCache`, a custom `geoDataProvider`) aren't meaningful to display and
+ * are omitted rather than serialized; an inline `complianceMap` object is summarized instead of
+ * dumped in full (potentially hundreds of country entries).
  */
 export function sanitizeConfigForDisplay(config: ConsentiServerConfig): Record<string, unknown> {
   const storage = config.storage
@@ -41,7 +42,7 @@ export function sanitizeConfigForDisplay(config: ConsentiServerConfig): Record<s
         mode: auth.mode,
         ...(auth.adminEmail !== undefined ? { adminEmail: auth.adminEmail } : {}),
         ...(auth.adminPassword !== undefined ? { adminPassword: REDACTED } : {}),
-        ...(auth.jwtSecret !== undefined ? { jwtSecret: REDACTED } : {}),
+        ...(auth.masterSecret !== undefined ? { masterSecret: REDACTED } : {}),
         ...(auth.oidc ? {
           oidc: { issuer: auth.oidc.issuer, clientId: auth.oidc.clientId, clientSecret: REDACTED, redirectUri: auth.oidc.redirectUri },
         } : {}),
@@ -58,20 +59,25 @@ export function sanitizeConfigForDisplay(config: ConsentiServerConfig): Record<s
         ...(compliance.geoDataProvider !== undefined ? {
           geoDataProvider: typeof compliance.geoDataProvider === 'function' ? '<custom function>' : compliance.geoDataProvider,
         } : {}),
-        ...(compliance.complianceMapUrl !== undefined ? { complianceMapUrl: compliance.complianceMapUrl } : {}),
+        ...(compliance.complianceMap !== undefined ? {
+          complianceMap: typeof compliance.complianceMap === 'object'
+            ? `<custom map, ${Object.keys(compliance.complianceMap.countries).length} countries>`
+            : compliance.complianceMap,
+        } : {}),
+        ...(compliance.tcf ? { tcf: compliance.tcf } : {}),
+        ...(compliance.gpp ? { gpp: compliance.gpp } : {}),
+        ...(compliance.dataRetention ? { dataRetention: compliance.dataRetention } : {}),
+        ...(compliance.parentalConsentTokenTtlDays !== undefined ? { parentalConsentTokenTtlDays: compliance.parentalConsentTokenTtlDays } : {}),
+        ...(compliance.dataSigningHash !== undefined ? { dataSigningHash: REDACTED } : {}),
       },
     } : {}),
     ...(config.multiTenant ? { multiTenant: config.multiTenant } : {}),
     ...(config.plugins ? { plugins: { count: config.plugins.length } } : {}),
-    ...(config.ageGate ? { ageGate: config.ageGate } : {}),
-    ...(config.tcf ? { tcf: config.tcf } : {}),
-    ...(config.dataRetention ? { dataRetention: config.dataRetention } : {}),
     ...(config.maxBodySize !== undefined ? { maxBodySize: config.maxBodySize } : {}),
     ...(config.trustedProxies ? { trustedProxies: config.trustedProxies } : {}),
     ...(config.branding ? { branding: config.branding } : {}),
     ...(config.s3Api ? {
       s3Api: { enabled: config.s3Api.enabled, region: config.s3Api.region, bucketName: config.s3Api.bucketName, accessKeyId: REDACTED, secretAccessKey: REDACTED },
     } : {}),
-    ...(config.consentSigningKey !== undefined ? { consentSigningKey: REDACTED } : {}),
   }
 }

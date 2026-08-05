@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'PIPEDA / Law 25 Compliance Guide (Canada)',
@@ -28,9 +30,14 @@ export default function PIPEDAPage() {
   return (
     <div className="prose max-w-none">
       <h1>PIPEDA / Law 25 Compliance Guide</h1>
+      <ComplianceTierBadge tier="supported" />
       <Callout type="info">
-        <strong>Compliance group:</strong> <code>opt-in</code> — same opt-in model as GDPR. Use{' '}
-        <code>compliance: {"{ type: 'opt-in' }"}</code> in your <code>ConsentiSetup</code> config.
+        <strong>Compliance group:</strong> Canada auto-resolves to{' '}
+        <code>general-privacy-consent</code> by default (Quebec is carved out to{' '}
+        <code>opt-in</code> for Law 25 automatically). For stronger alignment across all of
+        Canada — the same opt-in model as GDPR — configure{' '}
+        <code>compliance: {"{ type: 'opt-in' }"}</code> explicitly in your{' '}
+        <code>ConsentiSetup</code> config.
       </Callout>
       <p>
         Canada has two overlapping privacy frameworks. The federal{' '}
@@ -81,7 +88,7 @@ export default function PIPEDAPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Consent model</td>
+            <td>Compliance Group</td>
             <td>
               Law 25: explicit opt-in for sensitive data; meaningful opt-in for all; PIPEDA: opt-in
               for sensitive, implied for others
@@ -165,9 +172,7 @@ export default function PIPEDAPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'pipeda',
-  },
+  compliance: { type: 'general-privacy-consent' },
 })`}
       />
 
@@ -175,17 +180,57 @@ export default function PIPEDAPage() {
       <CodeBlock
         lang="json"
         code={`{
-  "regulation": "pipeda",
-  "pipeda": {
-    "privacyOfficerEmail": "privacy@yourcompany.ca",
-    "privacyPolicyUrl": "https://yourcompany.ca/privacy"
-  }
+  "regulation": "pipeda"
 }`}
       />
       <p>
-        When set, <code>pipeda.privacyOfficerEmail</code> is rendered in the modal notice footer.
-        <code>privacyPolicyUrl</code> is used in the "Learn more" link in the consent banner.
+        Unlike DPDPA (which has a dedicated <code>dpdpa</code> profile block rendered
+        automatically), PIPEDA has no dedicated metadata field yet. Add your privacy officer
+        contact and a link to your privacy policy directly in{' '}
+        <code>preferenceModal.htmlText</code> or as a <code>'link'</code>-action button in{' '}
+        <code>mainBanner.buttons</code>, via <code>profileOverride</code> or the dashboard's text
+        editor.
       </p>
+
+      <h2>What Consenti does — and what it doesn&apos;t</h2>
+      <p>
+        Everything above is the consent-collection UX layer: the opt-in/implied-consent model,
+        per-category records, withdrawal, and erasure. PIPEDA and Law 25 impose organisational
+        obligations beyond what a consent widget can satisfy on its own. Consenti does{' '}
+        <strong>not</strong>:
+      </p>
+      <ul>
+        <li>
+          Designate a Privacy Officer — Law 25 requires that person&apos;s name be made public;
+          that&apos;s an organisational appointment, not a widget feature
+        </li>
+        <li>
+          Author or host your privacy policy — Law 25 requires publishing one before collection;
+          Consenti can link to it from a banner button, but doesn&apos;t write or serve the policy
+          itself
+        </li>
+        <li>
+          Judge whether your disclosure text satisfies the OPC&apos;s &quot;meaningful consent&quot;
+          guidance (plain language, purpose-specific, contextually appropriate) — Consenti renders
+          whatever <code>htmlText</code> you configure, it doesn&apos;t evaluate the wording
+        </li>
+        <li>
+          Detect British Columbia or Alberta specifically — the callout above notes Consenti&apos;s
+          PIPEDA/Law-25 baseline also satisfies PIPA BC and PIPA AB, but the geo-resolver applies
+          the same Canada-wide default to those provinces rather than treating them as their own
+          rule
+        </li>
+      </ul>
+
+      <h2>Operator checklist</h2>
+      <p>Beyond configuring Consenti&apos;s consent group, an operator with PIPEDA/Law 25 exposure still needs to:</p>
+      <ol>
+        <li>Designate a Privacy Officer and make their name public, per Law 25&apos;s disclosure requirement</li>
+        <li>Publish a privacy policy and link to it from the banner or modal (e.g. a <code>&apos;link&apos;</code>-action button) before any collection occurs</li>
+        <li>Review category <code>htmlText</code> against the OPC&apos;s meaningful-consent guidance rather than generic legal boilerplate</li>
+        <li>Enable the under-14 age gate if you knowingly serve minors in Quebec</li>
+        <li>Follow the OPC&apos;s (or CAI&apos;s, for Quebec) mandatory breach-notification process if a security incident meets the reporting threshold — separate from Consenti&apos;s audit log, which records consent actions, not security incidents</li>
+      </ol>
 
       <h2>Right to access and erasure</h2>
       <p>PIPEDA and Law 25 grant individuals the right to access and correct their data. Use:</p>
@@ -194,6 +239,10 @@ export default function PIPEDAPage() {
         code={`GET  /consenti/api/v1/consent/:visitorId
 DELETE /consenti/api/v1/consent/:visitorId`}
       />
+      <p>
+        For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
     </div>
   )
 }

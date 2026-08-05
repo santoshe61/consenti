@@ -12,11 +12,26 @@ const VISUAL_LABELS: Record<ButtonVisualType, string> = {
 }
 
 const ACTION_LABELS: Record<ButtonAction, string> = {
-  custom: 'Custom (grant/deny)',
+  custom: 'Custom (grant)',
   submit: 'Submit (save toggles)',
   manage: 'Manage (open modal)',
   close: 'Close (dismiss)',
   link: 'Link (open URL)',
+}
+
+// `submit` is the one to get wrong: it never reads the cookies you might select for a
+// different action — it always submits whatever consent already exists (live toggles in this
+// modal, or mandatory-only in a banner). A "Reject All" button authored as `submit` instead of
+// `custom` does not reject anything; it behaves identically to any other `submit` button
+// regardless of label. This UI already clears `cookies` when you switch away from `custom` so
+// that specific mistake can't be authored here, but the explanation still matters for choosing
+// the right action in the first place.
+const ACTION_HELP: Record<ButtonAction, string> = {
+  custom: 'Grants exactly the selected cookies below. Mandatory cookies are always granted regardless of this selection.',
+  submit: 'Submits whatever consent already exists — the live toggle states in this modal, or mandatory-only in a banner. Ignores cookie selection entirely; two "submit" buttons always produce the same result no matter their labels.',
+  manage: 'Opens the preference modal. Does not change consent by itself.',
+  close: 'Dismisses without saving any consent.',
+  link: 'Opens the URL below in a new tab. Does not change consent.',
 }
 
 interface ButtonRowEditorProps {
@@ -77,10 +92,11 @@ export function ButtonRowEditor({ btn, onChange, onRemove, extraCookies }: Butto
           >
             {ACTION_TYPES.map(a => <option key={a} value={a}>{ACTION_LABELS[a]}</option>)}
           </select>
+          <p class="text-xs text-gray-400 mt-0.5">{ACTION_HELP[btn.action]}</p>
         </div>
         {btn.action === 'custom' ? (
           <div>
-            <label class="block text-xs text-gray-500 mb-0.5">Cookies to grant/deny <span class="text-red-500">*</span></label>
+            <label class="block text-xs text-gray-500 mb-0.5">Cookies to grant <span class="text-red-500">*</span></label>
             <CookieMultiSelect
               value={btn.cookies}
               onChange={cookies => set('cookies', cookies)}

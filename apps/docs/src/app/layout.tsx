@@ -32,7 +32,7 @@ const jsonLd = {
       name: 'Consenti',
       alternateName: ['@consenti/ui', '@consenti/api'],
       description:
-        'Open-source, GDPR-compliant Cookie Consent & Consent Management Platform (CMP). Zero external runtime dependencies. Supports GDPR, CCPA, TCF v2.2, GPC, and COPPA. Works with React, Vue, Angular, Next.js, Express, and any JavaScript stack.',
+        'Open-source, GDPR-style opt-in Cookie Consent & Consent Management Platform (CMP) toolkit. Zero external runtime dependencies. Supports GDPR, CCPA, TCF v2.3, GPC, and COPPA. Works with React, Vue, Angular, Next.js, Express, and any JavaScript stack.',
       applicationCategory: 'DeveloperApplication',
       applicationSubCategory: 'Privacy & Consent Management',
       operatingSystem: 'Cross-platform (Browser, Node.js)',
@@ -44,7 +44,7 @@ const jsonLd = {
       featureList: [
         'GDPR opt-in consent management',
         'CCPA opt-out consent management',
-        'TCF v2.2 vendor consent',
+        'TCF v2.3 vendor consent',
         'GPC (Global Privacy Control) signal detection',
         'COPPA age gate',
         'Zero external runtime dependencies',
@@ -57,14 +57,14 @@ const jsonLd = {
         'Cross-tab consent sync via BroadcastChannel',
         'Google Consent Mode v2',
         'GTM (Google Tag Manager) integration',
-        'WCAG AAA accessibility',
+        'Accessibility-focused (WCAG 2.x AA target)',
         'React, Vue, Angular, Next.js, Nuxt framework hooks',
         'Plugin system for BigQuery, Segment, Snowflake',
         'i18n / locale support',
         'CSS custom properties theming (no Shadow DOM)',
       ],
       softwareRequirements: 'Node.js 20+; Browser: Chrome 80+, Firefox 74+, Safari 13.1+',
-      author: { '@type': 'Person', name: 'Santosh Ojha', url: 'https://santosh.top' },
+      author: { '@type': 'Organization', name: 'Santosh Ojha', url: 'https://santosh.top' },
     },
     {
       '@type': 'WebSite',
@@ -72,7 +72,7 @@ const jsonLd = {
       url: 'https://consenti.dev',
       name: 'Consenti Docs',
       description: 'Documentation for Consenti — open-source cookie consent & CMP.',
-      publisher: { '@type': 'Person', name: 'Santosh Ojha', url: 'https://santosh.top' },
+      publisher: { '@type': 'Organization', name: 'Santosh Ojha', url: 'https://santosh.top' },
     },
     {
       '@type': 'FAQPage',
@@ -82,7 +82,7 @@ const jsonLd = {
           name: 'What is Consenti?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Consenti is an open-source, GDPR-compliant Cookie Consent and Consent Management Platform (CMP). It ships as two npm packages: @consenti/ui (browser widget) and @consenti/api (Node.js backend). Both have zero external runtime dependencies.',
+            text: 'Consenti is an open-source, GDPR-style opt-in Cookie Consent and Consent Management Platform (CMP) toolkit. It ships as two npm packages: @consenti/ui (browser widget) and @consenti/api (Node.js backend). Both have zero external runtime dependencies.',
           },
         },
         {
@@ -90,7 +90,7 @@ const jsonLd = {
           name: 'Does Consenti support GDPR?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. Consenti fully supports GDPR with opt-in consent mode, legitimate interest handling (Art. 6(1)(f)), right-to-erasure endpoint, immutable audit logs, and signed consent receipts.',
+            text: 'Yes. Consenti implements GDPR-style opt-in consent mode, legitimate interest handling (Art. 6(1)(f)), a right-to-erasure endpoint, append-only audit logs, and signed consent receipts.',
           },
         },
         {
@@ -138,7 +138,7 @@ const jsonLd = {
           name: 'Is Consenti free and open source?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. Consenti is released under the Apache 2.0 license. It is free to use, modify, and distribute. It is a self-hosted alternative to commercial CMPs like OneTrust and Cookiebot.',
+            text: "Yes. Consenti is released under the Apache 2.0 license, free to use, modify, and distribute. It's a self-hosted, browser-only consent tool — ahead of most banner-only open-source tools since it adds jurisdiction-aware content routing out of the box — with an optional backend for audit-grade consent records, dashboard-authored profiles, and spec-correct IAB TCF encoding when you need them. It is not a hosted enterprise CMP, which typically includes dedicated legal/compliance teams and infrastructure Consenti does not replicate.",
           },
         },
         {
@@ -154,7 +154,7 @@ const jsonLd = {
           name: 'Does Consenti support APPI (Japan)?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'Yes. Consenti supports Japan\'s Act on the Protection of Personal Information (APPI). Use compliance: { type: \'appi\' } or type: \'auto\' for geo-based detection. Consenti handles APPI opt-in consent with proper audit trails.',
+            text: 'Yes. Consenti supports Japan\'s Act on the Protection of Personal Information (APPI). Use type: \'auto\' for geo-based detection (Japan resolves to the general-privacy-consent group by default) or compliance: { type: \'opt-in\' } to opt into the stricter group APPI\'s own guide recommends — \'appi\' is a regulation id, not a compliance group, so it is not a valid type value on its own. Consenti handles APPI consent with proper audit trails either way.',
           },
         },
         {
@@ -162,7 +162,7 @@ const jsonLd = {
           name: 'What is an open source CMP?',
           acceptedAnswer: {
             '@type': 'Answer',
-            text: 'An open-source Consent Management Platform (CMP) is a tool that manages cookie consent and privacy compliance, where the source code is publicly available for inspection, modification, and self-hosting. Consenti is an open-source CMP licensed under Apache 2.0, offering the same features as commercial CMPs (GDPR, CCPA, TCF v2.2, admin dashboard, consent records) without licensing fees or vendor lock-in.',
+            text: 'An open-source Consent Management Platform (CMP) is a tool that manages cookie consent and privacy compliance, where the source code is publicly available for inspection, modification, and self-hosting. Consenti is an open-source CMP licensed under Apache 2.0 — a self-hosted, browser-only tool with GDPR/CCPA support, TCF v2.3, an admin dashboard, and consent records via an optional backend, without licensing fees or vendor lock-in. It does not include the dedicated legal team, IAB CMP registration, or independent audit trail that hosted commercial CMPs offer.',
           },
         },
         {
@@ -185,12 +185,13 @@ export const metadata: Metadata = {
     template: '%s — Consenti Docs',
   },
   description:
-    'Open-source GDPR-compliant cookie consent & CMP. Zero runtime dependencies. GDPR, CCPA, TCF v2.2, GPC. Works with React, Vue, Angular, Next.js, Express, and more.',
+    'Open-source, GDPR-style opt-in cookie consent & CMP toolkit. Zero required runtime dependencies. GDPR, CCPA, TCF v2.3, GPC. Works with React, Vue, Angular, Next.js, Express, and more.',
   keywords: [
     'cookie consent',
     'GDPR',
     'CMP',
     'consent management platform',
+    'Consent Management Platform Node.js',
     'open source CMP',
     'CCPA',
     'TCF',
@@ -201,6 +202,7 @@ export const metadata: Metadata = {
     'LGPD Brazil',
     'PIPL China',
     'DPDPA India',
+    'DPDPA cookie consent',
     'POPIA South Africa',
     'KVKK Turkey',
     'open source',
@@ -210,10 +212,14 @@ export const metadata: Metadata = {
     'privacy',
     'cookie banner',
     'React cookie consent',
+    'GDPR cookie banner React',
+    'Vue cookie consent',
     'Next.js GDPR',
     'self-hosted consent management',
-    'OneTrust alternative',
-    'Cookiebot alternative',
+    'Self-hosted CMP',
+    'Google Consent Mode v2 library',
+    'enterprise CMP alternative',
+    'open source banner tool alternative',
   ],
   authors: [{ name: 'Santosh Ojha', url: 'https://santosh.top' }],
   openGraph: {
@@ -221,7 +227,7 @@ export const metadata: Metadata = {
     siteName: 'Consenti Docs',
     title: 'Consenti — Open Source Cookie Consent & CMP',
     description:
-      'Zero-dependency GDPR-compliant consent management platform. CCPA, TCF v2.2, GPC. Works with any JavaScript stack.',
+      'GDPR-style consent management platform — zero required runtime dependencies. CCPA, TCF v2.3, GPC. Works with any JavaScript stack.',
     url: 'https://consenti.dev',
   },
   twitter: {
@@ -258,10 +264,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <ThemeProvider>
           <DocsMenuProvider>
             <ConsentiProvider />
-            <ScrollToTop />
             <Navbar />
             {children}
             <Footer />
+            <ScrollToTop />
             <SaasRequestBadge />
           </DocsMenuProvider>
         </ThemeProvider>

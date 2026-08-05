@@ -3,7 +3,7 @@ import { usePageTitle } from '../context/pageTitle'
 import { Table } from '../components/Table'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { useT } from '../context/locale'
-import { apiFetch } from '../api/client'
+import { apiFetch, apiErrorMessage } from '../api/client'
 
 interface Tenant {
   id: string
@@ -20,6 +20,7 @@ export function TenantList({ current }: { current: string }) {
   const [creating, setCreating] = useState(false)
   const [newName, setNewName] = useState('')
   const [newSlug, setNewSlug] = useState('')
+  const [error, setError] = useState('')
   const { requestConfirm, dialog } = useConfirmDialog()
 
   const load = () => {
@@ -35,6 +36,7 @@ export function TenantList({ current }: { current: string }) {
   const create = async () => {
     if (!newName.trim() || !newSlug.trim()) return
     setCreating(true)
+    setError('')
     try {
       await apiFetch('/tenants', {
         method: 'POST',
@@ -43,8 +45,8 @@ export function TenantList({ current }: { current: string }) {
       setNewName('')
       setNewSlug('')
       load()
-    } catch {
-      // error silently ignored
+    } catch (err) {
+      setError(apiErrorMessage(err, t('sites.error.create')))
     } finally {
       setCreating(false)
     }
@@ -90,6 +92,7 @@ export function TenantList({ current }: { current: string }) {
             {t('common.create')}
           </button>
         </div>
+        {error && <p class="text-sm text-red-600 mt-2">{error}</p>}
       </div>
 
       <Table

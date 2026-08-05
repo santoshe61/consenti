@@ -426,7 +426,7 @@ fetch(\`/consenti/api/v1/resolve-profile?data=\${encodeURIComponent(data)}\`)`,
     "htmlText": "This site uses cookies to improve your experience.",
     "buttons": {
       "accept-all": { "text": "Accept All", "style": "primary", "action": "custom", "cookies": "*" },
-      "reject-optional": { "text": "Reject Optional", "style": "secondary", "action": "custom", "cookies": "!" },
+      "reject-optional": { "text": "Reject Optional", "style": "primary", "action": "custom", "cookies": "!" },
       "customize": { "text": "Customize", "style": "secondary", "action": "manage" }
     }
   },
@@ -493,7 +493,7 @@ fetch(\`/consenti/api/v1/resolve-profile?data=\${encodeURIComponent(data)}\`)`,
     "htmlText": "Ce site utilise des cookies pour améliorer votre expérience.",
     "buttons": {
       "accept-all": { "text": "Tout accepter", "style": "primary", "action": "custom", "cookies": "*" },
-      "reject-optional": { "text": "Tout refuser", "style": "secondary", "action": "custom", "cookies": "!" },
+      "reject-optional": { "text": "Tout refuser", "style": "primary", "action": "custom", "cookies": "!" },
       "customize": { "text": "Gérer les préférences", "style": "secondary", "action": "manage" }
     }
   },
@@ -565,8 +565,9 @@ fetch(\`/consenti/api/v1/resolve-profile?data=\${encodeURIComponent(data)}\`)`,
               <code>tz</code>
             </td>
             <td>
-              IANA timezone string (e.g. <code>Europe/Paris</code>). Used when{' '}
-              <code>geoDataProvider: &apos;timezone&apos;</code>.
+              IANA timezone string (e.g. <code>Europe/Paris</code>). Used together with{' '}
+              <code>lang</code> by the default (<code>geoDataProvider: &apos;default&apos;</code>)
+              timezone+language heuristic.
             </td>
           </tr>
           <tr>
@@ -574,8 +575,8 @@ fetch(\`/consenti/api/v1/resolve-profile?data=\${encodeURIComponent(data)}\`)`,
               <code>lang</code>
             </td>
             <td>
-              Accept-Language header value (e.g. <code>fr-FR,fr;q=0.9</code>). Used when{' '}
-              <code>geoDataProvider: &apos;language&apos;</code>.
+              Accept-Language header value (e.g. <code>fr-FR,fr;q=0.9</code>). Used together with{' '}
+              <code>tz</code> by the default timezone+language heuristic.
             </td>
           </tr>
         </tbody>
@@ -830,7 +831,7 @@ fetch(\`/consenti/api/v1/resolve-profile?data=\${encodeURIComponent(data)}\`)`,
 // Other possible reasons (array can contain more than one):
 // "consent_expired" — past the profile's expiryDays retention window
 // "hmac_invalid" — the stored record's signature doesn't match its contents.
-//   Only checked when consentSigningKey is configured AND the record has a signature.`,
+//   Only checked when compliance.dataSigningHash is configured AND the record has a signature.`,
           },
         ]}
       />
@@ -839,6 +840,75 @@ fetch(\`/consenti/api/v1/resolve-profile?data=\${encodeURIComponent(data)}\`)`,
         The widget automatically calls <code>POST /consent</code> after the visitor accepts, then
         calls <code>GET /consent/:visitorId/verify</code> on subsequent page loads to skip the
         banner if consent is still valid.
+      </Callout>
+
+      <h3>
+        <Method m="POST" /> <code>/consent/:visitorId/parental-consent-request</code>
+      </h3>
+      <p>
+        Stateless parental-consent hook — issues a token (signed with{' '}
+        <code>compliance.dataSigningHash</code>, auto-generated in memory if not set) that a
+        host&apos;s own <code>eventBus.on('consent.parentalConsentRequired', ...)</code> listener
+        can use to email/notify the parent. Requires the same visitor-ownership cookie as the
+        other visitor-scoped routes above.
+      </p>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// POST /consenti/api/v1/consent/visitor-uuid/parental-consent-request HTTP/1.1
+{ "profileId": "my-profile-id" }`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `{ "token": "pcon_eyJ2aXNpdG9ySWQiOi...ab12cd34..." }`,
+          },
+        ]}
+      />
+
+      <h3>
+        <Method m="POST" /> <code>/consent/parental-consent-resolve</code>
+      </h3>
+      <p>
+        Recovers <code>visitorId</code>/<code>profileId</code> from a token issued by the route
+        above and emits <code>consent.parentalConsentGranted</code> — your own backend listener
+        decides what &quot;granted&quot; means for stored consent. No visitor-ownership cookie
+        required (recovered from the verified token instead), since this is typically called from
+        the parent&apos;s own device.
+      </p>
+      <CodeTabs
+        tabs={[
+          {
+            label: 'Request',
+            lang: 'javascript',
+            code: `// POST /consenti/api/v1/consent/parental-consent-resolve HTTP/1.1
+{ "token": "pcon_eyJ2aXNpdG9ySWQiOi...ab12cd34..." }`,
+          },
+          {
+            label: 'Response 200',
+            lang: 'json',
+            code: `{ "visitorId": "visitor-uuid", "profileId": "my-profile-id" }`,
+          },
+          {
+            label: 'Response 403',
+            lang: 'json',
+            code: `{ "error": "Invalid or expired token (invalid_signature)" }
+// reasons: "malformed" | "invalid_signature" | "expired"`,
+          },
+        ]}
+      />
+
+      <Callout type="warning">
+        Stateless by design — token replay isn&apos;t prevented (no persistence to mark a token
+        &quot;used&quot;). <code>compliance.dataSigningHash</code> is auto-generated in memory if
+        unset, so tokens are always signed — but with an ephemeral, unpersisted key unless set
+        explicitly, meaning a server restart between issuing and resolving a token invalidates it.
+        This mechanism is plumbing for your own out-of-band verification, not by itself sufficient
+        verifiable parental consent under COPPA or similar regimes — see the{' '}
+        <code>@consenti/api</code> README&apos;s &quot;Parental consent request/resolve&quot;
+        section for the full design.
       </Callout>
     </div>
   )

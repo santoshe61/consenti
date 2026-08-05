@@ -1,10 +1,13 @@
 import type {
   ConsentDbRecord, ConsentVerifyResult, CreateConsentInput, UpdateConsentInput,
-  ComplianceConfig, TcfConfig, CategoryMap, CookieMap, ProfileConfig, StorageAdapter,
+  ComplianceConfig, TcfConfig, GppConfig, CategoryMap, CookieMap, ProfileConfig, StorageAdapter,
 } from '@consenti/types'
 import { buildConsentValue, verifyConsent, validateConsentInput, buildTcfPayload, buildConsentSignaturePayload } from '../core/consent-engine'
 import { buildCookieCategoryIndex, encodeTcString } from '@consenti/utils'
 import { getGvl } from '../tcf/gvl-cache'
+import { encodeRealTcString } from '../tcf/real-tc-string'
+import { isRegistrationConfirmed } from '../tcf/registration-confirmation'
+import { encodeGppString } from '../gpp/gpp-string'
 import { signHmac } from '../utils/crypto'
 import type { ConsentRepo } from '../repositories/consent.repo'
 import type { VisitorRepo } from '../repositories/visitor.repo'
@@ -26,12 +29,37 @@ export class ConsentService {
     private eventBus?: EventEmitter,
     private tcfConfig?: TcfConfig,
     private storage?: StorageAdapter,
-    private consentSigningKey?: string,
-  ) {}
+    private dataSigningHash?: string,
+    private gppConfig?: GppConfig,
+  ) { }
 
   private sign(payload: { tenantId: string; visitorId: string; profileId: string; locale: string; consentJson: ConsentDbRecord['consentJson'] }): string | undefined {
-    if (!this.consentSigningKey) return undefined
-    return signHmac(buildConsentSignaturePayload(payload), this.consentSigningKey)
+    if (!this.dataSigningHash) return undefined
+    return signHmac(buildConsentSignaturePayload(payload), this.dataSigningHash)
+  }
+
+  /** Fails closed: no `storage` to check against means unconfirmed, never assumed confirmed. */
+  private async isTcfConfirmed(): Promise<boolean> {
+    if (!this.tcfConfig?.enabled) return true
+    if (!this.storage) return false
+    const settings = await this.storage.getSettings(this.tenantId)
+    return isRegistrationConfirmed(
+      true,
+      { cmpId: this.tcfConfig.cmpId, cmpVersion: this.tcfConfig.cmpVersion, publisherCC: this.tcfConfig.publisherCC },
+      settings.tcfConfirmation,
+    )
+  }
+
+  /** Same fail-closed shape as isTcfConfirmed() — see registration-confirmation.ts. */
+  private async isGppConfirmed(): Promise<boolean> {
+    if (!this.gppConfig?.enabled) return true
+    if (!this.storage) return false
+    const settings = await this.storage.getSettings(this.tenantId)
+    return isRegistrationConfirmed(
+      true,
+      { cmpId: this.gppConfig.cmpId, cmpVersion: this.gppConfig.cmpVersion },
+      settings.gppConfirmation,
+    )
   }
 
   /**
@@ -90,17 +118,80 @@ export class ConsentService {
     )
 
     let tcfString: string | undefined
-    if (this.tcfConfig?.enabled && Object.values(profileCookies).some(c => c.tcfVendorId)) {
+    const tcfConfig = this.tcfConfig
+    const tcfRelevant = tcfConfig?.enabled && Object.values(profileCookies).some(c => c.tcfVendorId)
+    const tcfConfirmed = tcfRelevant ? await this.isTcfConfirmed() : true
+    if (tcfConfig && tcfRelevant && !tcfConfirmed) {
+      console.error(
+        `[Consenti] TCF is enabled (cmpId=${tcfConfig.cmpId}, cmpVersion=${tcfConfig.cmpVersion}) but this registration ` +
+        'is unconfirmed — treating TCF as disabled for this consent write (no tcfString generated). ' +
+        'Confirm the current cmpId/cmpVersion in the dashboard\'s TCF Registration panel to re-enable.',
+      )
+    } else if (tcfConfig && tcfRelevant) {
       const gvl = await getGvl()
       const { vendorConsents, purposeConsents } = buildTcfPayload(profileCookies, builtConsent)
-      tcfString = encodeTcString({
-        cmpId: this.tcfConfig.cmpId,
-        cmpVersion: this.tcfConfig.cmpVersion,
-        consentScreen: 1,
-        consentLanguage: input.locale?.slice(0, 2) ?? 'en',
-        vendorListVersion: gvl?.vendorListVersion ?? 0,
-        purposeConsents,
-        vendorConsents,
+      const consentLanguage = input.locale?.slice(0, 2) ?? 'en'
+
+      tcfString = (tcfConfig.publisherCC && gvl)
+        ? await encodeRealTcString({
+          cmpId: tcfConfig.cmpId,
+          cmpVersion: tcfConfig.cmpVersion,
+          consentScreen: 1,
+          consentLanguage,
+          publisherCC: tcfConfig.publisherCC,
+          isServiceSpecific: true,
+          purposeConsents,
+          vendorConsents,
+          gvl,
+        }) ?? undefined
+        : undefined
+
+      // Falls back to the simplified (non-spec) encoder when publisherCC/GVL aren't
+      // available yet, or when the optional `@iabtechlabtcf/core` dependency isn't installed.
+      if (!tcfString) {
+        tcfString = encodeTcString({
+          cmpId: tcfConfig.cmpId,
+          cmpVersion: tcfConfig.cmpVersion,
+          consentScreen: 1,
+          consentLanguage,
+          vendorListVersion: gvl?.vendorListVersion ?? 0,
+          purposeConsents,
+          vendorConsents,
+        })
+      }
+    }
+
+    let gppString: string | undefined
+    const gppConfig = this.gppConfig
+    const saleApplicable = Object.values(profileCookies).some(c => c.cpraCategory === 'sale')
+    const sharingApplicable = Object.values(profileCookies).some(c => c.cpraCategory === 'sharing')
+    const gppRelevant = gppConfig?.enabled && (saleApplicable || sharingApplicable)
+    const gppConfirmed = gppRelevant ? await this.isGppConfirmed() : true
+    if (gppConfig && gppRelevant && !gppConfirmed) {
+      console.error(
+        `[Consenti] GPP is enabled (cmpId=${gppConfig.cmpId}, cmpVersion=${gppConfig.cmpVersion}) but this registration ` +
+        'is unconfirmed — treating GPP as disabled for this consent write (no gppString generated). ' +
+        'Confirm the current cmpId/cmpVersion in the dashboard\'s GPP Registration panel to re-enable.',
+      )
+    } else if (gppConfig && gppRelevant) {
+      const saleOptOut = !saleApplicable || Object.entries(profileCookies)
+        .filter(([, c]) => c.cpraCategory === 'sale')
+        .every(([id]) => builtConsent[id] !== 'granted')
+      const sharingOptOut = !sharingApplicable || Object.entries(profileCookies)
+        .filter(([, c]) => c.cpraCategory === 'sharing')
+        .every(([id]) => builtConsent[id] !== 'granted')
+
+      gppString = await encodeGppString({
+        cmpId: gppConfig.cmpId,
+        cmpVersion: gppConfig.cmpVersion,
+        mspaCoveredTransaction: gppConfig.mspaCoveredTransaction,
+        mspaOptOutOptionMode: gppConfig.mspaOptOutOptionMode,
+        mspaServiceProviderMode: gppConfig.mspaServiceProviderMode,
+        saleOptOut,
+        saleApplicable,
+        sharingOptOut,
+        sharingApplicable,
+        gpcDetected: input.gpcDetected,
       })
     }
 
@@ -114,6 +205,7 @@ export class ConsentService {
       tenantId: this.tenantId,
       consentJson: builtConsent,
       ...(tcfString ? { tcfString } : {}),
+      ...(gppString ? { gppString } : {}),
       ...(signature ? { signature } : {}),
     }
     if (this.pluginEngine) baseInput = await this.pluginEngine.runBeforeConsentSave(baseInput)
@@ -132,7 +224,7 @@ export class ConsentService {
 
     await this.audit.log({
       tenantId: this.tenantId,
-      action: existing ? 'consent.updated' : 'consent.created',
+      action: existing ? 'consent:updated' : 'consent:created',
       resourceType: 'consent',
       resourceId: record.id,
       ...(existing != null ? { oldData: existing } : {}),
@@ -140,10 +232,10 @@ export class ConsentService {
     })
 
     if (existing) {
-      this.eventBus?.emit('consent.updated', { previous: existing, current: record })
+      this.eventBus?.emit('consent:updated', { previous: existing, current: record })
       await this.pluginEngine?.runAfterConsentUpdate(record)
     } else {
-      this.eventBus?.emit('consent.created', record)
+      this.eventBus?.emit('consent:created', record)
       await this.pluginEngine?.runAfterConsentSave(record)
     }
 
@@ -200,13 +292,13 @@ export class ConsentService {
     const record = await this.consents.update(visitorId, updateData)
     await this.audit.log({
       tenantId: this.tenantId,
-      action: 'consent.updated',
+      action: 'consent:updated',
       resourceType: 'consent',
       resourceId: record.id,
       oldData: existing,
       newData: record,
     })
-    this.eventBus?.emit('consent.updated', { previous: existing, current: record })
+    this.eventBus?.emit('consent:updated', { previous: existing, current: record })
     await this.pluginEngine?.runAfterConsentUpdate(record)
     return record
   }
@@ -225,7 +317,7 @@ export class ConsentService {
     const complianceGroup = recordProfile.profileJson.complianceGroup
     const activeProfile = complianceGroup ? await this.profiles.findActiveByComplianceGroup(this.tenantId, complianceGroup) : null
 
-    return verifyConsent(record, recordProfile, activeProfile, this.consentSigningKey)
+    return verifyConsent(record, recordProfile, activeProfile, this.dataSigningHash)
   }
 
   async erase(visitorId: string): Promise<void> {
@@ -234,11 +326,11 @@ export class ConsentService {
     await this.visitors.delete(visitorId)
     await this.audit.log({
       tenantId: this.tenantId,
-      action: 'consent.erased',
+      action: 'consent:erased',
       resourceType: 'consent',
       resourceId: visitorId,
       ...(existing != null ? { oldData: existing } : {}),
     })
-    this.eventBus?.emit('consent.erased', { visitorId })
+    this.eventBus?.emit('consent:erased', { visitorId })
   }
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'DPDPA Compliance Guide (India 2023)',
@@ -28,6 +30,7 @@ export default function DPDPAPage() {
   return (
     <div className="prose max-w-none">
       <h1>DPDPA Compliance Guide</h1>
+      <ComplianceTierBadge tier="in-development" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-in-dpdpa</code> — India-specific opt-in with
         fiduciary name, grievance officer in modal, and age gate (18+). GPC signal is ignored. Use{' '}
@@ -39,6 +42,14 @@ export default function DPDPAPage() {
         is enforced by the Data Protection Board of India under the Ministry of Electronics and
         Information Technology (MeitY).
       </p>
+
+      <Callout type="warning">
+        <strong>Status: in development, tracking a phased rollout.</strong> The DPDP Rules 2025
+        were notified 13 November 2025. Consent Manager provisions take effect 13 November 2026;
+        the remaining substantive compliance obligations become binding 13 May 2027. Consenti's
+        DPDPA support ships today and evolves alongside this timeline — treat it as actively
+        maintained, not yet a certified/audited implementation of the final rules.
+      </Callout>
 
       <h2>Official references</h2>
       <ul>
@@ -79,7 +90,7 @@ export default function DPDPAPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Consent model</td>
+            <td>Compliance Group</td>
             <td>Opt-in — no silent or pre-ticked consent</td>
           </tr>
           <tr>
@@ -160,10 +171,8 @@ export default function DPDPAPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'dpdpa',
-    // autoHonorGPC is not needed — GPC is not recognised under DPDPA
-  },
+  // GPC handling isn't relevant — it's not recognised under DPDPA
+  compliance: { type: 'opt-in-dpdpa' },
 })`}
       />
 
@@ -244,6 +253,10 @@ export default function DPDPAPage() {
       </p>
       <CodeBlock lang="http" code={`DELETE /consenti/api/v1/consent/:visitorId`} />
       <p>This removes all consent records, history, and visitor data for the given visitor ID.</p>
+      <p>
+        For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
     </div>
   )
 }

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'POPIA Compliance Guide (South Africa)',
@@ -28,9 +30,13 @@ export default function POPIAPage() {
   return (
     <div className="prose max-w-none">
       <h1>POPIA Compliance Guide</h1>
+      <ComplianceTierBadge tier="supported" />
       <Callout type="info">
-        <strong>Compliance group:</strong> <code>opt-in</code> — same opt-in model as GDPR. Use{' '}
-        <code>compliance: {"{ type: 'opt-in' }"}</code> in your <code>ConsentiSetup</code> config.
+        <strong>Compliance group:</strong> South Africa auto-resolves to{' '}
+        <code>general-privacy-consent</code> by default. For stronger alignment with POPIA — the
+        same opt-in model as GDPR — configure{' '}
+        <code>compliance: {"{ type: 'opt-in' }"}</code> explicitly in your{' '}
+        <code>ConsentiSetup</code> config.
       </Callout>
       <p>
         South Africa's <strong>Protection of Personal Information Act (POPIA)</strong> — Act 4 of
@@ -112,7 +118,7 @@ export default function POPIAPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Consent model</td>
+            <td>Compliance Group</td>
             <td>Opt-in — voluntary, specific, informed, unambiguous</td>
           </tr>
           <tr>
@@ -189,9 +195,7 @@ export default function POPIAPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'popia',
-  },
+  compliance: { type: 'general-privacy-consent' },
 })`}
       />
 
@@ -199,19 +203,53 @@ export default function POPIAPage() {
       <CodeBlock
         lang="json"
         code={`{
-  "regulation": "popia",
-  "popia": {
-    "informationOfficerEmail": "io@yourcompany.co.za",
-    "purposeDescription": "To operate the website and send service emails."
-  }
+  "regulation": "popia"
 }`}
       />
 
       <Callout type="info">
         POPIA Section 18 requires you to notify data subjects of who your Information Officer is.
-        Setting <code>popia.informationOfficerEmail</code> renders this contact in the modal notice
-        footer automatically.
+        Unlike DPDPA (which has a dedicated <code>dpdpa</code> profile block rendered
+        automatically), POPIA has no dedicated metadata field yet — add your Information
+        Officer's contact directly in <code>preferenceModal.htmlText</code> via{' '}
+        <code>profileOverride</code> or the dashboard's text editor.
       </Callout>
+
+      <h2>What Consenti does — and what it doesn&apos;t</h2>
+      <p>
+        Everything above is the consent-collection UX layer: opt-in capture, per-category records,
+        withdrawal, and erasure. POPIA is a broader accountability framework than a consent widget
+        can satisfy on its own. Consenti does <strong>not</strong>:
+      </p>
+      <ul>
+        <li>
+          Register you as a Responsible Party or appoint an Information Officer with the Regulator
+          (Sections 55–56) — that&apos;s an administrative filing you complete outside the product
+        </li>
+        <li>
+          File a Prior Authorisation application with the Regulator for processing that requires
+          one (e.g. certain criminal-behaviour or credit-related data under Section 57), if your
+          processing falls into that category
+        </li>
+        <li>
+          Guarantee data residency — self-hosting <code>@consenti/api</code> means you control
+          where it runs, not that it runs in South Africa
+        </li>
+        <li>
+          Satisfy the eight processing conditions as a whole — Consenti&apos;s widget covers
+          condition 2 (processing limitation via consent) and part of condition 6 (openness, via
+          disclosure text); the remaining six are organisational obligations
+        </li>
+      </ul>
+
+      <h2>Operator checklist</h2>
+      <p>Beyond configuring Consenti&apos;s consent groups, a POPIA-exposed operator still needs to:</p>
+      <ol>
+        <li>Register/designate an Information Officer with the Information Regulator and publish their contact details (Section 55) — add that contact to <code>preferenceModal.htmlText</code> per the callout above</li>
+        <li>File a Prior Authorisation application before processing any category that requires one, if applicable to your data</li>
+        <li>Decide whether <code>@consenti/api</code> needs to be hosted inside South Africa for data-residency purposes, and provision that separately if so</li>
+        <li>Keep the remaining seven processing conditions (accountability, purpose specification, further-processing limitation, information quality, security safeguards, data-subject participation) satisfied at the organisational level — Consenti&apos;s widget doesn&apos;t audit these</li>
+      </ol>
 
       <h2>Erasure and access (Section 24)</h2>
       <CodeBlock
@@ -219,6 +257,10 @@ export default function POPIAPage() {
         code={`GET    /consenti/api/v1/consent/:visitorId
 DELETE /consenti/api/v1/consent/:visitorId`}
       />
+      <p>
+        For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
     </div>
   )
 }

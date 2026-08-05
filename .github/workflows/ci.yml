@@ -22,6 +22,25 @@ jobs:
       - name: Install dependencies
         run: rm -f package-lock.json && npm install
 
+      - name: Get Playwright version
+        id: playwright-version
+        run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright-version.outputs.version }}
+
+      - name: Install Playwright Chromium (cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install Playwright OS dependencies (cache hit)
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
       - name: Type check
         run: npx turbo typecheck
 
@@ -30,6 +49,17 @@ jobs:
 
       - name: Build
         run: npx turbo build
+
+      - name: Test
+        run: npx turbo test
+
+      - name: Widget visual regression matrix (apps/test-runner)
+        run: node dist/cli.js
+        working-directory: apps/test-runner
+
+      - name: Widget accessibility (axe-core, apps/test-runner)
+        run: node dist/a11y-cli.js
+        working-directory: apps/test-runner
 
       - name: Audit (fail on high/critical)
         run: npm audit --audit-level=high --workspaces

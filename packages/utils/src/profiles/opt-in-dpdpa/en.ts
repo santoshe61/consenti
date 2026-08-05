@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 // India DPDPA: no legitimate_interest — all non-necessary cookies require consent.
 export const OPT_IN_DPDPA_EN_PROFILE: EmbeddedProfile = {
@@ -21,11 +21,11 @@ export const OPT_IN_DPDPA_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           "We are the Data Fiduciary under India's Digital Personal Data Protection Act (DPDPA). Your explicit consent is required before we process your personal data using non-essential cookies. You may withdraw consent at any time without affecting prior processing.",
         buttons: {
-          'consent-all': { text: 'I Consent', style: 'primary', action: 'submit', cookies: '*' },
+          'consent-all': { text: 'I Consent', style: 'primary', action: 'custom', cookies: '*' },
           'deny-all': {
             text: 'I Do Not Consent',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'review-choices': { text: 'Review Choices', style: 'text', action: 'manage' },
@@ -42,13 +42,13 @@ export const OPT_IN_DPDPA_EN_PROFILE: EmbeddedProfile = {
           'consent-all': {
             text: 'Give Consent to All',
             style: 'primary',
-            action: 'submit',
+            action: 'custom',
             cookies: '*',
           },
           'withdraw-all': {
             text: 'Withdraw All Consent',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'save-choices': { text: 'Save Choices', style: 'secondary', action: 'submit' },

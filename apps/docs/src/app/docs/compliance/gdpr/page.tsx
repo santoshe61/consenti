@@ -1,11 +1,13 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'GDPR Compliance Guide',
   description:
-    'Implement GDPR-compliant cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, immutable audit logs, and signed consent receipts.',
+    'Implement GDPR-style opt-in cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, append-only audit logs, and signed consent receipts.',
   keywords: [
     'GDPR',
     'GDPR cookie consent',
@@ -18,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'GDPR Compliance Guide',
     description:
-      'Implement GDPR-compliant cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, immutable audit logs, and signed consent receipts.',
+      'Implement GDPR-style opt-in cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, append-only audit logs, and signed consent receipts.',
     url: 'https://consenti.dev/docs/compliance/gdpr',
     siteName: 'Consenti Docs',
     images: ['/og-image.jpg'],
@@ -27,7 +29,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'GDPR Compliance Guide',
     description:
-      'Implement GDPR-compliant cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, immutable audit logs, and signed consent receipts.',
+      'Implement GDPR-style opt-in cookie consent with Consenti. Opt-in mode, legitimate interest, right-to-erasure, append-only audit logs, and signed consent receipts.',
     images: ['/og-image.jpg'],
   },
 }
@@ -36,6 +38,7 @@ export default function GDPRPage() {
   return (
     <div className="prose max-w-none">
       <h1>GDPR Compliance Guide</h1>
+      <ComplianceTierBadge tier="maintained" />
       <p>
         Consenti is built from the ground up around GDPR requirements. All core design decisions
         follow the six lawfulness principles in Article 5.
@@ -43,9 +46,13 @@ export default function GDPRPage() {
 
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-in</code> — covers GDPR (EU / EEA), UK GDPR,
-        PIPEDA (Canada), POPIA (South Africa), PDPA-TH (Thailand), APPI (Japan), and KVKK (Turkey).
-        Use <code>compliance: {"{ type: 'opt-in' }"}</code> in your <code>ConsentiSetup</code>{' '}
-        config to activate the opt-in consent model.
+        PDPA-TH (Thailand), and KVKK (Turkey) by default. PIPEDA (Canada), POPIA (South Africa),
+        and APPI (Japan) auto-resolve to the more permissive <code>general-privacy-consent</code>{' '}
+        group instead — see the{' '}
+        <Link href="/docs/compliance/compliance-groups/">Compliance Groups</Link> page for why —
+        but their own regulation pages recommend opting into <code>opt-in</code> for stronger
+        alignment. Use <code>compliance: {"{ type: 'opt-in' }"}</code> in your{' '}
+        <code>ConsentiSetup</code> config to activate the opt-in Compliance Group explicitly.
       </Callout>
 
       <h2>Official references</h2>
@@ -97,7 +104,13 @@ export default function GDPRPage() {
         <tbody>
           <tr>
             <td>Freely given</td>
-            <td>No content gating; overlay opacity defaults to 0</td>
+            <td>
+              No content gating by default — the initial banner never blocks page content or
+              trackers, and overlay opacity is 0 unless explicitly configured. Content gating
+              (blocking the page behind an overlay until a choice is made) is available as an
+              advanced, opt-in operator setting for sites that need it — use deliberately, since
+              forced gating can itself undermine &quot;freely given&quot; consent under GDPR.
+            </td>
           </tr>
           <tr>
             <td>Specific</td>
@@ -122,14 +135,18 @@ export default function GDPRPage() {
           <tr>
             <td>Easy to withdraw</td>
             <td>
-              <code>DELETE /consenti/api/v1/consent/:visitorId</code> (same prominence as granting)
+              The preference modal (<code>widget.showModal()</code>) lets a visitor change or
+              revoke any category with the same number of clicks as granting — that UI is the
+              Art. 7(3) implementation. The erase API below is controller tooling for full-account
+              deletion, not the visitor-facing withdrawal path.
             </td>
           </tr>
           <tr>
             <td>Records kept</td>
             <td>
-              Immutable <code>consent_history</code> table; <code>audit_logs</code> for admin
-              actions
+              <code>consent_history</code> table (retained per <code>purgeAfterDays</code>,
+              deleted on erasure — see below); <code>audit_logs</code> for admin actions
+              (append-only, never deleted by Consenti)
             </td>
           </tr>
         </tbody>
@@ -150,6 +167,11 @@ export default function GDPRPage() {
         </li>
       </ul>
       <p>The visitor ID itself is a random UUID and contains no PII.</p>
+      <p>
+        For how to give visitors a self-service &quot;Forget me&quot; button in the widget itself,
+        the events both sides fire, and how this fits together as one flow, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
 
       <h2>Data minimisation (Article 5(1)(c))</h2>
       <ul>
@@ -175,7 +197,9 @@ export default function GDPRPage() {
           <code>source</code> — <code>'banner'</code>, <code>'api'</code>, or <code>'import'</code>
         </li>
         <li>
-          <code>consent_history</code> — immutable append-only log of every change
+          <code>consent_history</code> — a change-log of every update to the record; retained per{' '}
+          <code>purgeAfterDays</code> and deleted along with the record on erasure (distinct from{' '}
+          <code>audit_logs</code>, which is append-only and never deleted by Consenti)
         </li>
       </ul>
 

@@ -8,12 +8,12 @@ import { RelatedDocs } from '@/components/RelatedDocs'
 export const metadata: Metadata = {
   title: 'Minimal Setup — Frontend Guide — Consenti',
   description:
-    'Get a GDPR-compliant consent banner on screen in under 5 minutes with no backend required.',
+    'Get a GDPR-style opt-in consent banner on screen in under 5 minutes with no backend required.',
   alternates: { canonical: '/guides/frontend/minimal-setup' },
   openGraph: {
     title: 'Minimal Setup — Frontend Guide — Consenti',
     description:
-      'Get a GDPR-compliant consent banner on screen in under 5 minutes with no backend required.',
+      'Get a GDPR-style opt-in consent banner on screen in under 5 minutes with no backend required.',
     url: 'https://consenti.dev/guides/frontend/minimal-setup',
     siteName: 'Consenti Docs',
     images: ['/og-image.jpg'],
@@ -22,7 +22,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Minimal Setup — Frontend Guide — Consenti',
     description:
-      'Get a GDPR-compliant consent banner on screen in under 5 minutes with no backend required.',
+      'Get a GDPR-style opt-in consent banner on screen in under 5 minutes with no backend required.',
     images: ['/og-image.jpg'],
   },
 }
@@ -89,8 +89,8 @@ export default function FrontendMinimalSetupGuide() {
 // Auto-detects region from browser timezone + language
 const widget = new ConsentiSetup({})
 
-// Or pin a specific regulation — GDPR for all visitors
-const widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })`}
+// Or pin a specific compliance group — GDPR-style opt-in for all visitors
+// const widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })`}
       />
 
       <p>

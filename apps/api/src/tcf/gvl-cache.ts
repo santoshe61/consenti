@@ -21,19 +21,23 @@ export interface GvlVendor {
 export interface GvlData {
   gvlSpecificationVersion: number
   vendorListVersion: number
+  tcfPolicyVersion: number
   vendors: Record<string, GvlVendor>
   purposes: Record<string, GvlPurpose>
+  /** Full, unmodified vendor-list.json — passed to `@iabtechlabtcf/core`'s `GVL` constructor
+   * as-is by the real TC-string encoder. Keep this around instead of re-fetching. */
+  raw: Record<string, unknown>
 }
 
 let cachedGvl: GvlData | null = null
 let lastFetched = 0
 let refreshTimer: ReturnType<typeof setInterval> | null = null
 
-function isGvlData(d: unknown): d is GvlData {
+function isRawVendorList(d: unknown): d is Record<string, unknown> & { vendors: unknown; purposes: unknown } {
   return typeof d === 'object' && d !== null &&
     'vendors' in d && 'purposes' in d &&
-    typeof (d as GvlData).vendors === 'object' &&
-    typeof (d as GvlData).purposes === 'object'
+    typeof (d as { vendors: unknown }).vendors === 'object' &&
+    typeof (d as { purposes: unknown }).purposes === 'object'
 }
 
 export async function getGvl(): Promise<GvlData | null> {
@@ -42,8 +46,22 @@ export async function getGvl(): Promise<GvlData | null> {
     const res = await fetch(GVL_URL, { signal: AbortSignal.timeout(15_000) })
     if (!res.ok) return cachedGvl
     const data = await res.json()
-    if (!isGvlData(data)) return cachedGvl
-    cachedGvl = data
+    if (!isRawVendorList(data)) return cachedGvl
+    const raw = data as Record<string, unknown> & {
+      gvlSpecificationVersion: number
+      vendorListVersion: number
+      tcfPolicyVersion: number
+      vendors: Record<string, GvlVendor>
+      purposes: Record<string, GvlPurpose>
+    }
+    cachedGvl = {
+      gvlSpecificationVersion: raw.gvlSpecificationVersion,
+      vendorListVersion: raw.vendorListVersion,
+      tcfPolicyVersion: raw.tcfPolicyVersion,
+      vendors: raw.vendors,
+      purposes: raw.purposes,
+      raw,
+    }
     lastFetched = Date.now()
     return cachedGvl
   } catch {

@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 export const OPT_OUT_EN_PROFILE: EmbeddedProfile = {
   complianceGroup: 'opt-out',
@@ -20,11 +20,11 @@ export const OPT_OUT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'We and our partners use cookies and similar tracking technologies to improve your experience, analyse site usage, and show relevant advertising. You may opt out of the sale or sharing of your personal data at any time.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'do-not-sell-share': {
             text: 'Do Not Sell or Share My Personal Information',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'manage-preferences': { text: 'Manage Preferences', style: 'text', action: 'manage' },
@@ -36,11 +36,11 @@ export const OPT_OUT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'Your browser sent a Global Privacy Control signal. We have automatically opted you out of the sale and sharing of your personal data as required by applicable US state privacy laws.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'confirm-opt-out': {
             text: 'Confirm Opt-Out',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'manage-preferences': { text: 'Manage Preferences', style: 'text', action: 'manage' },
@@ -54,11 +54,11 @@ export const OPT_OUT_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'Under applicable US state privacy laws, you have the right to opt out of the sale and sharing of your personal data. Toggle the categories below to exercise your rights.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'opt-out-all': {
             text: 'Opt Out of All',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'save-choices': { text: 'Save My Choices', style: 'primary', action: 'submit' },

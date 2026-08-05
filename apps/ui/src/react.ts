@@ -38,7 +38,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import type { ConsentValue } from './types'
+import type { ConsentValue, VisitorIdentity } from './types'
 import type { ConsentiSetup } from './core/consenti-setup'
 
 /**
@@ -121,10 +121,13 @@ export function useConsent() {
       grantAll:     (_onlyMandatory?: boolean) => Promise.resolve(),
       denyAll:      (_includingMandatory?: boolean) => Promise.resolve(),
       submitConsent: (_c: Partial<ConsentValue>) => Promise.resolve(),
-      reConsent:    () => Promise.resolve(),
+      reConsent:    (_resetAgeGate?: boolean) => Promise.resolve(),
       isCookieGranted:   (_id: string) => false as boolean,
       isCategoryGranted: (_id: string) => false as boolean,
       switchLocale: (_locale: string) => {},
+      getUserId:    () => null as string | null,
+      setUserId:    (_userId: string | null, _reConsent?: boolean) => Promise.resolve(),
+      getVisitor:   () => ({ visitorId: null, type: 'anonymous', userId: null }) as VisitorIdentity,
     }
   }
 
@@ -156,8 +159,9 @@ export function useConsent() {
     denyAll: (includingMandatory?: boolean) => _widget?.denyAll(includingMandatory) ?? Promise.resolve(),
     /** Saves the given partial consent map. */
     submitConsent: (c: Partial<ConsentValue>) => _widget?.submitConsent(c) ?? Promise.resolve(),
-    /** Deletes the current consent record and re-shows the banner. */
-    reConsent: () => _widget?.reConsent() ?? Promise.resolve(),
+    /** Deletes the current consent record and re-shows the banner. Pass `false` to skip
+     * re-showing the age-gate prompt (if the profile has one) and go straight to the banner. */
+    reConsent: (resetAgeGate?: boolean) => _widget?.reConsent(resetAgeGate) ?? Promise.resolve(),
 
     /** Returns `true` if the given cookie ID is `'granted'`. */
     isCookieGranted: (id: string) => (_widget?.isCookieGranted(id) ?? false) as boolean,
@@ -165,5 +169,11 @@ export function useConsent() {
     isCategoryGranted: (id: string) => (_widget?.isCategoryGranted(id) ?? false) as boolean,
     /** Switches the active locale and re-renders the banner and modal. */
     switchLocale: (locale: string) => _widget?.switchLocale(locale),
+    /** Returns the current logged-in application user ID, or `null` if anonymous. */
+    getUserId: () => _widget?.getUserId() ?? null,
+    /** Sets the logged-in application user ID; reconsents by default when it changes. */
+    setUserId: (userId: string | null, reConsent?: boolean) => _widget?.setUserId(userId, reConsent) ?? Promise.resolve(),
+    /** Snapshot of the current visitor's identity (`visitorId`, `type`, `userId`). */
+    getVisitor: () => _widget?.getVisitor() ?? ({ visitorId: null, type: 'anonymous', userId: null } as VisitorIdentity),
   }
 }

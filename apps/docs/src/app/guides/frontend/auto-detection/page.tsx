@@ -117,7 +117,7 @@ export default function FrontendAutoDetectionGuide() {
         </li>
       </ol>
       <p>
-        These are matched against an embedded 195-country map to derive a compliance group. A
+        These are matched against an embedded 190+ country map to derive a compliance group. A
         visitor with timezone <code>Europe/Paris</code> gets the <code>opt-in</code> (GDPR) group. A
         visitor with timezone <code>America/Los_Angeles</code> gets <code>opt-out</code> (CCPA).
       </p>
@@ -175,11 +175,14 @@ new ConsentiSetup({
         the server. This is more accurate because your backend can use real IP geolocation (MaxMind,
         geoip-lite, ipinfo.io) rather than relying on timezone heuristics.
       </p>
-      <p>On page load the widget sends one request:</p>
+      <p>
+        On page load the widget sends one request, with timezone/language/locale hints
+        base64-encoded into a single <code>data</code> query param:
+      </p>
 
       <CodeBlock
         lang="text"
-        code={`GET /consenti/api/v1/resolve-profile?tz=Europe%2FParis&lang=fr-FR&locale=fr-FR`}
+        code={`GET /consenti/api/v1/resolve-profile?data=eyJ0aW1lem9uZSI6IkV1cm9wZS9QYXJpcyIsImxhbmd1YWdlIjoiZnItRlIiLCJsb2NhbGUiOiJmci1GUiJ9`}
       />
 
       <p>The backend responds with:</p>
@@ -187,10 +190,9 @@ new ConsentiSetup({
         lang="json"
         code={`{
   "path": "/consenti/api/v1/profiles/default/opt-in/fr-FR",
-  "resolvedLocale": "fr-FR",
-  "resolvedComplianceGroup": "opt-in",
-  "profileId": "gdpr-profile-uuid",
-  "version": 3
+  "locale": "fr-FR",
+  "complianceGroup": "opt-in",
+  "found": true
 }`}
       />
 
@@ -212,8 +214,12 @@ new ConsentiSetup({
       />
 
       <Callout type="tip">
-        The <code>/resolve-profile</code> response is cached in <code>sessionStorage</code> for the
-        tab&apos;s lifetime. Navigating between pages never re-fetches it.
+        The <code>/resolve-profile</code> response is cached in <code>sessionStorage</code> for up
+        to 60 minutes per tab — repeat page navigations within that window never re-fetch it. Once
+        a visitor has an existing consent decision, their compliance group is also read directly
+        from their consent cookie on every later visit — including a brand new tab or a new day —
+        so <code>/resolve-profile</code> is skipped entirely from then on, not just within one
+        session.
       </Callout>
 
       <h2>The 8 built-in compliance groups</h2>
@@ -282,7 +288,7 @@ new ConsentiSetup({
           {
             href: '/docs/compliance/jurisdiction-coverage-map/',
             label: 'Jurisdiction Coverage Map',
-            desc: 'The full 195-country → compliance-group table',
+            desc: 'The full 190+ country → compliance-group table',
           },
           {
             href: '/docs/ui/methods/',
@@ -299,9 +305,13 @@ new ConsentiSetup({
             question: "What if the visitor's timezone doesn't match their country?",
             answer: (
               <p className="m-0">
-                Timezone-based detection is a best-effort heuristic. VPN users, travellers, and
-                misconfigured systems can yield incorrect groups. For high-accuracy production
-                deployments, use Scenario 2A with a real IP geo resolver on the backend (
+                Timezone-based detection is a best-effort heuristic, not a legal determination —
+                it&apos;s accurate enough to be the right default for most visitors, but VPN users,
+                travellers, and misconfigured systems can yield incorrect groups. It also cannot
+                resolve US state-level regions at all (California, Colorado, etc.) — US visitors
+                always fall back to the country-level default (<code>opt-out-strict</code>, the
+                strictest group) without a geoip-capable provider configured. For high-accuracy
+                production deployments, use Scenario 2A with a real IP geo resolver on the backend (
                 <code>geoDataProvider: &apos;geoip&apos;</code> or <code>&apos;maxmind&apos;</code>
                 ). The backend geo resolver uses actual IP addresses, not browser signals.
               </p>

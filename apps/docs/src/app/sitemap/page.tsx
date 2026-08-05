@@ -201,6 +201,31 @@ const GROUPS: SitemapGroup[] = [
         label: 'Google Tag Manager',
         desc: 'Wiring consent state into GTM',
       },
+      {
+        href: '/guides/frontend/adobe/',
+        label: 'Adobe Analytics & Experience Platform',
+        desc: 'Wiring consent state into Adobe Launch, AppMeasurement, and Web SDK',
+      },
+      {
+        href: '/guides/frontend/meta/',
+        label: 'Meta Pixel & Conversions API',
+        desc: 'Syncing the fbq consent flag and gating server-side CAPI calls',
+      },
+      {
+        href: '/guides/frontend/clarity/',
+        label: 'Microsoft Clarity',
+        desc: 'Gating session recordings and heatmaps behind consent',
+      },
+      {
+        href: '/guides/frontend/segment/',
+        label: 'Twilio Segment',
+        desc: 'Gating identify, page, and track calls independently',
+      },
+      {
+        href: '/guides/frontend/hotjar/',
+        label: 'Hotjar & Others',
+        desc: 'Tools with no dedicated vendor format — Hotjar, Mixpanel, Amplitude, and similar',
+      },
       { href: '/guides/frontend/themes/', label: 'Theming', desc: 'Customising widget appearance' },
       {
         href: '/guides/backend/minimal-setup/',
@@ -234,11 +259,61 @@ const GROUPS: SitemapGroup[] = [
         label: 'Policy Engine Mapping',
         desc: 'Mapping consent policies to enforcement rules',
       },
+      {
+        href: '/guides/hot-topics/google-consent-mode-v2-explained/',
+        label: 'Google Consent Mode v2 Explained',
+        desc: 'The seven consent signals, and basic vs. advanced mode',
+      },
+      {
+        href: '/guides/hot-topics/gdpr-vs-dpdpa/',
+        label: 'GDPR vs DPDPA',
+        desc: 'Where the EU and India opt-in laws agree and differ',
+      },
+      {
+        href: '/guides/hot-topics/dpdpa-cookie-compliance-guide/',
+        label: 'DPDPA Cookie Compliance Guide',
+        desc: 'A practical checklist for an India-compliant opt-in banner',
+      },
+      {
+        href: '/guides/hot-topics/cpra-implementation-guide/',
+        label: 'CPRA Implementation Guide',
+        desc: 'Do Not Sell/Share, GPC auto-honour, sensitive data opt-in',
+      },
+      {
+        href: '/guides/hot-topics/right-to-erasure/',
+        label: 'Right to Erasure ("Right to Be Forgotten")',
+        desc: 'The erasure endpoint, the "Forget me" button, and the events both sides fire',
+      },
+      {
+        href: '/guides/hot-topics/google-consent-mode-for-gtm/',
+        label: 'Google Consent Mode for GTM',
+        desc: 'Consent checks and triggers inside the GTM console',
+      },
+      {
+        href: '/guides/hot-topics/self-hosting-a-cmp/',
+        label: 'Self-hosting a CMP',
+        desc: 'The pieces a self-hosted consent stack needs',
+      },
+      {
+        href: '/guides/hot-topics/open-source-alternatives-to-onetrust/',
+        label: 'Open-source alternatives to OneTrust',
+        desc: 'Scoped to the cookie consent module',
+      },
+      {
+        href: '/guides/hot-topics/open-source-alternatives-to-cookiebot/',
+        label: 'Open-source alternatives to Cookiebot',
+        desc: 'Self-hosted options compared feature-for-feature',
+      },
     ],
   },
   {
     title: 'Compliance',
     links: [
+      {
+        href: '/docs/compliance/compliance-groups/',
+        label: 'Compliance Groups',
+        desc: 'What each of the 8 built-in compliance groups actually satisfies',
+      },
       {
         href: '/docs/compliance/jurisdiction-coverage-map/',
         label: 'Jurisdiction Coverage Map',
@@ -310,9 +385,9 @@ const GROUPS: SitemapGroup[] = [
         desc: 'Age gate widget, parental consent',
       },
       {
-        href: '/docs/compliance/tcf/',
-        label: 'TCF v2.2',
-        desc: 'IAB TC string, vendor list, stacks',
+        href: '/docs/compliance/tcf-and-gpp-registration/',
+        label: 'TCF & GPP Registration',
+        desc: 'IAB TC string, vendor list, GPP, self-registration governance',
       },
       {
         href: '/docs/compliance/notice-only/',

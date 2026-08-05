@@ -1,6 +1,6 @@
 # @consenti/api
 
-Zero-dependency, GDPR-compliant Consent Management Platform backend for Node.js.
+GDPR-style consent management platform backend for Node.js. No required runtime dependencies — SQLite storage and everything else works out of the box; Mongo/MySQL/Postgres storage and spec-correct IAB TCF encoding are opt-in via optional peer dependencies.
 
 [![npm version](https://img.shields.io/npm/v/@consenti/api.svg)](https://www.npmjs.com/package/@consenti/api)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
@@ -13,8 +13,11 @@ Zero-dependency, GDPR-compliant Consent Management Platform backend for Node.js.
 - **Three SQLite drivers** — `node:sqlite` (Node 22.5+ built-in, zero install), `node-sqlite3-wasm` (WASM, zero compilation, optional peer dep), `better-sqlite3` (native, optional peer dep)
 - **One function to mount** — `createConsenti()` returns a router you drop into any Node.js HTTP framework
 - **Self-contained admin dashboard** — full SPA served at your `basePath`, no separate deploy
-- **Multi-regulation** — 76 regulations across EU/EEA, UK, US (22 state laws), India, Brazil, China, Canada, 18 APAC countries, 9 Middle East countries, 14 African countries, and more — with automatic geo-routing via 8 compliance groups
+- **Multi-regulation** — Maintained: GDPR/UK-GDPR, CCPA/CPRA + US state laws, LGPD. Partial: IAB TCF v2.3 (spec-correct encoding needs `tcf.publisherCC` + the optional `@iabtechlabtcf/core` peer dependency) — only relevant if you monetize through programmatic/RTB ad exchanges. In development: DPDPA. Geo-routing and compliance groups extend well beyond that tier (APAC, Middle East, Africa, and more) — see [ECOSYSTEM.md](../../ECOSYSTEM.md) for per-regulation status; contributions to extend or maintain coverage are welcome
+
+> **Registration is only needed for programmatic ad monetization.** For first-party analytics/marketing consent, Consenti is fully compliant with zero external registration. Consenti implements the IAB TCF/GPP technical specs but is **not** itself a registered CMP; if you do need TCF/GPP, you must register your own `cmpId` with IAB Europe/MSPA independently before going live — see the [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration).
 - **Pluggable storage** — SQLite (zero-config, default) · PostgreSQL · MySQL · MongoDB
+- **Companion CLI**: [`@consenti/scanner`](../scanner) crawls a site under none/reject-all/accept-all consent states and reports undeclared third-party trackers
 
 ---
 
@@ -77,7 +80,7 @@ On Node 20/21, choose between `node-sqlite3-wasm` (pure WASM, no compilation) or
 
 Consenti ships with four geo resolver options. The default requires zero installation; the others are opt-in.
 
-**Bonus:** You can also supply a custom resolver function via `compliance.geoDataProvider` — it receives `{ ip, timezone, language }` and must return `{ country: string | null, region: string | null, locale: string | null }`.
+**Bonus:** You can also supply a custom resolver function via `compliance.geoDataProvider` — it receives `{ ip, timezone, language }` and must return `{ country: string | null, region: string | null, locale: string | null }`, plus an optional `complianceGroup?: string` — when set, that group is used directly, skipping the country/region jurisdiction-map lookup entirely (for a provider that already carries legal-grade jurisdiction data and needs to route into an operator-defined custom group).
 
 > **Note:** The default (`'default'`) and `'hosted-geoip-lite'` resolvers are suitable for development and lower-traffic deployments. For high-accuracy production use, choose `'geoip'` or `'maxmind'`.
 
@@ -109,6 +112,7 @@ npm install maxmind
 
 # OR 5. Custom (optional — only needed when geoDataProvider: CountryResolverFn)
         # Do what it requires, just return `{ country, region, locale }` in supported format
+        # (plus an optional `complianceGroup` to skip the jurisdiction-map lookup entirely)
 
 ```
 ---
@@ -142,7 +146,7 @@ const consenti = createConsenti({
     mode: 'local',               // 'local' | 'jwt' | 'oidc' | 'saml' | 'custom'
     adminEmail: 'user@consenti.dev',
     adminPassword: process.env.CONSENTI_ADMIN_PASSWORD ?? "Consenti@123",
-    jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET,  // auto-generated if omitted (sessions expire on restart)
+    masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET,  // auto-generated if omitted (sessions expire on restart)
 
     // OIDC (Auth0, Keycloak, Google, etc.)
     // mode: 'oidc',
@@ -150,7 +154,7 @@ const consenti = createConsenti({
     //   issuer: 'https://your-idp.example.com',
     //   clientId: 'your-client-id',
     //   clientSecret: process.env.OIDC_SECRET,
-    //   redirectUri: 'https://app.example.com/consenti/admin/auth/oidc/callback',
+    //   redirectUri: 'https://app.example.com/consenti/admin/v1/auth/oidc/callback',
     //   claimsMapping: { email: 'email', roles: 'consenti_roles' },
     // },
 
@@ -160,7 +164,7 @@ const consenti = createConsenti({
     //   issuer: 'https://idp.example.com',
     //   entryPoint: 'https://idp.example.com/sso/saml',
     //   cert: process.env.SAML_CERT!,           // IdP signing cert (PEM, no headers)
-    //   callbackUrl: 'https://app.example.com/consenti/admin/auth/saml/callback',
+    //   callbackUrl: 'https://app.example.com/consenti/admin/v1/auth/saml/acs',
     // },
 
     // Custom — bring your own authentication function
@@ -187,12 +191,54 @@ const consenti = createConsenti({
   },
 
   // ── Compliance ───────────────────────────────────────────────────────────────
+  // Every compliance-program setting lives here — jurisdiction routing, IAB TCF, consent-record
+  // signing, and data retention. (Age gate is per-profile now, not a server-wide setting — see
+  // the dashboard's Profile Editor Step 1, and the widget's `profile.ageGate`.)
   compliance: {
     // Geo-based auto routing (recommended)
     type: 'auto',                // 'auto' = geo-resolve per visitor | ComplianceGroupId = one fixed group globally
     geoDataProvider: 'default',  // 'default' (timezone+language heuristic, zero-dep) | 'hosted-geoip-lite' (no install, calls ipinfo.io) | 'geoip' (optional peer dep) | 'maxmind' (optional peer dep) | CountryResolverFn
-    autoComplianceMap: 'default',// 'default' = embedded 240-country map | operator object | 'auto' = fetch from complianceMapUrl
-    // complianceMapUrl: 'https://consenti.dev/data/v1/compliance-map.json', // used when autoComplianceMap: 'auto'
+    complianceMap: 'default',    // 'default' = embedded 240-country map | a URL string (fetched, refreshed per Cache-Control/Expires, 24h fallback) | an operator-supplied ComplianceMapData object
+    // complianceMap: 'https://consenti.dev/data/v1/compliance-map.json',
+    // A region under overriddenRegions can set requiresSensitiveOptIn: true — a per-region carve-out
+    // (not a different group) denying cpraCategory:'sensitive' cookies by default for that region only.
+    // The embedded map sets this for Colorado's CPA already; only takes effect with a geoip/maxmind
+    // geoDataProvider (the timezone/language heuristic never resolves a US state).
+
+    // IAB TCF v2.3
+    tcf: {
+      enabled: false,
+      cmpId: 123,                  // your IAB-registered CMP ID (required when enabled)
+      cmpVersion: 1,               // your CMP software version
+      publisherCC: 'DE',           // ISO 3166-1 alpha-2 publisher country — required for spec-correct
+                                    // binary TC-string encoding; omitted → simplified fallback string
+    },
+
+    // IAB GPP (US National / "usnat" section only)
+    gpp: {
+      enabled: false,
+      cmpId: 123,                  // must match the widget's compliance.gpp.cmpId
+      cmpVersion: 1,
+      mspaCoveredTransaction: false, // whether this deployment falls under MSPA signatory obligations — required, no honest default
+      mspaOptOutOptionMode: 0,     // 0 = not applicable | 1 = yes | 2 = no
+      mspaServiceProviderMode: 0,
+    },
+
+    // Signs server-stored consent records, ownership cookies, and parental-consent tokens, and
+    // salts hashed IPs — HMAC-SHA256 over each record's core fields at create/update time,
+    // hex-encoded into `signature`, checked on `GET /consent/:visitorId/verify`. Independent of
+    // the widget's own cookie-signing (`core.cookieSigningKey`, which protects the visitor's
+    // local cookie). Auto-generated in memory if omitted — fine for local dev, but every restart
+    // invalidates outstanding ownership cookies, in-flight parental-consent tokens, and (if you
+    // compare across restarts) hashed-IP continuity. Set this for production.
+    dataSigningHash: process.env.CONSENTI_DATA_SIGNING_HASH,
+    parentalConsentTokenTtlDays: 7, // expiry window for parental-consent tokens (only meaningful when dataSigningHash is set)
+
+    // Data retention
+    dataRetention: {
+      purgeAfterDays: 365,          // delete consent records older than N days; runs nightly
+      auditLogPurgeAfterDays: 730,  // optional, independent from purgeAfterDays — unset = keep forever
+    },
   },
 
   // ── S3 profile file sync (optional) ─────────────────────────────────────────
@@ -219,29 +265,6 @@ const consenti = createConsenti({
     // profileId: id of the profile that triggered this write (stable across edits — see Profile Edit History)
     // isPurge: true when files were removed (deactivate/delete); false when written (activate/create)
     // Example: purge CDN edge nodes, update nginx cache keys, etc.
-  },
-
-  // ── IAB TCF v2.2 ─────────────────────────────────────────────────────────────
-  tcf: {
-    enabled: false,
-    cmpId: 123,                  // your IAB-registered CMP ID (required when enabled)
-    cmpVersion: 1,               // your CMP software version
-  },
-
-  // ── Age gate ─────────────────────────────────────────────────────────────────
-  // The actual gating prompt is widget-side (@consenti/ui README, "Age Gate" section) — this
-  // block only needs to exist so `ageVerified`/`parentalConsentToken` land in consent records;
-  // there's a matching `compliance.ageGate` block in the widget config with the same shape.
-  ageGate: {
-    enabled: false,
-    minimumAge: 13,              // COPPA = 13; GDPR Article 8 = 16
-    requireParentalConsent: false,
-  },
-
-  // ── Data retention ───────────────────────────────────────────────────────────
-  dataRetention: {
-    purgeAfterDays: 365,          // delete consent records older than N days; runs nightly
-    auditLogPurgeAfterDays: 730,  // optional, independent from purgeAfterDays — unset = keep forever
   },
 
   // ── Multi-tenant ─────────────────────────────────────────────────────────────
@@ -319,7 +342,7 @@ server.listen(3001, () => {
 ### Express / Connect
 
 ```ts
-app.use(consenti.router)    // as middleware (calls next() for unmatched routes)
+app.use(consenti.router)    // as middleware (calls next() for requests outside its basePath)
 // — or —
 app.use(consenti.handler)   // as a terminal handler (no next())
 ```
@@ -548,7 +571,7 @@ Content-Type: application/json
 }
 ```
 
-`ageVerified`/`parentalConsentToken` are optional — only sent by the widget when `compliance.ageGate.enabled: true` (see the `@consenti/ui` README's "Age Gate" section). Both are stored as-is; this endpoint doesn't validate or enforce them.
+`ageVerified`/`parentalConsentToken` are optional — only sent by the widget when the active profile's `ageGate.enabled: true` (a per-profile, per-locale dashboard setting — see the `@consenti/ui` README's "Age Gate" section). Both are stored as-is; this endpoint doesn't validate or enforce them.
 
 Response `201`:
 
@@ -582,25 +605,60 @@ GET /consenti/api/v1/consent/visitor-uuid/verify
 
 `profile_changed` means the profile this consent was collected against is no longer the active profile for its compliance group (a newer edit has superseded it) — every profile edit mints a new id rather than mutating in place, so an id mismatch is what signals staleness now (there is no separate version counter).
 
+### Parental consent request/resolve
+
+See "Parental consent request/resolve (stateless hook)" under Security below for the full design and caveats.
+
+```http
+POST /consenti/api/v1/consent/visitor-uuid/parental-consent-request
+Cookie: consenti_visitor-uuid=...
+
+{ "profileId": "my-profile-id" }
+```
+
+```json
+{ "token": "pcon_eyJ2aXNpdG9ySWQiOi...ab12cd34..." }
+```
+
+```http
+POST /consenti/api/v1/consent/parental-consent-resolve
+
+{ "token": "pcon_eyJ2aXNpdG9ySWQiOi...ab12cd34..." }
+```
+
+```json
+{ "visitorId": "visitor-uuid", "profileId": "my-profile-id" }
+
+// or, on an invalid/expired/tampered token:
+// 403 { "error": "Invalid or expired token (invalid_signature)" }
+```
+
 ---
 
 ## Admin REST API
 
-Base path: `/consenti/admin`. Every route requires `Authorization: Bearer <jwt>`.
+Base path: `/consenti/admin/v1` (change with `basePath` in config). Every route requires `Authorization: Bearer <jwt>`.
 
-Obtain a token via `POST /consenti/admin/auth/login`.
+Obtain a token via `POST /consenti/admin/v1/auth/login`.
 
 ### Auth
 
-| Method | Path              | Description                       |
-|--------|-------------------|-----------------------------------|
-| `POST` | `/auth/login`     | Authenticate — returns a JWT      |
-| `GET`  | `/auth/me`        | Get current authenticated user    |
-| `POST` | `/auth/logout`    | Invalidate session                |
-| `POST` | `/auth/refresh`   | Reissue a fresh token from the current one — extends the session |
+| Method | Path                    | Description                       |
+|--------|-------------------------|-----------------------------------|
+| `POST` | `/auth/login`           | Authenticate (mode `'local'` only) — returns a JWT |
+| `GET`  | `/auth/me`              | Get current authenticated user (includes `totpEnabled`) |
+| `POST` | `/auth/logout`          | Invalidate session                |
+| `POST` | `/auth/refresh`         | Reissue a fresh token from the current one — extends the session |
+| `GET`  | `/auth/oidc/authorize`  | Start OIDC authorization (PKCE) — 302-redirects to the IdP (mode `'oidc'` only) |
+| `GET`  | `/auth/oidc/callback`   | OIDC redirect target — exchanges the code for tokens, verifies the ID token, upserts the admin user from claims, returns a JWT |
+| `GET`  | `/auth/saml/metadata`   | SAML SP metadata XML for your IdP config (mode `'saml'` only) |
+| `POST` | `/auth/saml/acs`        | SAML Assertion Consumer Service — validates the `SAMLResponse`, upserts the admin user, returns a JWT |
+| `POST` | `/auth/totp/setup`      | Generate a TOTP secret for the current user and a QR-code URL (`totpEnabled` stays `false` until verified) |
+| `POST` | `/auth/totp/verify`     | Verify a TOTP code against the pending secret and set `totpEnabled: true` |
+| `POST` | `/auth/totp/disable`    | Clear the TOTP secret and set `totpEnabled: false` |
 
 ```http
-POST /consenti/admin/auth/login
+POST /consenti/admin/v1/auth/login
 Content-Type: application/json
 
 { "email": "admin@example.com", "password": "your-password" }
@@ -614,6 +672,19 @@ Content-Type: application/json
 login — the dashboard calls `POST /auth/refresh` on user activity (mouse/keyboard/scroll/touch) to
 extend it another 30 minutes, and proactively logs the user out the moment 30 minutes pass with no
 activity at all, rather than leaving the session to silently lapse in the background.
+
+**SSO (OIDC / SAML)**: set `auth.mode: 'oidc'` (with `auth.oidc: { issuer, clientId, clientSecret,
+redirectUri, claimsMapping? }`) or `auth.mode: 'saml'` (with `auth.saml: { issuer, entryPoint, cert,
+callbackUrl }`) — see the `auth` block in [Full Configuration](#full-configuration). Both flows
+upsert (create-if-missing) an admin user by email on first successful login and, for OIDC, assign
+roles from `claimsMapping.roles` when the IdP's claim matches an existing role name; there is no
+separate admin-created-user requirement for SSO logins. `POST /auth/login` (local email/password)
+returns `400` when `auth.mode` isn't `'local'`.
+
+**TOTP (per-user MFA)**: each admin user can independently enable TOTP via `setup` → scan the QR
+code → `verify`. This is opt-in per user and layered on top of whichever `auth.mode` is active; it
+is not currently enforced as a required second factor on `POST /auth/login` itself — treat it as
+available account-hardening, not a login gate, until wired into the login flow.
 
 ### Profiles
 
@@ -630,6 +701,7 @@ activity at all, rather than leaving the session to silently lapse in the backgr
 | `POST`     | `/profiles/:id/deactivate`       | Deactivate a profile — removes `${complianceGroup}/` locale files       |
 | `GET`      | `/profiles/:id/versions`         | List every version snapshot on disk, newest first (`{ version, createdAt, locales[] }[]`) |
 | `GET`      | `/profiles/:id/versions/:entryId` | Read a specific version's locale file, `:entryId` is its `version` number (query: `?locale=en`) |
+| `GET`      | `/profiles/archived`             | List profile-id directories on disk with no matching DB row (deleted profiles whose version-snapshot history survives) — `ArchivedProfileSummary[]` |
 | `POST`     | `/profiles/validate`             | Validate a consent template (`cookies` + `categories`) against a compliance group (no save) |
 | `GET`      | `/compliance-coverage`           | Active profile (or null) per compliance group — powers coverage panel   |
 
@@ -748,17 +820,23 @@ Query params for `GET /consents`: `page`, `limit` (max 500), `profileId`, `from`
 
 Query params for `GET /visitors`: `page`, `limit` (max 500), `from`, `to`, `q` (**prefix** search across visitorId, country). Response: `{ items, total, page, limit }`.
 
-IPs are never stored raw — only SHA-256 hashes appear in the `ipHash` field.
+IPs are never stored raw — masked (last IPv4 octet / last 80 bits of IPv6 zeroed), salted with `compliance.dataSigningHash`, and SHA-256 hashed into the `ipHash` field.
 
 ### Users & Roles
 
 | Method     | Path                              | Description                                          |
 |------------|-----------------------------------|------------------------------------------------------|
 | `GET`      | `/users`                          | List admin users                                     |
+| `GET`      | `/users/:id`                      | Get an admin user                                    |
 | `POST`     | `/users`                          | Create an admin user                                 |
 | `PUT`      | `/users/:id`                      | Update an admin user                                 |
+| `DELETE`   | `/users/:id`                      | Delete an admin user                                 |
+| `POST`     | `/users/:id/roles`                | Assign a role to a user                               |
+| `DELETE`   | `/users/:id/roles/:roleId`        | Revoke a role from a user                             |
 | `GET`      | `/roles`                          | List roles                                           |
 | `POST`     | `/roles`                          | Create a role                                        |
+| `PUT`      | `/roles/:id`                      | Update a role                                        |
+| `DELETE`   | `/roles/:id`                      | Delete a role                                        |
 | `GET`      | `/roles/:id/permissions`          | Get permissions for a role                           |
 | `POST`     | `/roles/:id/permissions`          | Assign a permission to a role                        |
 | `DELETE`   | `/roles/:id/permissions/:permId`  | Revoke a permission from a role                      |
@@ -805,10 +883,10 @@ Config page (split into two panels, one per API).
 | `PATCH`  | `/settings` | Update settings (partial — only sends fields being changed) |
 
 ```ts
-// GET /consenti/admin/settings
+// GET /consenti/admin/v1/settings
 { "allowedOrigins": ["https://example.com"], "adminAllowedOrigins": ["https://dashboard.example.com"] }
 
-// PATCH /consenti/admin/settings
+// PATCH /consenti/admin/v1/settings
 { "allowedOrigins": ["https://example.com", "https://foo.example.com"] }
 ```
 
@@ -818,7 +896,7 @@ when the specific profile being submitted to doesn't set its own `profileJson.al
 is its only access gate.
 
 **`adminAllowedOrigins`** is an additional CORS-layer check on top of Bearer-token auth for
-browser-originated `/consenti/admin/*` requests (server-to-server callers without an `Origin`
+browser-originated `/consenti/admin/v1/*` requests (server-to-server callers without an `Origin`
 header are unaffected). Unauthenticated static assets (`widget.js`/`widget.css`) are exempt —
 they must stay embeddable from any origin. **Be careful**: if you configure this, include the
 dashboard's own origin or you'll lock yourself out of the dashboard along with everyone else.
@@ -872,15 +950,37 @@ Only active when `multiTenant.enabled: true`.
 
 ### IAB TCF
 
-| Method | Path              | Description               |
-|--------|-------------------|---------------------------|
-| `GET`  | `/tcf/vendors`    | List IAB TCF vendors      |
-| `GET`  | `/tcf/purposes`   | List IAB TCF purposes     |
+| Method | Path                        | Description               |
+|--------|-----------------------------|----------------------------|
+| `GET`  | `/tcf/vendors`              | List IAB TCF vendors (paginated, `?q=` name filter) |
+| `GET`  | `/tcf/purposes`             | List IAB TCF purposes     |
+| `GET`  | `/tcf/registration-status`  | Draft/confirmed diff plus a live IAB CMP-List lookup for `cmpId` (`?refresh=true` bypasses the 7-day cache) — powers the dashboard's TCF Registration panel |
+| `POST` | `/tcf/confirm-registration` | `{ acknowledge: true }` — records the confirmation as a hash of `cmpId`/`cmpVersion`/`publisherCC` (never the raw values); `409` if IAB's CMP List shows `cmpId` deregistered, `404` if not found yet |
 
 Only active when `tcf.enabled: true`. `cmpId`/`cmpVersion` here must match the widget's own
-`compliance.tcf` config (`@consenti/ui` README, "TCF" section) — both sides encode the same
-simplified TC string. The widget installs `window.__tcfapi` itself; these two admin-only routes
-are for the dashboard's vendor/purpose pickers, not consumed by the public widget.
+`compliance.tcf` config (`@consenti/ui` README, "TCF" section). The widget installs
+`window.__tcfapi` itself; these admin-only routes are for the dashboard's vendor/purpose pickers
+and registration-status panel, not consumed by the public widget.
+
+Set `tcf.publisherCC` (your ISO 3166-1 alpha-2 publisher country code) and install the optional
+`@iabtechlabtcf/core` peer dependency to get spec-correct binary TC-string encoding on consent
+records; without both, `tcfString` falls back to the simplified base64url-JSON format the widget
+also uses. See the [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration) for details.
+
+### IAB GPP (US National)
+
+| Method | Path                         | Description               |
+|--------|------------------------------|----------------------------|
+| `GET`  | `/gpp/registration-status`   | Draft/confirmed diff for `cmpId`/`cmpVersion` — powers the dashboard's GPP Registration panel |
+| `POST` | `/gpp/confirm-registration`  | `{ acknowledge: true }` — records the confirmation as a hash of `cmpId`/`cmpVersion` |
+
+Only active when `gpp.enabled: true`. Unlike TCF, IAB publishes no CMP-List equivalent for GPP, so
+confirmation here is self-attestation only (no external registry to validate `cmpId` against) — the
+checkbox and hash-drift detection (re-arms when `cmpId`/`cmpVersion` changes) are the whole
+mechanism. `cmpId`/`cmpVersion` must match the widget's own `compliance.gpp` config
+(`@consenti/ui` README, "GPP" section). Install the optional `@iabgpp/cmpapi` peer dependency for
+spec-correct binary GPP-string encoding; without it, `gppString` falls back to a base64url-JSON
+payload, same fallback shape as the widget's own stub.
 
 ---
 
@@ -902,7 +1002,7 @@ Served at `{basePath}/` when `dashboard: true`.
 | Roles               | RBAC roles and fine-grained permission assignment                        |
 | Sites               | Multi-tenant site management **(superadmin only)**                       |
 | TCF Vendors         | IAB Global Vendor List                                                   |
-| Audit Log           | Immutable log of all admin actions; search, paginate; row click opens a detail modal with old/new data diff |
+| Audit Log           | Append-only log of all admin actions, never deleted by Consenti; search, paginate; row click opens a detail modal with old/new data diff |
 | Settings / API      | API keys, branding, OpenAPI docs **(superadmin only)**                   |
 | Setup Wizard        | One-time first-run welcome / config / default-profiles / confirmation flow — see [First-Run Setup Wizard](#first-run-setup-wizard) |
 
@@ -1060,8 +1160,8 @@ Only one profile per `complianceGroup` can be active at a time. Activating a new
 
 Via API:
 ```http
-GET /consenti/admin/profiles/:id/versions
-GET /consenti/admin/profiles/:id/versions/:entryId?locale=fr-FR
+GET /consenti/admin/v1/profiles/:id/versions
+GET /consenti/admin/v1/profiles/:id/versions/:entryId?locale=fr-FR
 ```
 
 `:id` is the profile's stable id. `:entryId` is one specific version's number, as returned by the `versions` list.
@@ -1071,7 +1171,7 @@ GET /consenti/admin/profiles/:id/versions/:entryId?locale=fr-FR
 `ProfileService.delete()` removes the DB row but never deletes the on-disk version-snapshot tree, so deleted profiles' history is still readable — it's just no longer reachable by browsing the Profiles list. The **Archived Profiles** page (`#/banners/profiles/archived`, linked from the Profiles list) lists every profile-id directory found on disk with no matching DB row, built from a directory listing only — id, version count, last-modified date — no file content is read until a specific version is opened. Clicking one opens the same version-history viewer used for active profiles.
 
 ```http
-GET /consenti/admin/profiles/archived
+GET /consenti/admin/v1/profiles/archived
 ```
 Returns `{ id, versionCount, lastModified }[]`. `GET /profiles/:id/versions` and `GET /profiles/:id/versions/:entryId` (above) both work for archived ids too — they read the version-directory tree directly and were never actually gated on the DB row existing.
 
@@ -1092,27 +1192,35 @@ When **changing parameters or categories** on a Consent Template, the backend re
 | Event | Payload | Description |
 |---|---|---|
 | `ready` | none | Storage connected and admin user bootstrapped |
-| `consent.created` | `ConsentDbRecord` | New consent record saved |
-| `consent.updated` | `{ previous, current: ConsentDbRecord }` | Consent record updated |
-| `consent.erased` | `{ visitorId: string }` | Visitor data erased (GDPR erasure) |
-| `visitor.created` | `Visitor` | New visitor record created |
-| `profile.created` | `Profile` | Profile created |
-| `profile.updated` | `{ previous, current: Profile }` | Profile edited — `current.id` matches `previous.id`; `current.version` is incremented |
-| `profile.deleted` | `{ id: string, previous: Profile }` | Profile deleted |
+| `consent:created` | `ConsentDbRecord` | New consent record saved |
+| `consent:updated` | `{ previous, current: ConsentDbRecord }` | Consent record updated |
+| `consent:erased` | `{ visitorId: string }` | Visitor data erased (GDPR erasure) |
+| `visitor:created` | `Visitor` | New visitor record created |
+| `profile:created` | `Profile` | Profile created |
+| `profile:updated` | `{ previous, current: Profile }` | Profile edited — `current.id` matches `previous.id`; `current.version` is incremented |
+| `profile:deleted` | `{ id: string, previous: Profile }` | Profile deleted |
+| `profile.activated` | `Profile` | Profile activated (locale JSON files written to the hot-serve path) |
+| `profile.deactivated` | `Profile` | Profile deactivated (locale JSON files removed from the hot-serve path) |
 | `cache:warm` | `{ paths: string[], profileId: string }` | Fired after locale JSON files are written; paths to warm in CDN/cache |
 | `cache:purge` | `{ paths: string[], profileId: string }` | Fired after locale JSON files are removed; paths to purge from CDN/cache |
+| `consent.parentalConsentRequired` | `{ visitorId, profileId, token, issuedAt }` | Age gate declined with `requireParentalConsent: true` — see [Parental consent request/resolve](#parental-consent-request-resolve-stateless-hook) below |
+| `consent.parentalConsentGranted` | `{ visitorId, profileId }` | `POST /consent/parental-consent-resolve` succeeded — see the same section |
+
+Note the inconsistent separator: most events use `:` (`profile:created`), but the activation and
+parental-consent events use `.` (`profile.activated`, `consent.parentalConsentRequired`) — listen
+for the exact string shown above, not a normalized form.
 
 `cache:warm` and `cache:purge` mirror the `handleCache` config callback — use whichever suits your integration.
 
 ```ts
 const { eventBus } = createConsenti({ /* ... */ })
 
-eventBus.on('consent.created', (record) => {
+eventBus.on('consent:created', (record) => {
   // send to analytics, trigger webhook, etc.
   console.log('New consent from visitor:', record.visitorId)
 })
 
-eventBus.on('consent.erased', ({ visitorId }) => {
+eventBus.on('consent:erased', ({ visitorId }) => {
   myDmpClient.deleteVisitor(visitorId)
 })
 ```
@@ -1121,7 +1229,7 @@ eventBus.on('consent.erased', ({ visitorId }) => {
 
 ## ConsentAction / CategoryAction
 
-Server-side counterparts to `@consenti/ui`'s `ConsentAction`/`CategoryAction` — thin wrappers around `consent.created`/`consent.updated` that fire `onGrant`/`onDeny` only on an actual status transition (not on every event), across every visitor's submissions. Prefer these over listening to the raw events directly when you only care about one parameter or one category — they handle the previous-vs-current comparison for you.
+Server-side counterparts to `@consenti/ui`'s `ConsentAction`/`CategoryAction` — thin wrappers around `consent:created`/`consent:updated` that fire `onGrant`/`onDeny` only on an actual status transition (not on every event), across every visitor's submissions. Prefer these over listening to the raw events directly when you only care about one parameter or one category — they handle the previous-vs-current comparison for you.
 
 There is no server equivalent of the widget's `ConsentScript`/`CategoryScript` — injecting a `<script>` tag only makes sense in a browser DOM the server doesn't have. `services.consent.create()`/`.update()` are already the server-side submit/update methods these hooks react to (see [ConsentService](#services)).
 
@@ -1255,22 +1363,25 @@ await consenti.destroy()
 
 | Concern                   | Approach                                                                     |
 |---------------------------|------------------------------------------------------------------------------|
-| IP addresses              | Never stored raw — SHA-256 hashed: `createHash('sha256').update(ip).digest('hex')` |
+| IP addresses              | Never stored raw — masked (last IPv4 octet / last 80 bits of IPv6 zeroed), salted with `compliance.dataSigningHash`, then SHA-256 hashed |
 | Passwords                 | `scrypt` via `node:crypto` — no external bcrypt                              |
 | JWTs                      | `createHmac` via `node:crypto` — no jsonwebtoken package                     |
 | Admin routes              | Always require `Authorization: Bearer <jwt>`                                 |
 | Stack traces              | Suppressed in `NODE_ENV=production` responses                                |
 | CORS                      | Explicit allowlist — never use `origins: '*'` in production                  |
+| Tamper-evident consent    | `compliance.dataSigningHash` signs server-stored records — the key never reaches the browser, unlike the widget's own `core.cookieSigningKey`, which is spoofable in standalone (no-backend) mode since it must ship inside the browser bundle |
 | Rate limiting             | Applied to all public API routes by default                                  |
-| Signed consent records    | Opt-in via `consentSigningKey` — HMAC-SHA256 (`node:crypto` `createHmac`) over each record's core fields, hex-encoded into `signature`. No-op and no schema burden when unset. |
+| Signed consent records    | `compliance.dataSigningHash` — HMAC-SHA256 (`node:crypto` `createHmac`) over each record's core fields, hex-encoded into `signature`. Auto-generated in memory if you don't set it, so this is always active. |
 
-### Signed consent records (opt-in)
+### Signed consent records
 
-Set `consentSigningKey` to have every consent record signed at create/update time — tamper-evidence for server-stored records, independent of the widget's own cookie-signing (`core.cookieSigningKey`, which protects the visitor's local cookie).
+`compliance.dataSigningHash` signs every consent record at create/update time — tamper-evidence for server-stored records, independent of the widget's own cookie-signing (`core.cookieSigningKey`, which protects the visitor's local cookie). The same key also signs ownership cookies and parental-consent request/resolve tokens (see "Parental consent" below), and salts hashed IPs. It's auto-generated in memory if you don't set it — every restart then invalidates outstanding ownership cookies and in-flight parental-consent tokens, since the generated value isn't persisted. Set it explicitly (`CONSENTI_DATA_SIGNING_HASH`) for anything beyond local dev.
 
 ```ts
 createConsenti({
-  consentSigningKey: process.env.CONSENTI_CONSENT_SIGNING_KEY,
+  compliance: {
+    dataSigningHash: process.env.CONSENTI_DATA_SIGNING_HASH,
+  },
 })
 ```
 
@@ -1278,6 +1389,32 @@ createConsenti({
 - `GET /consent/:visitorId/verify` checks the signature when both a key is configured and the record has one, adding `hmac_invalid` to `reasons` on mismatch. Records signed before the key was configured (or never signed) never fail this check for its absence.
 - `signature` is included in CSV/JSON/XLSX exports (`GET /export/consents`) and shown in the dashboard's Consents detail view.
 - Hash-chaining between records (a full tamper-evident log, not just per-record integrity) is not implemented — out of scope for now.
+
+### Parental consent request/resolve (stateless hook)
+
+When a profile's `ageGate.requireParentalConsent` is true and a visitor declines the age gate, the widget submits a deny-all consent and calls `POST /consent/:visitorId/parental-consent-request` to mint a token, then dispatches `consenti:parentalConsentRequired` carrying it. There's no email-sending infra in this package — your own `eventBus` listener owns actually notifying the parent (email, SMS, whatever your product uses):
+
+```ts
+const { eventBus } = createConsenti({ /* ... */ })
+eventBus.on('consent.parentalConsentRequired', ({ visitorId, profileId, token }) => {
+  const resolveUrl = `https://your-site.example/verify-parent?token=${encodeURIComponent(token)}`
+  // send resolveUrl to the parent however your product does that (email, SMS, ...)
+})
+```
+
+The parent's own click/flow eventually calls `POST /consent/parental-consent-resolve` with `{ token }` — either directly, or via the widget's `resolveParentalConsent(token)` export (`@consenti/ui`) if the parent lands on a page with the widget script loaded. On success the server emits `consent.parentalConsentGranted`; your backend listener decides what "granted" actually means for stored consent (this package doesn't update it automatically):
+
+```ts
+eventBus.on('consent.parentalConsentGranted', async ({ visitorId, profileId }) => {
+  // e.g. call ConsentService/PUT /consent/:visitorId yourself to update the real consent record
+})
+```
+
+**Signing**: the request/resolve tokens are signed with `compliance.dataSigningHash` — the same key used for consent-record signing above. It's auto-generated in memory if unset, so tokens are always signed — but with an ephemeral, unpersisted key unless you set `dataSigningHash` explicitly, meaning a server restart between issuing and resolving a token invalidates it. Set `dataSigningHash` (`CONSENTI_DATA_SIGNING_HASH`) before using this in production. Token expiry defaults to 7 days, configurable via `compliance.parentalConsentTokenTtlDays`.
+
+**Important caveats**:
+- Token **replay isn't prevented** — there's no persistence to mark a token "used," an accepted tradeoff of staying fully stateless (no new DB entity, no `StorageAdapter` changes across all 7 storage adapters for what's meant to be a thin plumbing hook).
+- This mechanism is **not by itself sufficient verifiable parental consent** under COPPA or similar regimes. Mainstream CMPs (OneTrust, Cookiebot, Usercentrics, TrustArc, Osano) don't build verifiable-parental-consent workflows into the widget either — a CMP has no way to actually verify the clicker is the parent. This is plumbing to let you wire up your own verification method (signed form, ID check, "email plus," video call — whatever your legal counsel requires), not a claim that clicking a link constitutes legally-sufficient VPC.
 
 ---
 
@@ -1291,7 +1428,8 @@ All config fields can be set via environment variables. Code config takes preced
 | `CONSENTI_BASE_PATH`                | `basePath`                         | `'/consenti'`                    |
 | `CONSENTI_ADMIN_EMAIL`              | `auth.adminEmail`                  | `'user@consenti.dev'`            |
 | `CONSENTI_ADMIN_PASSWORD`           | `auth.adminPassword`               | `'Consenti@123'`                 |
-| `CONSENTI_ADMIN_JWT_SECRET`         | `auth.jwtSecret`                   | random per restart               |
+| `CONSENTI_ADMIN_MASTER_SECRET`      | `auth.masterSecret`                 | random per restart               |
+| `CONSENTI_DATA_SIGNING_HASH`        | `compliance.dataSigningHash`        | random per restart               |
 | `CONSENTI_DB_DRIVER`                | `storage.driver`                   | `'json'`                         |
 | `CONSENTI_DB_PATH`                  | `storage.path`                     | `'./consenti-data'`              |
 | `CONSENTI_DB_URI`                   | `storage.uri`                      | —                                |
@@ -1317,7 +1455,7 @@ OpenAPI JSON at `{basePath}/api/openapi.json`.
 ## Demo
 For detailed API docs, Guides and Demo, visit [consenti.dev](https://consenti.dev) 
 
-Visit author's profile at [santosh.top](https://santosh.top)
+An open-source project by [Santosh Ojha](https://santosh.top)
 
 
 ---

@@ -103,6 +103,10 @@
     font-size: 0.87em;
     padding: var(--consenti-spacing-xs) var(--consenti-spacing-sm);
     border-radius: var(--consenti-spacing-xs);
+
+    &:first-child {
+      padding-left: 0;
+    }
   }
 
   &__controls {

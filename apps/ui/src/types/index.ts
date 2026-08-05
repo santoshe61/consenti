@@ -33,6 +33,8 @@ export type {
   RegisterableProfileConfig,
   PublicProfileResponse,
   ResolvedProfile,
+  AgeGateConfig,
+  AgeGateModalContent,
   GtmConfig,
   UtilsConfig,
   ApiConfig,
@@ -45,12 +47,13 @@ export type {
   ConsentReceipt,
   ConsentiMessage,
   ConsentiWidgetAPI,
+  VisitorIdentity,
   DeepPartial,
   NonEmptyArray,
   WidgetCountryResolverFn,
   ComplianceWidgetConfig,
-  AgeGateWidgetConfig,
   TcfWidgetConfig,
+  GppWidgetConfig,
   GpcMode,
   ComplianceType,
   ComplianceGroupId,
@@ -58,7 +61,9 @@ export type {
   ConsentiEventName,
   ConsentBeingSubmitted,
   ConsentDbRecord,
-  ParentalConsentRequiredDetail
+  ParentalConsentRequiredDetail,
+  ParentalConsentGrantedDetail,
+  IdentifyEventDetail
 } from '@consenti/types'
 
 export { ConsentiPlugin } from '@consenti/types'

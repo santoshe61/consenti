@@ -27,44 +27,6 @@
 
 // ─── Regulation IDs ───────────────────────────────────────────────────────────
 
-export const COMPLIANCE_REGULATION_IDS = [
-  // European Union
-  'gdpr', 'eprivacy',
-  // United Kingdom
-  'uk-gdpr', 'pecr',
-  // Switzerland
-  'revfadp',
-  // Turkey
-  'kvkk',
-  // North America — Canada
-  'pipeda', 'law25',
-  // North America — US (California)
-  'ccpa', 'cpra',
-  // North America — US state laws
-  'vcdpa', 'cpa-co', 'ctdpa', 'ucpa', 'icdpa-ia', 'icdpa-in', 'tipa',
-  'mcdpa-mt', 'mcdpa-mn', 'ocpa', 'tdpsa', 'dpdpa-de', 'njdpa', 'nhpa',
-  'ndpa-ne', 'modpa', 'kcdpa', 'ridtpa',
-  // Latin America
-  'lgpd', 'lfpdppp', 'lpdp-ar', 'lpdp-pe', 'law1581-co', 'law18331-uy',
-  'law19628-cl', 'lopdp-ec', 'lpdp-cr', 'data-protection-pa', 'data-protection-do',
-  // Asia — India
-  'dpdpa',
-  // Asia — China
-  'pipl', 'dsl-cn', 'csl-cn',
-  // Asia — Pacific
-  'appi', 'pipa-kr', 'pdpa-sg', 'pdpa-th', 'pdpa-my', 'dpa-ph', 'pdp-id',
-  'pdpd-vn', 'privacy-au', 'privacy-nz', 'pdpl-hk', 'pdpa-mo', 'pdpl-tw',
-  'privacy-bn', 'privacy-lk', 'privacy-np',
-  // Middle East
-  'pdpl-sa', 'uae-pdpl', 'difc-dpl', 'adgm-dpr', 'qpdl-qa', 'pdpl-bh',
-  'pdpl-om', 'privacy-kw', 'privacy-il',
-  // Africa
-  'popia', 'ndpa-ng', 'dpa-ke', 'dpa-gh', 'dpa-ug', 'dpa-rw', 'dpa-mu',
-  'dpa-bw', 'dpa-zm', 'dpa-zw', 'dpa-eg', 'dpa-ma', 'dpa-tn', 'dpa-dz',
-  // Oceania
-  'privacy-fj', 'privacy-pg',
-] as const
-
 // ─── Compliance Group IDs ─────────────────────────────────────────────────────
 
 export const COMPLIANCE_GROUP_IDS = [
@@ -81,10 +43,6 @@ export const COMPLIANCE_GROUP_IDS = [
 // Local alias for the shape checks below. The public `ComplianceGroupId` type
 // (derived from the same array) is re-exported from @consenti/types.
 type ComplianceGroupId = typeof COMPLIANCE_GROUP_IDS[number]
-
-// Local alias for the shape checks below. The public `Compliance` type
-// (derived from the same array) is re-exported from @consenti/types.
-type Compliance = typeof COMPLIANCE_REGULATION_IDS[number]
 
 // ─── Compliance Groups ────────────────────────────────────────────────────────
 
@@ -275,7 +233,7 @@ export function inferCookiePurpose(cookie: { id: string }): CookiePurposeId {
   return KNOWN_COOKIE_PURPOSES[cookie.id] ?? 'functional'
 }
 
-// ─── TCF Purposes (IAB TCF 2.2) ──────────────────────────────────────────────
+// ─── TCF Purposes (stable across IAB TCF v2.2/v2.3 — same 11 purposes) ───────
 
 export const TCF_PURPOSES = [
   { id: 1, name: 'Store and/or access information on a device', description: "Cookies, device identifiers, or other information can be stored or accessed on your device." },
@@ -376,7 +334,15 @@ export const COMPLIANCE_VALIDATION_RULES: Record<string, {
         message: (id) => `Category "${id}" must have a legal basis set (Consent, Legitimate Interest, or Strictly Necessary) for GDPR compliance.`,
       },
     ],
-    categoryWarnings: [],
+    categoryWarnings: [
+      {
+        rule: 'legitimate-interest-balancing-test-recommended',
+        field: 'legitimateInterestDescription',
+        check: (c) => c['legalBasis'] === 'legitimate_interest' && !String(c['legitimateInterestDescription'] ?? '').trim(),
+        message: (id) => `Category "${id}" relies on Legitimate Interest but has no balancing-test description. GDPR Art. 6(1)(f) requires you to conduct and be able to demonstrate a Legitimate Interests Assessment — note that Art. 5(3) ePrivacy still requires consent (LI cannot substitute) for the cookie storage/access itself, so this basis should only cover the downstream processing purpose, not the placement of a non-essential cookie.`,
+        suggestion: 'Document your Legitimate Interests Assessment in the category\'s "Legitimate Interest Description" field.',
+      },
+    ],
     cookieErrors: [],
     cookieWarnings: [
       {
@@ -414,16 +380,14 @@ export const COMPLIANCE_VALIDATION_RULES: Record<string, {
         check: (c, legalBasis) => legalBasis !== 'mandatory' && !c['cpraCategory'],
         message: (id) => `Parameter "${id}" must have a CPRA category (Sale, Sharing, or Sensitive) assigned. Required under CPRA for all non-necessary parameters.`,
       },
-    ],
-    cookieWarnings: [
       {
         rule: 'gpc-strict-required',
         field: 'listenGpc',
-        check: (c, legalBasis) => legalBasis !== 'mandatory' && !c['listenGpc'],
-        message: (id) => `Parameter "${id}" does not listen for the GPC signal. Under CPRA, non-mandatory parameters must honor GPC as a Do Not Sell/Share signal.`,
-        suggestion: 'Enable "Listen for GPC signal" on this parameter.',
+        check: (c) => (c['cpraCategory'] === 'sale' || c['cpraCategory'] === 'sharing') && !c['listenGpc'],
+        message: (id) => `Parameter "${id}" is tagged Sale/Sharing but does not listen for the GPC signal. 11 CCR §7025 requires honoring GPC as a Do Not Sell/Share My Personal Information request for these parameters — this is mandatory, not optional.`,
       },
     ],
+    cookieWarnings: [],
   },
 
   'opt-in-dpdpa': {
@@ -457,21 +421,19 @@ export const COMPLIANCE_VALIDATION_RULES: Record<string, {
   'opt-in-china': {
     categoryErrors: [
       {
+        rule: 'no-li-allowed',
+        field: 'legalBasis',
+        check: (c) => c['legalBasis'] === 'legitimate_interest',
+        message: (id) => `Category "${id}" uses Legitimate Interest, which is not one of PIPL Article 13's enumerated legal bases. Use Consent or Strictly Necessary.`,
+      },
+      {
         rule: 'legal-basis-required',
         field: 'legalBasis',
         check: (c) => !c['legalBasis'],
         message: (id) => `Category "${id}" must have a legal basis set for China PIPL compliance. Consent is the primary valid basis.`,
       },
     ],
-    categoryWarnings: [
-      {
-        rule: 'li-limited-under-pipl',
-        field: 'legalBasis',
-        check: (c) => c['legalBasis'] === 'legitimate_interest',
-        message: (id) => `Category "${id}" uses Legitimate Interest. Under China's PIPL, LI is narrowly scoped and data processing purposes must be strictly documented.`,
-        suggestion: 'Consider using Consent for this category to ensure PIPL compliance. Document the specific legitimate interest basis if retaining LI.',
-      },
-    ],
+    categoryWarnings: [],
     cookieErrors: [],
     cookieWarnings: [
       {
@@ -493,7 +455,15 @@ export const COMPLIANCE_VALIDATION_RULES: Record<string, {
         message: (id) => `Category "${id}" must have a legal basis set. Brazil's LGPD requires one of ten legal bases; Consent or Legitimate Interest are most common for parameters.`,
       },
     ],
-    categoryWarnings: [],
+    categoryWarnings: [
+      {
+        rule: 'legitimate-interest-balancing-test-recommended',
+        field: 'legitimateInterestDescription',
+        check: (c) => c['legalBasis'] === 'legitimate_interest' && !String(c['legitimateInterestDescription'] ?? '').trim(),
+        message: (id) => `Category "${id}" relies on Legitimate Interest but has no balancing-test description. LGPD Art. 10 requires the legitimate interest basis to be documented and, on request, made available to the ANPD as a Data Protection Impact Report (relatório de impacto).`,
+        suggestion: 'Document your legitimate interest assessment in the category\'s "Legitimate Interest Description" field.',
+      },
+    ],
     cookieErrors: [],
     cookieWarnings: [
       {
@@ -516,6 +486,13 @@ export const COMPLIANCE_VALIDATION_RULES: Record<string, {
         message: (id) => `Category "${id}" has no legal basis documented. While a strict cookie banner may not be legally required in this jurisdiction, documenting legal basis is a privacy best practice.`,
         suggestion: 'Set a legal basis to improve compliance documentation and future-proof against stricter enforcement.',
       },
+      {
+        rule: 'legitimate-interest-balancing-test-recommended',
+        field: 'legitimateInterestDescription',
+        check: (c) => c['legalBasis'] === 'legitimate_interest' && !String(c['legitimateInterestDescription'] ?? '').trim(),
+        message: (id) => `Category "${id}" relies on Legitimate Interest but has no balancing-test description documented. Most legitimate-interest-style bases in this jurisdiction group expect a documented justification, and it future-proofs the profile against stricter enforcement.`,
+        suggestion: 'Document your legitimate interest justification in the category\'s "Legitimate Interest Description" field.',
+      },
     ],
     cookieErrors: [],
     cookieWarnings: [],
@@ -537,7 +514,31 @@ export const COMPLIANCE_VALIDATION_RULES: Record<string, {
 // Only well-supported, widely-used locales are listed. English-speaking countries
 // use 'en' (no country suffix). No country-specific English variants (en-XX) anywhere.
 
-export const EMBEDDED_COMPLIANCE_MAP = {
+export interface ComplianceMap {
+  version: string
+  countries: Record<string, {
+    name: string
+    type: 'country'
+    complianceGroup: ComplianceGroupId
+    default: ComplianceGroupId
+    description: string
+    locales: readonly string[]
+    compliance: readonly Compliance[]
+    timezones: readonly string[]
+    overriddenRegions?: Record<string, {
+      name: string
+      type: 'region'
+      complianceGroup: ComplianceGroupId
+      description: string
+      /** When true, cookies tagged `cpraCategory: 'sensitive'` default to denied (opt-in) for
+       * this region even though the rest of the group's cookies default to granted (opt-out
+       * pre-grant) — a per-region carve-out layered on top of the group, not a group change. */
+      requiresSensitiveOptIn?: boolean
+    }>
+  }>
+}
+
+export const EMBEDDED_COMPLIANCE_MAP: ComplianceMap = {
   version: '2026-07',
   countries: {
     // ─── Europe — EU 27 ───────────────────────────────────────────────────────
@@ -613,7 +614,12 @@ export const EMBEDDED_COMPLIANCE_MAP = {
       overriddenRegions: {
         CA: { name: 'California', type: 'region', complianceGroup: 'opt-out-strict', description: 'California — CPRA/CCPA' },
         VA: { name: 'Virginia', type: 'region', complianceGroup: 'opt-out', description: 'Virginia — VCDPA' },
-        CO: { name: 'Colorado', type: 'region', complianceGroup: 'opt-out', description: 'Colorado — CPA' },
+        // requiresSensitiveOptIn: Colorado's CPA requires opt-in consent (not the group's
+        // default opt-out pre-grant) for sensitive data specifically — mirrors CPRA's own
+        // cpraCategory:'sensitive' carve-out, scoped to this one region rather than promoting
+        // all of Colorado to the stricter 'opt-out-strict' group. Verify against current CPA
+        // text/regulations before relying on this for a live deployment.
+        CO: { name: 'Colorado', type: 'region', complianceGroup: 'opt-out', description: 'Colorado — CPA', requiresSensitiveOptIn: true },
         CT: { name: 'Connecticut', type: 'region', complianceGroup: 'opt-out', description: 'Connecticut — CTDPA' },
         UT: { name: 'Utah', type: 'region', complianceGroup: 'opt-out', description: 'Utah — UCPA' },
         TX: { name: 'Texas', type: 'region', complianceGroup: 'opt-out', description: 'Texas — TDPSA' },
@@ -817,25 +823,19 @@ export const EMBEDDED_COMPLIANCE_MAP = {
     UK: { name: 'United Kingdom', type: 'country', complianceGroup: 'opt-in', default: 'opt-in', description: 'United Kingdom (UK GDPR + PECR)', locales: ['en'], compliance: ['uk-gdpr', 'pecr'], timezones: ['Europe/London'] },
     CH: { name: 'Switzerland', type: 'country', complianceGroup: 'opt-in', default: 'opt-in', description: 'Switzerland (revFADP)', locales: ['de-CH', 'fr-CH', 'it-CH'], compliance: ['revfadp'], timezones: ['Europe/Zurich'] },
   },
-} satisfies {
-  version: string
-  countries: Record<string, {
-    name: string
-    type: 'country'
-    complianceGroup: ComplianceGroupId
-    default: ComplianceGroupId
-    description: string
-    locales: readonly string[]
-    compliance: readonly Compliance[]
-    timezones: readonly string[]
-    overriddenRegions?: Record<string, {
-      name: string
-      type: 'region'
-      complianceGroup: ComplianceGroupId
-      description: string
-    }>
-  }>
 }
+
+export const COMPLIANCE_REGULATION_IDS: string[] = [...Object.values(EMBEDDED_COMPLIANCE_MAP.countries).reduce((acc, country) => {
+  country.compliance.forEach((c: string) => {
+    acc.add(c)
+  })
+
+  return acc
+}, new Set<string>())]
+
+// Local alias for the shape checks below. The public `Compliance` type
+// (derived from the same array) is re-exported from @consenti/types.
+type Compliance = typeof COMPLIANCE_REGULATION_IDS[number]
 
 export const COUNTRY_CODES = Object.entries(EMBEDDED_COMPLIANCE_MAP.countries).reduce(function (acc, [c, d]) {
   acc[c] = d.name;
@@ -848,3 +848,99 @@ export const LOCALES = Object.values(EMBEDDED_COMPLIANCE_MAP.countries).reduce(f
   })
   return acc;
 }, {} as Record<string, string>);
+
+// ─── compliance.complianceMap override resolution ─────────────────────────────
+// Shared by apps/api (GeoResolverService) and apps/ui (profile-resolver, standalone mode
+// only). Defined structurally here (not imported from @consenti/types) to avoid a circular
+// package dependency — @consenti/types already imports its ComplianceGroupId et al. from this
+// file, so this file cannot import back from @consenti/types.
+
+/** `complianceGroup`/`default` are `string` here (not the `ComplianceGroupId` literal union) —
+ * that union isn't exported from this module (it lives in `@consenti/types`, which itself
+ * imports from this file, so importing it back here would be circular); runtime validation
+ * (`isComplianceMapData`) is the actual safety net for operator-supplied data. */
+export interface ComplianceMapCountryEntry {
+  complianceGroup: string
+  default?: string
+  description?: string
+  overriddenRegions?: Record<string, { complianceGroup: string; description?: string; requiresSensitiveOptIn?: boolean }>
+}
+
+export interface ComplianceMapData {
+  version: string
+  countries: Record<string, ComplianceMapCountryEntry>
+}
+
+export interface ComplianceMapResolution {
+  map: ComplianceMapData | typeof EMBEDDED_COMPLIANCE_MAP
+  /** Set only when `override` was a URL — lets callers inspect `Cache-Control`/`Expires` to
+   * schedule their own background refresh. Not meaningful for the `'default'`/object cases. */
+  response?: Response
+}
+
+function isComplianceMapData(data: unknown): data is ComplianceMapData {
+  if (!data || typeof data !== 'object') return false
+  const d = data as Record<string, unknown>
+  if (typeof d['version'] !== 'string') return false
+  const countries = d['countries']
+  if (!countries || typeof countries !== 'object') return false
+  return Object.values(countries as Record<string, unknown>).every((entry) =>
+    !!entry && typeof entry === 'object' && typeof (entry as Record<string, unknown>)['complianceGroup'] === 'string'
+  )
+}
+
+/**
+ * Resolves a `compliance.complianceMap` config value into actual map data.
+ *
+ * `'default'`/`undefined` → the embedded map, no network access. A `string` is treated as a
+ * URL and fetched as-is (no custom `cache` mode — the platform's own fetch/HTTP-cache semantics
+ * apply). A plain object is used directly. Any failure (network error, bad JSON, failed
+ * structural validation) reports via `onWarn` and falls back to the embedded map — this never
+ * throws. Also warns when a country defines `overriddenRegions` but no explicit `default`,
+ * since the effective fallback (`complianceGroup`) may under-comply for regions not listed.
+ *
+ * Does not do any caching/scheduling — that's platform-specific (Node vs. browser) and is the
+ * caller's responsibility.
+ */
+export async function resolveComplianceMapOverride(
+  override: 'default' | string | ComplianceMapData | undefined,
+  onWarn: (message: string) => void,
+): Promise<ComplianceMapResolution> {
+  const fallback: ComplianceMapResolution = { map: EMBEDDED_COMPLIANCE_MAP }
+
+  if (override === undefined || override === 'default') return fallback
+
+  let candidate: unknown
+  let response: Response | undefined
+
+  if (typeof override === 'string') {
+    try {
+      response = await fetch(override)
+      if (!response.ok) {
+        onWarn(`compliance.complianceMap fetch from "${override}" failed (HTTP ${response.status}) — falling back to the embedded map.`)
+        return fallback
+      }
+      candidate = await response.json()
+    } catch (err) {
+      onWarn(`compliance.complianceMap fetch from "${override}" failed (${err instanceof Error ? err.message : String(err)}) — falling back to the embedded map.`)
+      return fallback
+    }
+  } else {
+    candidate = override
+  }
+
+  if (!isComplianceMapData(candidate)) {
+    onWarn(`compliance.complianceMap ${typeof override === 'string' ? `at "${override}"` : 'object'} failed validation — falling back to the embedded map.`)
+    return fallback
+  }
+
+  for (const [code, entry] of Object.entries(candidate.countries)) {
+    if (entry.overriddenRegions && entry.default === undefined) {
+      onWarn(`compliance.complianceMap country "${code}" has overriddenRegions but no explicit default — falling back to complianceGroup ("${entry.complianceGroup}"), which may under-comply for regions not listed.`)
+    }
+  }
+
+  const result: ComplianceMapResolution = { map: candidate }
+  if (response) result.response = response
+  return result
+}

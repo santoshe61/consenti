@@ -121,6 +121,40 @@ export const OPENAPI_PUBLIC_SPEC = {
         responses: { '200': { description: 'Verification result' } },
       },
     },
+    '/v1/consent/{visitorId}/parental-consent-request': {
+      post: {
+        tags: ['Consent'],
+        summary: 'Request a parental-consent token (stateless hook)',
+        description: 'Issues a token — signed with `compliance.dataSigningHash` when configured, otherwise unsigned — for a host\'s own out-of-band parental-verification flow. Emits `consent.parentalConsentRequired`. Not by itself sufficient verifiable parental consent (COPPA-style VPC is left to the host).',
+        parameters: [{ name: 'visitorId', in: 'path', required: true, schema: { type: 'string' } }],
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['profileId'], properties: { profileId: { type: 'string' } } } } },
+        },
+        responses: {
+          '200': { description: 'Token issued', content: { 'application/json': { schema: { type: 'object', properties: { token: { type: 'string' } } } } } },
+          '400': { description: 'Validation error' },
+          '403': { description: 'Visitor ownership check failed' },
+          '404': { description: 'Profile not found' },
+        },
+      },
+    },
+    '/v1/consent/parental-consent-resolve': {
+      post: {
+        tags: ['Consent'],
+        summary: 'Resolve a parental-consent token',
+        description: 'Recovers `visitorId`/`profileId` from a token issued by the request route above and emits `consent.parentalConsentGranted` — the host\'s own backend listener decides what "granted" means for stored consent. No visitor-ownership cookie required, since this is typically called from the parent\'s own device. Token replay is not prevented (stateless by design).',
+        requestBody: {
+          required: true,
+          content: { 'application/json': { schema: { type: 'object', required: ['token'], properties: { token: { type: 'string' } } } } },
+        },
+        responses: {
+          '200': { description: 'Token resolved', content: { 'application/json': { schema: { type: 'object', properties: { visitorId: { type: 'string' }, profileId: { type: 'string' } } } } } },
+          '400': { description: 'Validation error' },
+          '403': { description: 'Invalid, tampered, or expired token' },
+        },
+      },
+    },
     '/v1/notice-shown': {
       post: {
         tags: ['Consent'],
@@ -163,7 +197,7 @@ export const OPENAPI_ADMIN_SPEC = {
     license: { name: 'Apache 2.0', url: 'https://www.apache.org/licenses/LICENSE-2.0' },
   },
   servers: [
-    { url: '/consenti/admin', description: 'Consenti Admin API' },
+    { url: '/consenti/admin/v1', description: 'Consenti Admin API' },
   ],
   paths: {
     // ── Auth ──────────────────────────────────────────────────────────────
@@ -446,7 +480,7 @@ export const OPENAPI_ADMIN_SPEC = {
       get: {
         tags: ['Setup'],
         summary: 'Resolved server config (secrets redacted) plus production-readiness flags',
-        description: 'The same merged `DEFAULT_CONFIG` + user config `createConsenti` computes at boot. `auth.adminPassword`, `auth.jwtSecret`, `consentSigningKey`, storage credentials, and OIDC/SAML secrets are replaced with a redaction marker.',
+        description: 'The same merged `DEFAULT_CONFIG` + user config `createConsenti` computes at boot. `auth.adminPassword`, `auth.masterSecret`, `compliance.dataSigningHash`, `compliance.dataSigningHash`, storage credentials, and OIDC/SAML secrets are replaced with a redaction marker.',
         security: [{ BearerAuth: [] }],
         responses: { '200': { description: '{ config: object, usingJsonStorage: boolean, usingDefaultCredentials: boolean }' } },
       },

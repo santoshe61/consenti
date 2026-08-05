@@ -1,4 +1,4 @@
-const BASE = `${window.__CONSENTI_CONFIG__?.basePath ?? '/consenti'}/admin`
+const BASE = `${window.__CONSENTI_CONFIG__?.basePath ?? '/consenti'}/admin/v1`
 
 /** Fired on any 401 response — `AuthProvider` listens for this and calls its own `logout()`,
  * so React state, localStorage, and the route all update together through one path instead of
@@ -14,6 +14,25 @@ export class ApiError extends Error {
   constructor(public status: number, message: string) {
     super(message)
   }
+}
+
+/**
+ * Extracts the server's own human-readable `error` string out of an `ApiError` (whose `message`
+ * is the raw JSON response body — `{ error, details? }`, see `error.middleware.ts`), for use in
+ * a `catch` block that would otherwise show either a single hardcoded generic message (hiding a
+ * more specific, still non-technical server message like "email and password are required" or
+ * "Cannot delete the default tenant") or, worse, the raw unparsed JSON text itself. Falls back to
+ * `fallback` when the error isn't an `ApiError`, isn't JSON (network failure), or carries no
+ * `error` field.
+ */
+export function apiErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError) {
+    try {
+      const body = JSON.parse(err.message) as { error?: string }
+      if (body.error) return body.error
+    } catch { /* not JSON — fall through to fallback */ }
+  }
+  return fallback
 }
 
 export async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {

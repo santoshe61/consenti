@@ -4,6 +4,7 @@ import { useBranding } from '../context/branding'
 import { useT } from '../context/locale'
 import { setupApi } from '../api/setup'
 import type { SetupComplianceGroup, SetupConfigResponse } from '../api/setup'
+import { apiErrorMessage } from '../api/client'
 
 type Step = 1 | 2 | 3 | 4
 
@@ -143,8 +144,6 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
     }
   }
 
-  const skip = () => { void finish('#/') }
-
   const toggleGroup = (id: string) => {
     setSelected(prev => {
       const next = new Set(prev)
@@ -170,8 +169,8 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
         setSeededCount(0)
       }
       setStep(4)
-    } catch {
-      setError(t('setupWizard.profiles.error'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('setupWizard.profiles.error')))
     } finally {
       setBusy(false)
     }
@@ -203,17 +202,9 @@ export function SetupWizard({ onComplete }: { onComplete: () => void }) {
             <button
               type="button"
               onClick={() => setStep(2)}
-              class="w-full bg-blue-600 text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors mb-3"
+              class="w-full bg-blue-600 text-white rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-blue-700 transition-colors"
             >
               {t('setupWizard.welcome.getStarted')}
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={skip}
-              class="text-xs text-gray-400 hover:text-gray-600 disabled:opacity-50"
-            >
-              {t('setupWizard.welcome.skip')}
             </button>
           </div>
         )}

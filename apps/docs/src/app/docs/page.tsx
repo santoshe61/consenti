@@ -5,12 +5,12 @@ import { Database, Layout, Plug, Rocket, Scale } from 'lucide-react'
 export const metadata: Metadata = {
   title: 'Documentation',
   description:
-    'Documentation for Consenti — the open-source, GDPR-compliant cookie consent and consent management platform.',
+    'Documentation for Consenti — the open-source, GDPR-style opt-in cookie consent and consent management platform.',
   alternates: { canonical: '/docs' },
   openGraph: {
     title: 'Documentation',
     description:
-      'Documentation for Consenti — the open-source, GDPR-compliant cookie consent and consent management platform.',
+      'Documentation for Consenti — the open-source, GDPR-style opt-in cookie consent and consent management platform.',
     url: 'https://consenti.dev/docs',
     siteName: 'Consenti Docs',
     images: ['/og-image.jpg'],
@@ -19,7 +19,7 @@ export const metadata: Metadata = {
     card: 'summary_large_image',
     title: 'Documentation',
     description:
-      'Documentation for Consenti — the open-source, GDPR-compliant cookie consent and consent management platform.',
+      'Documentation for Consenti — the open-source, GDPR-style opt-in cookie consent and consent management platform.',
     images: ['/og-image.jpg'],
   },
 }
@@ -55,11 +55,11 @@ const sections = [
     Icon: Scale,
     iconColor: 'text-purple-600',
     iconBg: 'bg-purple-50',
-    desc: 'GDPR, CCPA, TCF v2.2, COPPA — how Consenti meets each regulation and what you need to configure.',
+    desc: 'GDPR, CCPA, TCF v2.3, COPPA — how Consenti meets each regulation and what you need to configure.',
   },
   {
     title: 'Plugins',
-    href: '/docs/plugins/',
+    href: '/docs/api/plugins/',
     Icon: Plug,
     iconColor: 'text-orange-500',
     iconBg: 'bg-orange-50',
@@ -72,10 +72,10 @@ export default function DocsIndexPage() {
     <div className="prose max-w-none">
       <h1>Consenti Documentation</h1>
       <p>
-        Consenti is an open-source, GDPR-compliant cookie consent and consent management platform.
-        The UI widget (<code>@consenti/ui</code>) is the core — install it and you have a fully
-        working consent banner with zero dependencies, no backend required. Consent is stored in a
-        signed browser cookie. That&apos;s all most projects need.
+        Consenti is an open-source, GDPR-style opt-in cookie consent and consent management
+        platform. The UI widget (<code>@consenti/ui</code>) is the core — install it and you have
+        a fully working consent banner with zero required dependencies, no backend required.
+        Consent is stored in a signed browser cookie. That&apos;s all most projects need.
       </p>
       <p>
         The backend module (<code>@consenti/api</code>) is entirely optional. Add it if you need

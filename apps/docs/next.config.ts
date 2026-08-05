@@ -91,8 +91,14 @@ const nextConfig: NextConfig = {
       { source: '/demo/', destination: '/demo-playground/frontend', permanent: false },
       { source: '/demo-playground', destination: '/demo-playground/frontend', permanent: false },
       { source: '/demo-playground/', destination: '/demo-playground/frontend', permanent: false },
+      // TCF and self-registration pages merged into one — remove once search engines reindex
+      { source: '/docs/compliance/tcf', destination: '/docs/compliance/tcf-and-gpp-registration', permanent: true },
+      { source: '/docs/compliance/tcf/', destination: '/docs/compliance/tcf-and-gpp-registration', permanent: true },
+      { source: '/docs/compliance/self-registration', destination: '/docs/compliance/tcf-and-gpp-registration', permanent: true },
+      { source: '/docs/compliance/self-registration/', destination: '/docs/compliance/tcf-and-gpp-registration', permanent: true },
     ]
   },
+  // outputFileTracingRoot: join(__dirname, '../../'),
   outputFileTracingIncludes: {
     '/consenti/[[...path]]': [join(__dirname, '..', 'api', 'dist', 'dashboard', '**', '*')],
   },

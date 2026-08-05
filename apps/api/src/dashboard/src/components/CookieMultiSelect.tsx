@@ -35,7 +35,7 @@ export function CookieMultiSelect({
   showSpecial = true,
   extraCookies,
   disabled = false,
-  placeholder = 'Select cookies…',
+  placeholder = 'Select cookies/parameters…',
 }: CookieMultiSelectProps) {
   const [open, setOpen] = useState(false)
   const [dropPos, setDropPos] = useState<DropPos | null>(null)
@@ -44,7 +44,7 @@ export function CookieMultiSelect({
   const dropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    consentTemplatesApi.list().then(setConsentTemplates).catch(() => {})
+    consentTemplatesApi.list().then(setConsentTemplates).catch(() => { })
   }, [])
 
   useEffect(() => {
@@ -160,10 +160,10 @@ export function CookieMultiSelect({
             </div>
           )}
           <div>
-            <p class="text-xs font-semibold text-gray-400 px-3 pt-2 pb-1 uppercase tracking-wide">Cookie IDs</p>
+            <p class="text-xs font-semibold text-gray-400 px-3 pt-2 pb-1 uppercase tracking-wide">Cookie/Parameter IDs</p>
             {allOptions.length === 0 ? (
               <p class="text-xs text-gray-400 px-3 pb-3">
-                No cookies defined yet.{' '}
+                No cookies/parameters defined yet.{' '}
                 <a href="#/banners/consent-templates/new" class="text-blue-600 hover:underline" target="_blank">Create a template ↗</a>
               </p>
             ) : allOptions.map(opt => (

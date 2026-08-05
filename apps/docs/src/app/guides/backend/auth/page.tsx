@@ -58,7 +58,7 @@ export default function BackendAuthGuide() {
           <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
             {[
               ['local', 'Development, small teams', 'Email + password in config'],
-              ['jwt', 'API-first, programmatic access', 'A stable jwtSecret env var'],
+              ['jwt', 'API-first, programmatic access', 'A stable masterSecret env var'],
               ['oidc', 'Auth0, Keycloak, Google Workspace', 'OIDC provider config'],
               ['saml', 'Okta, Azure AD, Ping', 'SAML IdP config + cert'],
               ['custom', 'Any other identity system', 'A validateUser function'],
@@ -83,7 +83,7 @@ export default function BackendAuthGuide() {
       <h2>Local (default)</h2>
       <p>
         Consenti stores a scrypt-hashed password in the database. The admin logs in at{' '}
-        <code>/consenti/admin/auth/login</code>, receives a JWT, and uses it as a Bearer token for
+        <code>/consenti/admin/v1/auth/login</code>, receives a JWT, and uses it as a Bearer token for
         all subsequent admin API calls.
       </p>
 
@@ -94,14 +94,14 @@ export default function BackendAuthGuide() {
     mode: 'local',
     adminEmail: 'admin@example.com',
     adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!,
-    // jwtSecret is auto-generated if omitted — sessions expire on restart
-    jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET,
+    // masterSecret is auto-generated if omitted — sessions expire on restart
+    masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET,
   },
 })`}
       />
 
       <Callout type="warning">
-        Always set <code>jwtSecret</code> (or the <code>CONSENTI_ADMIN_JWT_SECRET</code> env var) in
+        Always set <code>masterSecret</code> (or the <code>CONSENTI_ADMIN_MASTER_SECRET</code> env var) in
         production. Without it, Consenti generates a random secret on start — all admin sessions are
         invalidated on every restart, which is fine for dev but unacceptable in production.
       </Callout>
@@ -111,13 +111,13 @@ export default function BackendAuthGuide() {
       <CodeBlock
         lang="bash"
         code={`# 1. Log in
-curl -X POST https://your-domain.com/consenti/admin/auth/login \\
+curl -X POST https://your-domain.com/consenti/admin/v1/auth/login \\
   -H 'Content-Type: application/json' \\
   -d '{ "email": "admin@example.com", "password": "your-password" }'
 # → { "token": "eyJhbGci..." }
 
 # 2. Use the token on admin routes
-curl https://your-domain.com/consenti/admin/profiles \\
+curl https://your-domain.com/consenti/admin/v1/profiles \\
   -H 'Authorization: Bearer eyJhbGci...'`}
       />
 
@@ -136,12 +136,12 @@ curl https://your-domain.com/consenti/admin/profiles \\
             code: `createConsenti({
   auth: {
     mode: 'oidc',
-    jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!,
+    masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!,
     oidc: {
       issuer: 'https://your-tenant.auth0.com',
       clientId: process.env.AUTH0_CLIENT_ID!,
       clientSecret: process.env.AUTH0_CLIENT_SECRET!,
-      redirectUri: 'https://your-domain.com/consenti/admin/auth/oidc/callback',
+      redirectUri: 'https://your-domain.com/consenti/admin/v1/auth/oidc/callback',
       claimsMapping: {
         email: 'email',
         roles: 'consenti_roles',  // custom claim in your Auth0 token
@@ -156,12 +156,12 @@ curl https://your-domain.com/consenti/admin/profiles \\
             code: `createConsenti({
   auth: {
     mode: 'oidc',
-    jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!,
+    masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!,
     oidc: {
       issuer: 'https://keycloak.example.com/realms/my-realm',
       clientId: process.env.KEYCLOAK_CLIENT_ID!,
       clientSecret: process.env.KEYCLOAK_CLIENT_SECRET!,
-      redirectUri: 'https://your-domain.com/consenti/admin/auth/oidc/callback',
+      redirectUri: 'https://your-domain.com/consenti/admin/v1/auth/oidc/callback',
       claimsMapping: {
         email: 'email',
         roles: 'resource_access.consenti.roles',
@@ -180,12 +180,12 @@ curl https://your-domain.com/consenti/admin/profiles \\
         code={`createConsenti({
   auth: {
     mode: 'saml',
-    jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!,
+    masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!,
     saml: {
       issuer: 'https://idp.example.com',
       entryPoint: 'https://idp.example.com/sso/saml',
       cert: process.env.SAML_IDP_CERT!,  // IdP signing cert (PEM, no headers)
-      callbackUrl: 'https://your-domain.com/consenti/admin/auth/saml/callback',
+      callbackUrl: 'https://your-domain.com/consenti/admin/v1/auth/saml/acs',
     },
   },
 })`}
@@ -203,7 +203,7 @@ curl https://your-domain.com/consenti/admin/profiles \\
         code={`createConsenti({
   auth: {
     mode: 'custom',
-    jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!,
+    masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!,
     validateUser: async (req) => {
       const token = req.headers.get('Authorization')?.replace('Bearer ', '')
       if (!token) return null
@@ -236,7 +236,7 @@ curl https://your-domain.com/consenti/admin/profiles \\
             question: 'How do I rotate the JWT secret in production?',
             answer: (
               <p className="m-0">
-                Update the <code>CONSENTI_ADMIN_JWT_SECRET</code> environment variable and restart
+                Update the <code>CONSENTI_ADMIN_MASTER_SECRET</code> environment variable and restart
                 the server. All existing sessions are immediately invalidated — admin users must log
                 in again. If you need zero-downtime rotation, generate a new secret, run two server
                 instances briefly (old secret + new secret), then retire the old one.

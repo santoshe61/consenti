@@ -115,7 +115,7 @@ export interface MockConsentiSetup {
   onReady: (cb: () => void) => void
   readonly ready: Promise<void>
   destroy: () => void
-  reConsent: () => Promise<void>
+  reConsent: (resetAgeGate?: boolean) => Promise<void>
 }
 
 /**
@@ -170,7 +170,7 @@ export function createMockConsenti(consent: ConsentValue | null = null): MockCon
 
     destroy: () => {},
 
-    reConsent: async () => {
+    reConsent: async (_resetAgeGate?: boolean) => {
       currentConsent = null
     },
   }

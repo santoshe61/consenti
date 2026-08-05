@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useState, useEffect } from 'react'
-import { Coffee, Layout, List, Map, Server, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
+import { Coffee, Layout, List, Map, MessageSquare, Server, ShieldCheck, Sparkles, ChevronDown, ChevronRight } from 'lucide-react'
 import { FaGithub } from 'react-icons/fa'
 
 interface NavItem {
@@ -88,7 +88,6 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     typeLabel: 'general-privacy-consent',
     items: [
       { href: '/docs/compliance/coppa/', label: 'COPPA' },
-      { href: '/docs/compliance/tcf/', label: 'TCF v2.2' },
     ],
   },
   {
@@ -116,6 +115,7 @@ const FRONTEND_NAV: NavSection[] = [
   {
     title: 'Getting Started',
     items: [
+      { href: '/docs/', label: 'Documentation Home' },
       { href: '/docs/getting-started/', label: 'Introduction' },
       { href: '/docs/getting-started/quick-start/', label: 'Quick Start' },
     ],
@@ -168,6 +168,7 @@ const BACKEND_NAV: NavSection[] = [
       { href: '/docs/api/routes/', label: 'API Routes' },
       { href: '/docs/api/routes/public/', label: 'Public Routes' },
       { href: '/docs/api/routes/admin/', label: 'Admin Routes' },
+      { href: '/docs/api/events/', label: 'Events' },
       { href: '/docs/api/dashboard/', label: 'Admin Dashboard' },
     ],
   },
@@ -338,12 +339,28 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
         <div>
           <div className="nav-section">Compliances</div>
           <Link
+            href="/docs/compliance/compliance-groups/"
+            {...(onClose ? { onClick: onClose } : {})}
+            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/compliance-groups' || pathname === '/docs/compliance/compliance-groups/' ? 'nav-link-active' : ''}`}
+          >
+            <List size={13} className="text-brand-500 shrink-0" />
+            Compliance Groups
+          </Link>
+          <Link
             href="/docs/compliance/jurisdiction-coverage-map/"
             {...(onClose ? { onClick: onClose } : {})}
             className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/jurisdiction-coverage-map' || pathname === '/docs/compliance/jurisdiction-coverage-map/' ? 'nav-link-active' : ''}`}
           >
             <Map size={13} className="text-brand-500 shrink-0" />
             Jurisdiction Coverage Map
+          </Link>
+          <Link
+            href="/docs/compliance/tcf-and-gpp-registration/"
+            {...(onClose ? { onClick: onClose } : {})}
+            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/tcf-and-gpp-registration' || pathname === '/docs/compliance/tcf-and-gpp-registration/' ? 'nav-link-active' : ''}`}
+          >
+            <ShieldCheck size={13} className="text-brand-500 shrink-0" />
+            TCF &amp; GPP Registration
           </Link>
           {COMPLIANCE_GROUPS.map((group) => {
             const isExpanded = expandedGroups.has(group.id)
@@ -418,6 +435,14 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
           >
             <FaGithub size={15} /> GitHub
+          </a>
+          <a
+            href="https://github.com/santoshe61/consenti/discussions"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
+          >
+            <MessageSquare size={15} /> GitHub Discussions
           </a>
         </div>
       </div>

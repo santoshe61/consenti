@@ -14,17 +14,18 @@ function buildPrompt(url: string, question: string): string {
 About Consenti:
 - Two npm packages: @consenti/ui (browser widget) and @consenti/api (Node.js backend)
 - Zero external runtime dependencies — uses only browser/Node built-ins
-- Supports GDPR (opt-in), CCPA/CPRA (opt-out), TCF v2.2, GPC, COPPA
+- Supports GDPR (opt-in), CCPA/CPRA (opt-out), TCF v2.3, GPC, COPPA, DPDPA etc. covering 190+ countries.
 - Works with React, Vue, Angular, Next.js, Nuxt, Express, Fastify, and Vanilla JS
 - Admin dashboard included in the API package
 - Apache 2.0 license, TypeScript strict mode
 
-Please read the full Consenti documentation at: https://consenti.dev/llms.txt OR https://raw.githubusercontent.com/santoshe61/consenti/refs/heads/master/apps/docs/public/llms.txt
+Please read the full Consenti documentation at: https://consenti.dev/llms.txt OR https://consenti.dev/llms-full.txt
 Then read the specific page the user is on: ${url}
 
-Please provide a clear, accurate answer based on the documentation above, specific to below question
+Please provide a clear, accurate answer, specific to below
 
 ---
+Question:
 
 ${questionPart}`
 }
@@ -40,10 +41,11 @@ export function AskAIButton() {
     return window.location.href
   }
 
-  function openChatBot(botName: "claude" | "chatgpt") {
+  function openChatBot(botName: "claude" | "chatgpt" | 'gemini') {
     const chatbotMap = {
       claude: "https://claude.ai/new?utm_source=consenti.dev&utm_medium=docs&utm_campaign=ai-assistant&q=",
-      chatgpt: `https://chatgpt.com/?utm_source=consenti.dev&utm_medium=docs&utm_campaign=ai-assistant&q=`
+      chatgpt: `https://chatgpt.com/?utm_source=consenti.dev&utm_medium=docs&utm_campaign=ai-assistant&q=`,
+      gemini: `https://gemini.google.com/?utm_source=consenti.dev&utm_medium=docs&utm_campaign=ai-assistant&q=`,
     }
     const prompt = buildPrompt(getPageUrl(), question)
     const chatUrl = `${chatbotMap[botName]}${encodeURIComponent(prompt)}`
@@ -164,6 +166,14 @@ export function AskAIButton() {
                   : <>Copy <Copy size={14} /></>
                 }
               </button>
+              {/* <button
+                onClick={() => openChatBot('gemini')}
+                className="flex-1 flex items-center justify-center gap-2 text-sm px-4 py-2 text-white rounded-lg font-semibold transition-colors hover:opacity-90"
+                style={{ background: '#4d8eee' }}
+              >
+                Gemini
+                <ExternalLink size={14} />
+              </button>
               <button
                 onClick={() => openChatBot('chatgpt')}
                 className="flex-1 flex items-center justify-center gap-2 text-sm px-4 py-2 text-white rounded-lg font-semibold transition-colors hover:opacity-90"
@@ -171,13 +181,13 @@ export function AskAIButton() {
               >
                 ChatGPT
                 <ExternalLink size={14} />
-              </button>
+              </button> */}
               <button
                 onClick={() => openChatBot('claude')}
                 className="flex-1 flex items-center justify-center gap-2 text-sm px-4 py-2 text-white rounded-lg font-semibold transition-colors hover:opacity-90"
                 style={{ background: '#d97757' }}
               >
-                Claude
+                Ask Claude
                 <ExternalLink size={14} />
               </button>
             </div>

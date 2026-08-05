@@ -180,7 +180,8 @@ export { consentiHandler as GET, consentiHandler as POST, consentiHandler as PUT
         code={`# Auth
 CONSENTI_ADMIN_EMAIL=user@consenti.dev
 CONSENTI_ADMIN_PASSWORD=your-strong-password
-CONSENTI_ADMIN_JWT_SECRET=your-jwt-secret   # auto-generated if not set (sessions expire on restart)
+CONSENTI_ADMIN_MASTER_SECRET=your-jwt-secret        # auto-generated if not set (sessions expire on restart)
+CONSENTI_DATA_SIGNING_HASH=your-data-signing-hash   # auto-generated if not set (ownership cookies + parental-consent tokens invalidate on restart)
 
 # Storage
 CONSENTI_DB_DRIVER=node:sqlite              # default: json

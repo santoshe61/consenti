@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 // China PIPL + DSL + CSL: strict opt-in. LI is very narrowly scoped; all
 // non-essential processing should use consent as the legal basis.
@@ -22,11 +22,11 @@ export const OPT_IN_CHINA_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           "In accordance with China's Personal Information Protection Law (PIPL), Data Security Law (DSL), and Cybersecurity Law (CSL), we process personal information only for specified, explicit, and legitimate purposes with minimum data collection. Your consent is required for non-essential cookies.",
         buttons: {
-          'agree-all': { text: 'Agree to All', style: 'primary', action: 'submit', cookies: '*' },
+          'agree-all': { text: 'Agree to All', style: 'primary', action: 'custom', cookies: '*' },
           'reject-non-necessary': {
             text: 'Reject Non-Necessary',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'manage-preferences': { text: 'Manage Preferences', style: 'text', action: 'manage' },
@@ -40,11 +40,11 @@ export const OPT_IN_CHINA_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'Under the PIPL, you have the right to know, decide, and restrict the processing of your personal information. Processing is limited to the stated purposes. Cross-border transfers of your data, if any, are handled in accordance with Chapter III of the PIPL, including security assessments or standard contracts where applicable.',
         buttons: {
-          'agree-all': { text: 'Agree to All', style: 'primary', action: 'submit', cookies: '*' },
+          'agree-all': { text: 'Agree to All', style: 'primary', action: 'custom', cookies: '*' },
           'disagree-all': {
             text: 'Disagree to All',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'confirm-settings': { text: 'Confirm Settings', style: 'primary', action: 'submit' },

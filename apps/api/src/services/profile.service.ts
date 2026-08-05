@@ -1,4 +1,4 @@
-import type { Profile, CreateProfileInput, UpdateProfileInput, PublicProfileResponse, ProfileSummary, ProfileVersionEntry, ArchivedProfileSummary, StorageAdapter, CookieMap, S3ApiConfig, MainBanner, GpcBanner, PreferenceModal, LocaleContentInput, StoredProfileJson } from '@consenti/types'
+import type { Profile, CreateProfileInput, UpdateProfileInput, PublicProfileResponse, ProfileSummary, ProfileVersionEntry, ArchivedProfileSummary, StorageAdapter, CookieMap, S3ApiConfig, MainBanner, GpcBanner, PreferenceModal, LocaleContentInput, StoredProfileJson, CategoryMap, TemplateBannerDef, TemplateGpcBannerDef, TemplateModalDef, TemplateButtonMap, ButtonStyle, ButtonAction, AgeGateModalContent } from '@consenti/types'
 import type { ProfileRepo } from '../repositories/profile.repo'
 import type { AuditRepo } from '../repositories/audit.repo'
 import type { EventEmitter } from 'node:events'
@@ -33,6 +33,8 @@ interface ResolvedLocaleContent {
   mainBanner: MainBanner
   gpcBanner?: GpcBanner
   preferenceModal: PreferenceModal
+  /** Only present when the profile's `ageGate.enabled` is true. */
+  ageGateModal?: AgeGateModalContent
 }
 
 /**
@@ -46,7 +48,7 @@ interface ResolvedLocaleContent {
  */
 function profileWideFields(pj: StoredProfileJson): Pick<PublicProfileResponse,
   'gpcMode' | 'complianceGroup' | 'darkMode' | 'allowReceipt' | 'enhanceAccessibility' |
-  'showFooterMetadata' | 'allowedOrigins' | 'complianceConfig' | 'dpdpa' | 'hidePoweredBy'
+  'showFooterMetadata' | 'allowedOrigins' | 'complianceConfig' | 'dpdpa' | 'ageGate' | 'hidePoweredBy'
 > {
   return {
     ...(pj.gpcMode !== undefined ? { gpcMode: pj.gpcMode } : {}),
@@ -58,6 +60,7 @@ function profileWideFields(pj: StoredProfileJson): Pick<PublicProfileResponse,
     ...(pj.allowedOrigins !== undefined ? { allowedOrigins: pj.allowedOrigins } : {}),
     ...(pj.complianceConfig !== undefined ? { complianceConfig: pj.complianceConfig } : {}),
     ...(pj.dpdpa !== undefined ? { dpdpa: pj.dpdpa } : {}),
+    ...(pj.ageGate !== undefined ? { ageGate: pj.ageGate } : {}),
     ...(pj.hidePoweredBy !== undefined ? { hidePoweredBy: pj.hidePoweredBy } : {}),
   }
 }
@@ -134,6 +137,7 @@ export class ProfileService {
         mainBanner: pj.mainBanner,
         ...(pj.gpcBanner ? { gpcBanner: pj.gpcBanner } : {}),
         preferenceModal: pj.preferenceModal,
+        ...(pj.ageGateModal ? { ageGateModal: pj.ageGateModal } : {}),
       },
       ...(localeContent ?? {}),
     }
@@ -173,12 +177,12 @@ export class ProfileService {
     const profile = await this.profiles.create({ ...rest, tenantId: this.tenantId })
     await this.audit.log({
       tenantId: this.tenantId,
-      action: 'profile.created',
+      action: 'profile:created',
       resourceType: 'profile',
       resourceId: profile.id,
       newData: { profileId: profile.id, version: profile.version, complianceGroup: this.groupKey(profile.profileJson) },
     })
-    this.eventBus?.emit('profile.created', profile)
+    this.eventBus?.emit('profile:created', profile)
 
     if (this.profilesDir) {
       const complianceGroup = this.groupKey(profile.profileJson)
@@ -252,13 +256,13 @@ export class ProfileService {
 
     await this.audit.log({
       tenantId: this.tenantId,
-      action: 'profile.updated',
+      action: 'profile:updated',
       resourceType: 'profile',
       resourceId: profile.id,
       oldData: { profileId: old.id, version: old.version },
       newData: { profileId: profile.id, version: profile.version, complianceGroup: this.groupKey(profile.profileJson) },
     })
-    this.eventBus?.emit('profile.updated', { previous: old, current: profile })
+    this.eventBus?.emit('profile:updated', { previous: old, current: profile })
 
     if (this.profilesDir) {
       const complianceGroup = this.groupKey(profile.profileJson)
@@ -273,12 +277,12 @@ export class ProfileService {
     this.localeCache?.invalidate(id)
     await this.audit.log({
       tenantId: this.tenantId,
-      action: 'profile.deleted',
+      action: 'profile:deleted',
       resourceType: 'profile',
       resourceId: id,
       ...(old != null ? { oldData: { profileId: old.id, version: old.version } } : {}),
     })
-    this.eventBus?.emit('profile.deleted', { id, previous: old })
+    this.eventBus?.emit('profile:deleted', { id, previous: old })
 
     if (this.profilesDir && old) {
       const complianceGroup = this.groupKey(old.profileJson)
@@ -379,6 +383,7 @@ export class ProfileService {
       mainBanner: pj.mainBanner,
       ...(pj.gpcBanner ? { gpcBanner: pj.gpcBanner } : {}),
       preferenceModal: pj.preferenceModal,
+      ...(pj.ageGateModal ? { ageGateModal: pj.ageGateModal } : {}),
     }
 
     let content = defaultContent
@@ -391,6 +396,7 @@ export class ProfileService {
             mainBanner: parsed.mainBanner,
             ...(parsed.gpcBanner ? { gpcBanner: parsed.gpcBanner } : {}),
             preferenceModal: parsed.preferenceModal,
+            ...(parsed.ageGateModal ? { ageGateModal: parsed.ageGateModal } : {}),
           }
         } catch { /* corrupt/unreadable file — fall back to default locale content below */ }
       }
@@ -528,6 +534,88 @@ export class ProfileService {
     return results.sort((a, b) => b.lastModified.localeCompare(a.lastModified))
   }
 
+  /** Strips display text from an embedded profile's button map — a `UITemplate`'s buttons own
+   * layout/behavior only, never text (button labels are authored per-locale on the profile
+   * instead, see `LocaleTextContent.*.buttonLabels`). */
+  private toTemplateButtonMap(
+    buttons: Record<string, { text: string; style: string; action: string; cookies?: string[] | '*' | '!' }>,
+  ): TemplateButtonMap {
+    const result: TemplateButtonMap = {}
+    for (const [id, btn] of Object.entries(buttons)) {
+      result[id] = {
+        type: btn.style as ButtonStyle,
+        action: btn.action as ButtonAction,
+        ...(btn.cookies !== undefined ? { cookies: btn.cookies } : {}),
+      }
+    }
+    return result
+  }
+
+  /** Builds a `UITemplate`'s structural definitions (position, buttons, close/locale-switcher
+   * flags) from an embedded profile's English translation — no heading/htmlText/button text,
+   * which stay inline on the seeded profile as per-locale content, never on the template. */
+  private buildSeedUiTemplatePayload(enTranslation: {
+    mainBanner: { position: string; buttons: Record<string, { text: string; style: string; action: string; cookies?: string[] | '*' | '!' }>; showClose?: boolean; showLocaleSwitcher?: boolean }
+    gpcBanner?: { position: string; buttons: Record<string, { text: string; style: string; action: string; cookies?: string[] | '*' | '!' }>; showClose?: boolean; showLocaleSwitcher?: boolean }
+    preferenceModal: { position?: string; buttons: Record<string, { text: string; style: string; action: string; cookies?: string[] | '*' | '!' }>; persistent?: boolean }
+  }): { mainBanner: TemplateBannerDef; gpcBanner: TemplateGpcBannerDef; preferenceModal: TemplateModalDef } {
+    const mainBanner = {
+      position: enTranslation.mainBanner.position,
+      buttons: this.toTemplateButtonMap(enTranslation.mainBanner.buttons),
+      ...(enTranslation.mainBanner.showClose !== undefined ? { showClose: enTranslation.mainBanner.showClose } : {}),
+      ...(enTranslation.mainBanner.showLocaleSwitcher !== undefined ? { showLocaleSwitcher: enTranslation.mainBanner.showLocaleSwitcher } : {}),
+    } as unknown as TemplateBannerDef
+    // gpcBanner is required on CreateUITemplateInput even though a profile may not define its own
+    // GPC-specific banner — fall back to the main banner's structure, same as the dashboard does.
+    const gpcBanner = enTranslation.gpcBanner
+      ? ({
+        position: enTranslation.gpcBanner.position,
+        buttons: this.toTemplateButtonMap(enTranslation.gpcBanner.buttons),
+        ...(enTranslation.gpcBanner.showClose !== undefined ? { showClose: enTranslation.gpcBanner.showClose } : {}),
+        ...(enTranslation.gpcBanner.showLocaleSwitcher !== undefined ? { showLocaleSwitcher: enTranslation.gpcBanner.showLocaleSwitcher } : {}),
+      } as unknown as TemplateGpcBannerDef)
+      : (mainBanner as unknown as TemplateGpcBannerDef)
+    const preferenceModal = {
+      buttons: this.toTemplateButtonMap(enTranslation.preferenceModal.buttons),
+      ...(enTranslation.preferenceModal.position !== undefined ? { position: enTranslation.preferenceModal.position } : {}),
+      ...(enTranslation.preferenceModal.persistent !== undefined ? { persistent: enTranslation.preferenceModal.persistent } : {}),
+    } as unknown as TemplateModalDef
+    return { mainBanner, gpcBanner, preferenceModal }
+  }
+
+  /**
+   * Idempotently gets-or-creates the `ConsentTemplate` + `UITemplate` pair backing one seeded
+   * compliance group's profile, named consistently with the profile itself (`Default — {group}`).
+   * Looked up by name/tenant first so re-running the setup wizard never creates duplicates.
+   */
+  private async getOrCreateSeedTemplates(
+    complianceGroup: string,
+    embedded: { cookies: CookieMap },
+    enTranslation: Parameters<ProfileService['buildSeedUiTemplatePayload']>[0] & { preferenceModal: { categories: CategoryMap } },
+  ): Promise<{ consentTemplateId: string; uiTemplateId: string }> {
+    if (!this.storage) throw new Error('Storage adapter required to seed templates')
+    const name = `Default — ${complianceGroup}`
+
+    const existingConsentTemplates = await this.storage.getConsentTemplates(this.tenantId)
+    const consentTemplate = existingConsentTemplates.find(t => t.name === name)
+      ?? await this.storage.createConsentTemplate({
+        tenantId: this.tenantId,
+        name,
+        cookies: embedded.cookies,
+        categories: enTranslation.preferenceModal.categories,
+      })
+
+    const existingUiTemplates = await this.storage.getUITemplates(this.tenantId)
+    const uiTemplate = existingUiTemplates.find(t => t.name === name)
+      ?? await this.storage.createUITemplate({
+        tenantId: this.tenantId,
+        name,
+        ...this.buildSeedUiTemplatePayload(enTranslation),
+      })
+
+    return { consentTemplateId: consentTemplate.id, uiTemplateId: uiTemplate.id }
+  }
+
   /**
    * Seeds a default profile for a compliance group from the embedded English profile in
    * `@consenti/utils`, merged with locale text overlays for de/es/fr/ja. Every locale — including
@@ -536,6 +624,14 @@ export class ProfileService {
    * anymore, which is what previously let a locale silently never make it into the served file.
    * Only creates the profile if no active profile already exists for the compliance group.
    * Safe to call repeatedly (idempotent).
+   *
+   * Also seeds (idempotently) a `ConsentTemplate`/`UITemplate` pair for the group and links the
+   * profile to both via `consentTemplateId`/`uiTemplateId` — same as a dashboard-authored profile
+   * is required to. The profile is a *snapshot*, not a live pointer: `cookies`/`mainBanner`/
+   * `gpcBanner`/`preferenceModal` stay fully resolved inline (DB row + on-disk locale files)
+   * exactly as before; the template ids are additive, purely for traceability and so the editor
+   * knows which template to re-offer on next edit. Editing the template later never silently
+   * changes this profile — only an explicit re-save of the profile itself does.
    *
    * @param complianceGroup - One of the 8 compliance group IDs.
    */
@@ -564,6 +660,12 @@ export class ProfileService {
       }
     }
 
+    const { consentTemplateId, uiTemplateId } = await this.getOrCreateSeedTemplates(
+      complianceGroup,
+      { cookies: embedded.cookies as unknown as CookieMap },
+      enTranslation as unknown as Parameters<ProfileService['buildSeedUiTemplatePayload']>[0] & { preferenceModal: { categories: CategoryMap } },
+    )
+
     await this.create({
       name: `Default — ${complianceGroup}`,
       defaultLocale: embedded.defaultLocale,
@@ -573,6 +675,8 @@ export class ProfileService {
         complianceGroup: embedded.complianceGroup,
         gpcMode: embedded.gpcMode,
         cookies: embedded.cookies as unknown as CookieMap,
+        consentTemplateId,
+        uiTemplateId,
         ...(embedded.expiryDays !== undefined ? { expiryDays: embedded.expiryDays } : {}),
         locales,
         mainBanner: enTranslation.mainBanner as unknown as MainBanner,

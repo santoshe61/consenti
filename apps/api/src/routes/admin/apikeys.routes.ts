@@ -5,7 +5,7 @@ import { withErrorHandler } from '../../middleware/error.middleware'
 import { authenticate, authError } from '../../middleware/auth.middleware'
 
 function generateApiKey(): { raw: string; hash: string } {
-  const raw = `ck_live_${randomBytes(12).toString('hex')}${randomBytes(12).toString('hex')}}`
+  const raw = `ck_live_${randomBytes(12).toString('hex')}${randomBytes(12).toString('hex')}`
   const hash = createHash('sha256').update(raw).digest('hex')
   return { raw, hash }
 }

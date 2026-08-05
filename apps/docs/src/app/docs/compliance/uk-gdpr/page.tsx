@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'UK GDPR Compliance Guide',
@@ -28,6 +30,7 @@ export default function UKGDPRPage() {
   return (
     <div className="prose max-w-none">
       <h1>UK GDPR Compliance Guide</h1>
+      <ComplianceTierBadge tier="maintained" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-in</code> — same model as GDPR. Use{' '}
         <code>compliance: {"{ type: 'opt-in' }"}</code> in your <code>ConsentiSetup</code> config.
@@ -37,7 +40,7 @@ export default function UKGDPRPage() {
         <strong>UK GDPR</strong>, supplemented by the Data Protection Act 2018 (DPA 2018). The
         result is a framework that is nearly identical to EU GDPR but enforced independently by the
         Information Commissioner's Office (ICO). Consenti supports UK GDPR via{' '}
-        <code>regulation: 'uk-gdpr'</code>, which applies the same opt-in consent model as EU GDPR
+        <code>regulation: 'uk-gdpr'</code>, which applies the same opt-in Compliance Group as EU GDPR
         with UK-locale defaults.
       </p>
 
@@ -88,7 +91,7 @@ export default function UKGDPRPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Consent model</td>
+            <td>Compliance Group</td>
             <td>Opt-in — freely given, specific, informed, unambiguous</td>
           </tr>
           <tr>
@@ -167,15 +170,13 @@ export default function UKGDPRPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'uk-gdpr',
-  },
+  compliance: { type: 'opt-in' },
 })`}
       />
 
       <h3>Profile configuration (dashboard)</h3>
       <p>
-        Select <strong>UK GDPR</strong> as the regulation in the Profile Editor. The consent model
+        Select <strong>UK GDPR</strong> as the regulation in the Profile Editor. The Compliance Group
         and defaults are identical to EU GDPR. No additional profile fields are required.
       </p>
 
@@ -198,14 +199,21 @@ export default function UKGDPRPage() {
       <h2>Consent records</h2>
       <p>
         UK GDPR's accountability principle (Art. 5(2)) requires demonstrating that consent was
-        obtained. Every consent event is written to the immutable audit log automatically. Use the
-        admin dashboard to export records or query via the API:
+        obtained. Every consent event is written to <code>consent_records</code>/
+        <code>consent_history</code> automatically (retained per{' '}
+        <code>compliance.dataRetention.purgeAfterDays</code>). Admin actions on those records are
+        separately tracked in the append-only <code>audit_logs</code> table. Use the admin
+        dashboard to export records or query via the API:
       </p>
       <CodeBlock lang="http" code={`GET /consenti/api/v1/admin/consent?visitorId=<id>`} />
 
       <h2>Erasure (UK GDPR Art. 17)</h2>
       <p>The right to erasure applies identically to EU GDPR. Use:</p>
       <CodeBlock lang="http" code={`DELETE /consenti/api/v1/consent/:visitorId`} />
+      <p>
+        For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
     </div>
   )
 }

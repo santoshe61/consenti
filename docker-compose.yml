@@ -10,7 +10,7 @@ services:
     environment:
       CONSENTI_ADMIN_EMAIL: admin@example.com
       CONSENTI_ADMIN_PASSWORD: ${CONSENTI_ADMIN_PASSWORD:?set a real password, 16+ chars recommended}
-      CONSENTI_ADMIN_JWT_SECRET: ${CONSENTI_ADMIN_JWT_SECRET:?set a random secret, e.g. openssl rand -hex 32}
+      CONSENTI_ADMIN_MASTER_SECRET: ${CONSENTI_ADMIN_MASTER_SECRET:?set a random secret, e.g. openssl rand -hex 32}
       CONSENTI_DB_DRIVER: node:sqlite
       CONSENTI_DB_PATH: /data/consenti-data
     volumes:

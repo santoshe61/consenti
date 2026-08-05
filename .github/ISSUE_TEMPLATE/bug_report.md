@@ -3,7 +3,7 @@ name: Bug report
 about: Report a bug in @consenti/ui or @consenti/api
 title: '[Bug] '
 labels: bug
-assignees: santoshe61
+assignees: 
 ---
 
 ## Describe the bug

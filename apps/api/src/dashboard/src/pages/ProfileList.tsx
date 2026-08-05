@@ -8,6 +8,7 @@ import { useConfirmDialog } from '../components/ConfirmDialog'
 import { Tooltip } from '../components/Tooltip'
 import { useT } from '../context/locale'
 import { profilesApi } from '../api/profiles'
+import { apiErrorMessage } from '../api/client'
 import type { ProfileSummary } from '@consenti/types'
 import { COMPLIANCE_GROUPS } from '@consenti/utils'
 
@@ -21,6 +22,7 @@ export function ProfileList({ current }: { current: string }) {
   const [toggling, setToggling] = useState<string | null>(null)
   const [conflictInfo, setConflictInfo] = useState<{ id: string; name: string } | null>(null)
   const [pendingActivateId, setPendingActivateId] = useState<string | null>(null)
+  const [error, setError] = useState('')
   const { requestConfirm, dialog } = useConfirmDialog()
 
   const handleCopyId = (id: string) => {
@@ -46,7 +48,12 @@ export function ProfileList({ current }: { current: string }) {
       message: t('profiles.dialog.delete.message'),
     })
     if (!ok) return
-    await profilesApi.delete(id).catch(() => { })
+    setError('')
+    try {
+      await profilesApi.delete(id)
+    } catch (err) {
+      setError(apiErrorMessage(err, t('profiles.error.delete')))
+    }
     load()
   }
 
@@ -57,11 +64,12 @@ export function ProfileList({ current }: { current: string }) {
     })
     if (!ok) return
     setCopying(p.id)
+    setError('')
     try {
       await profilesApi.copy(p.id)
       load()
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(apiErrorMessage(err, t('profiles.error.copy')))
     } finally {
       setCopying(null)
     }
@@ -69,6 +77,7 @@ export function ProfileList({ current }: { current: string }) {
 
   const doActivate = async (id: string, choice?: 'deactivate') => {
     setToggling(id)
+    setError('')
     try {
       const result = await profilesApi.activate(id, choice ? { choice } : undefined)
       if (result.requiresChoice) {
@@ -77,8 +86,8 @@ export function ProfileList({ current }: { current: string }) {
         return
       }
       load()
-    } catch {
-      // ignore
+    } catch (err) {
+      setError(apiErrorMessage(err, t('profiles.error.activate')))
     } finally {
       setToggling(prev => prev === id ? null : prev)
     }
@@ -100,11 +109,12 @@ export function ProfileList({ current }: { current: string }) {
       })
       if (!ok) return
       setToggling(p.id)
+      setError('')
       try {
         await profilesApi.deactivate(p.id)
         load()
-      } catch {
-        // ignore
+      } catch (err) {
+        setError(apiErrorMessage(err, t('profiles.error.deactivate')))
       } finally {
         setToggling(null)
       }
@@ -121,6 +131,12 @@ export function ProfileList({ current }: { current: string }) {
   return (
     <>
       {dialog}
+      {error && (
+        <div class="mb-4 flex items-start justify-between gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700">
+          <span>{error}</span>
+          <button type="button" onClick={() => setError('')} class="text-red-400 hover:text-red-600" aria-label={t('common.close')}>×</button>
+        </div>
+      )}
       {conflictInfo && createPortal(
         <div class="fixed inset-0 z-50 flex items-center justify-center">
           <div class="absolute inset-0 bg-black/40" onClick={() => { setConflictInfo(null); setPendingActivateId(null) }} aria-hidden="true" />

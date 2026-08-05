@@ -1,8 +1,8 @@
-import type { CountryResolverFn, ComplianceConfig, ComplianceMapData, GeoResult } from '@consenti/types'
-import { EMBEDDED_COMPLIANCE_MAP } from '@consenti/utils'
+import type { CountryResolverFn, ComplianceConfig, GeoResult } from '@consenti/types'
+import { EMBEDDED_COMPLIANCE_MAP, type ComplianceMapData } from '@consenti/utils'
 import { TIMEZONE_TO_COUNTRY } from '../data/timezone-country'
 
-type JurisdictionMap = typeof EMBEDDED_COMPLIANCE_MAP | ComplianceMapData
+export type JurisdictionMap = typeof EMBEDDED_COMPLIANCE_MAP | ComplianceMapData
 
 export interface GeoContext {
   ip: string
@@ -16,6 +16,11 @@ export interface ResolvedGeo {
   regulation?: string
   complianceGroup: string
   locale?: string | null
+  /** True when the resolved region carries `requiresSensitiveOptIn` — cookies tagged
+   * `cpraCategory: 'sensitive'` should default to denied for this visitor even though the
+   * rest of `complianceGroup`'s cookies default to granted. Per-region carve-out, not a
+   * different group (see Colorado's CPA entry in `EMBEDDED_COMPLIANCE_MAP`). */
+  requiresSensitiveOptIn?: boolean
 }
 
 const LANG_TO_COUNTRY: Readonly<Record<string, string>> = {
@@ -31,69 +36,102 @@ export class GeoResolverService {
 
   constructor(
     provider: ComplianceConfig['geoDataProvider'],
-    private readonly map: JurisdictionMap,
+    private map: JurisdictionMap,
   ) {
     // 'default' and 'timezone' are both the timezone+language heuristic
     this.provider = provider ?? 'default'
+    if (this.provider === 'default') {
+      console.warn(
+        '[Consenti] geoDataProvider is unset (using the timezone/language heuristic) — this cannot ' +
+        'resolve US state-level regions (California, Colorado, etc.), so US visitors always fall back ' +
+        'to the country-level default (the strictest group, opt-out-strict) rather than their actual ' +
+        'state law. Configure a geoip-capable provider (geoip, hosted-geoip-lite, or maxmind) for ' +
+        'accurate US state routing in production.',
+      )
+    }
   }
 
+  /** Hot-swaps the jurisdiction map in place — used by the `compliance.complianceMap` URL
+   * background-refresh cycle so a live server doesn't need to be restarted to pick up changes. */
+  setMap(map: JurisdictionMap): void {
+    this.map = map
+  }
+
+  /** A function-provider's `complianceGroup` result field (if set) is used directly, skipping
+   * `resolveGroup()`'s country/region-map lookup entirely — see `GeoResult.complianceGroup`'s
+   * own doc comment (`@consenti/types`) for when to use this. Not available for the built-in
+   * `'default'`/`'geoip'`/`'hosted-geoip-lite'`/`'maxmind'` providers, which have no concept of a
+   * compliance group beyond what the jurisdiction map computes from their resolved country/region. */
   async resolve(ctx: GeoContext): Promise<ResolvedGeo> {
     let country = ''
     let region: string | undefined
     let regulation: string | undefined
     let locale: string | null = null
+    let overrideGroup: string | undefined
 
     if (typeof this.provider === 'function') {
       const result: GeoResult = await (this.provider as CountryResolverFn)(ctx)
       country = result.country ?? ''
       region = result.region ?? undefined
       locale = result.locale
+      overrideGroup = result.complianceGroup ?? undefined
     } else {
       switch (this.provider) {
         case 'default':
-        case 'timezone':
-          ;({ country } = resolveFromTimezone(ctx.timezone))
+          ; ({ country } = resolveFromTimezone(ctx.timezone))
           if (!country) {
-            ;({ country, region } = resolveFromLanguage(ctx.language))
+            ; ({ country, region } = resolveFromLanguage(ctx.language))
           }
           break
-        case 'language':
-          ;({ country, region } = resolveFromLanguage(ctx.language))
-          break
         case 'geoip':
-          ;({ country, region } = await resolveFromGeoIPLite(ctx.ip))
+          ; ({ country, region } = await resolveFromGeoIPLite(ctx.ip))
           break
         case 'hosted-geoip-lite':
-          ;({ country, region } = await resolveFromHosted(ctx.ip))
+          ; ({ country, region } = await resolveFromHosted(ctx.ip))
           break
         case 'maxmind':
-          ;({ country, region } = await resolveFromMaxmind(ctx.ip))
+          ; ({ country, region } = await resolveFromMaxmind(ctx.ip))
           break
       }
     }
 
-    const geo: ResolvedGeo = { country, complianceGroup: this.resolveGroup(country, region) }
+    const geo: ResolvedGeo = { country, complianceGroup: overrideGroup ?? this.resolveGroup(country, region) }
     if (region !== undefined) geo.region = region
     if (regulation !== undefined) geo.regulation = regulation
     if (locale !== null) geo.locale = locale
+    const sensitiveOptIn = this.resolveRequiresSensitiveOptIn(country, region)
+    if (sensitiveOptIn) geo.requiresSensitiveOptIn = true
     return geo
+  }
+
+  private countryEntry(country: string) {
+    const countries = this.map.countries as Record<string, {
+      complianceGroup: string
+      default?: string
+      overriddenRegions?: Record<string, { complianceGroup: string; requiresSensitiveOptIn?: boolean }>
+    }>
+    return countries[country]
   }
 
   private resolveGroup(country: string, region?: string): string {
     if (!country) return ''
-    const countries = this.map.countries as Record<string, {
-      complianceGroup: string
-      default: string
-      overriddenRegions?: Record<string, { complianceGroup: string }>
-    }>
-    const entry = countries[country]
+    const entry = this.countryEntry(country)
     if (!entry) return ''
     if (region !== undefined) {
       // region was resolved — use override if present, else base country group
       return entry.overriddenRegions?.[region]?.complianceGroup ?? entry.complianceGroup
     }
-    // region not available — use .default (most strict) so we never under-comply
-    return entry.default
+    // region not available — use .default (most strict) so we never under-comply;
+    // falls back to complianceGroup when a country has no explicit default set
+    return entry.default ?? entry.complianceGroup
+  }
+
+  /** Only meaningful when `region` was actually resolved (requires a geoip/maxmind provider —
+   * the timezone/language heuristic never determines a US state). Undetected region never
+   * silently forces this on: no region means no per-region carve-out is known to apply. */
+  private resolveRequiresSensitiveOptIn(country: string, region?: string): boolean {
+    if (!country || region === undefined) return false
+    return this.countryEntry(country)?.overriddenRegions?.[region]?.requiresSensitiveOptIn === true
   }
 }
 

@@ -26,7 +26,7 @@ resource "kubernetes_secret" "consenti_admin" {
   data = merge(
     {
       "admin-password"   = var.admin_password
-      "admin-jwt-secret" = var.admin_jwt_secret
+      "admin-jwt-secret" = var.admin_master_secret
     },
     var.db_user != "" ? { "db-user" = var.db_user } : {},
     var.db_password != "" ? { "db-password" = var.db_password } : {},

@@ -87,6 +87,14 @@ interface CountrySelecterProps {
 
 export { LOCALE_OPTIONS }
 
+const LOCALE_LABELS: Record<string, string> = Object.fromEntries(LOCALE_OPTIONS.map(o => [o.value, o.label]))
+
+/** Full "code — Language (Region)" label for a locale code, as shown in the picker dropdown —
+ * shared so tab hovers and other locale pickers describe a locale the same way everywhere. */
+export function localeLabel(code: string): string {
+  return LOCALE_LABELS[code] ?? code
+}
+
 export function CountrySelecter({ value, onChange, placeholder = 'Select locale…', disabled, id, class: extraClass }: CountrySelecterProps) {
   return (
     <Select

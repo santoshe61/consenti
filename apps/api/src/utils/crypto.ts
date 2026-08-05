@@ -29,8 +29,30 @@ export function randomConsentId(): string { return prefixedId('cons') }
 export function randomConsentTemplateId(): string { return prefixedId('ctem') }
 export function randomUITemplateId(): string { return prefixedId('utem') }
 
-export function hashIp(ip: string): string {
-  return createHash('sha256').update(ip).digest('hex')
+// Zeroes the last octet of an IPv4 address or the last 80 bits of an IPv6 address (keeping only
+// the first 48 bits / 3 hextets) before hashing — the same truncation GA4/Google Analytics use
+// for "IP anonymization". Without this, hashing the raw IP is reversible by brute force: IPv4
+// is only 4.2B addresses, cheap to enumerate against a known salt.
+function maskIp(ip: string): string {
+  if (ip.includes(':')) {
+    const hextets = ip.split(':')
+    while (hextets.length < 8) hextets.push('0')
+    return hextets.slice(0, 3).concat(['0', '0', '0', '0', '0']).join(':')
+  }
+  const octets = ip.split('.')
+  if (octets.length === 4) {
+    octets[3] = '0'
+    return octets.join('.')
+  }
+  return ip
+}
+
+// `salt` should be a per-deployment secret (`ComplianceConfig.dataSigningHash`) — masking alone still
+// leaves a small, enumerable space (2^24 IPv4 addresses per masked value), so an unsalted hash
+// is a rainbow-table lookup away from reversal. Empty salt (unset) still masks, which is strictly
+// better than the previous raw-IP hash, but salting is what makes the hash actually irreversible.
+export function hashIp(ip: string, salt = ''): string {
+  return createHash('sha256').update(salt + maskIp(ip)).digest('hex')
 }
 
 export function hashUserAgent(ua: string): string {

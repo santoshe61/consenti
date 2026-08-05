@@ -21,6 +21,8 @@
 
   html {
     scroll-behavior: smooth;
+    scroll-margin-top: 100px;
+    scroll-padding-top: 100px;
   }
 
   body {
@@ -42,7 +44,7 @@
   }
 
   .prose h2 {
-    @apply text-xl font-semibold text-slate-800 mb-3 mt-8 pt-4 border-t border-slate-100 tracking-tight;
+    @apply text-xl font-semibold text-slate-800 mb-3 mt-8 tracking-tight;
   }
 
   .dark .prose h2 {
@@ -347,4 +349,18 @@ button,
 input[type=button],
 input[type=submit] {
   cursor: pointer;
+}
+
+strong,
+em {
+  margin-right: 2px;
+}
+
+.inner-code-block {
+  white-space: pre;
+  display: block;
+}
+
+code {
+  word-break: break-all;
 }

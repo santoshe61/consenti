@@ -29,6 +29,7 @@ interface RowConsent extends RowDataPacket {
   locale: string; consent_json: string
   gpc_detected: number; source: string; created_at: string; updated_at: string
   age_verified?: number; parental_consent_token?: string | null; tcf_string?: string | null
+  gpp_string?: string | null
   signature?: string | null
 }
 interface RowConsentSummary extends RowDataPacket {
@@ -80,7 +81,10 @@ interface RowApiKey extends RowDataPacket {
   created_by: string | null; expire_by: string | null; created_at: string; updated_at: string | null
 }
 interface RowTenant extends RowDataPacket { id: string; name: string; slug: string; created_at: string; updated_at: string }
-interface RowTenantSettings extends RowDataPacket { allowed_origins_json: string; admin_allowed_origins_json: string; setup_completed: number }
+interface RowTenantSettings extends RowDataPacket {
+  allowed_origins_json: string; admin_allowed_origins_json: string; setup_completed: number
+  profiles_seeded: number; tcf_confirmation_json: string | null; gpp_confirmation_json: string | null
+}
 
 // ── Mappers ────────────────────────────────────────────────────────────────────
 
@@ -103,6 +107,7 @@ function mapConsent(r: RowConsent): ConsentDbRecord {
     ...(r.age_verified != null ? { ageVerified: r.age_verified === 1 } : {}),
     ...(r.parental_consent_token != null ? { parentalConsentToken: r.parental_consent_token } : {}),
     ...(r.tcf_string != null ? { tcfString: r.tcf_string } : {}),
+    ...(r.gpp_string != null ? { gppString: r.gpp_string } : {}),
     ...(r.signature != null ? { signature: r.signature } : {}),
   }
 }
@@ -322,10 +327,10 @@ export class MySQLAdapter implements StorageAdapter {
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
     const id = randomConsentId()
     await this.exec(
-      'INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, signature) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)',
+      'INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
       [id, data.tenantId, data.visitorId, data.profileId, data.locale,
         JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source,
-        data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.signature ?? null],
+        data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.gppString ?? null, data.signature ?? null],
     )
     const rows = await this.q<RowConsent>('SELECT * FROM consent_records WHERE id=?', [id])
     const row = rows[0]
@@ -853,7 +858,7 @@ export class MySQLAdapter implements StorageAdapter {
 
   async getSettings(tenantId: string): Promise<TenantSettings> {
     const rows = await this.q<RowTenantSettings>(
-      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed FROM tenant_settings WHERE tenant_id=?', [tenantId],
+      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json FROM tenant_settings WHERE tenant_id=?', [tenantId],
     )
     const r = rows[0]
     return r
@@ -861,6 +866,9 @@ export class MySQLAdapter implements StorageAdapter {
         allowedOrigins: JSON.parse(r.allowed_origins_json) as string[],
         adminAllowedOrigins: JSON.parse(r.admin_allowed_origins_json) as string[],
         setupCompleted: !!r.setup_completed,
+        profilesSeeded: !!r.profiles_seeded,
+        tcfConfirmation: r.tcf_confirmation_json ? JSON.parse(r.tcf_confirmation_json) : undefined,
+        gppConfirmation: r.gpp_confirmation_json ? JSON.parse(r.gpp_confirmation_json) : undefined,
       }
       : {}
   }
@@ -869,9 +877,12 @@ export class MySQLAdapter implements StorageAdapter {
     const current = await this.getSettings(tenantId)
     const merged = { ...current, ...data }
     await this.exec(
-      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, updated_at) VALUES (?,?,?,?,NOW())
-       ON DUPLICATE KEY UPDATE allowed_origins_json=VALUES(allowed_origins_json), admin_allowed_origins_json=VALUES(admin_allowed_origins_json), setup_completed=VALUES(setup_completed), updated_at=NOW()`,
-      [tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ? 1 : 0],
+      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json, updated_at) VALUES (?,?,?,?,?,?,?,NOW())
+       ON DUPLICATE KEY UPDATE allowed_origins_json=VALUES(allowed_origins_json), admin_allowed_origins_json=VALUES(admin_allowed_origins_json), setup_completed=VALUES(setup_completed), profiles_seeded=VALUES(profiles_seeded), tcf_confirmation_json=VALUES(tcf_confirmation_json), gpp_confirmation_json=VALUES(gpp_confirmation_json), updated_at=NOW()`,
+      [
+        tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ? 1 : 0,
+        merged.profilesSeeded ? 1 : 0, merged.tcfConfirmation ? JSON.stringify(merged.tcfConfirmation) : null, merged.gppConfirmation ? JSON.stringify(merged.gppConfirmation) : null,
+      ],
     )
     return this.getSettings(tenantId)
   }
@@ -891,13 +902,6 @@ export class MySQLAdapter implements StorageAdapter {
     await this.exec(`DELETE FROM consent_history WHERE visitor_id IN (${placeholders})`, ids)
     await this.exec(`DELETE FROM consent_records WHERE visitor_id IN (${placeholders})`, ids)
     return ids.length
-  }
-
-  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
-    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
-    const rows = await this.q<RowCount>('SELECT COUNT(*) AS total FROM audit_logs WHERE created_at < ?', [cutoff])
-    await this.exec('DELETE FROM audit_logs WHERE created_at < ?', [cutoff])
-    return rows[0]?.total ?? 0
   }
 
   // Template methods — not yet implemented for MySQL adapter

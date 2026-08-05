@@ -1,4 +1,4 @@
-import type { ProfileConfig, ConsentValue, MainBanner, GpcBanner, PreferenceModal } from './ui'
+import type { ProfileConfig, ConsentValue, MainBanner, GpcBanner, PreferenceModal, AgeGateModalContent } from './ui'
 import type { ComplianceGroupId } from './compliance'
 
 /** Resolved content for one non-default locale — template shape merged with that locale's
@@ -12,6 +12,8 @@ export interface LocaleContentInput {
   mainBanner: MainBanner
   gpcBanner?: GpcBanner
   preferenceModal: PreferenceModal
+  /** Only meaningful when the profile's `ageGate.enabled` is true. */
+  ageGateModal?: AgeGateModalContent
 }
 
 // ─── Server config ────────────────────────────────────────────────────────────
@@ -61,7 +63,7 @@ export interface SamlConfig {
 
 export interface AuthConfig {
   mode: 'local' | 'jwt' | 'custom' | 'oidc' | 'saml'
-  jwtSecret?: string
+  masterSecret?: string
   validateUser?: (req: unknown) => Promise<AdminUser | null>
   adminEmail?: string
   adminPassword?: string
@@ -79,6 +81,14 @@ export type GeoResult = {
   country: string | null
   region: string | null
   locale: string | null
+  /** Optional escape hatch: when set, `GeoResolverService` uses this compliance group directly
+   * instead of computing one from `country`/`region` against the jurisdiction map — for a
+   * provider that already carries legal-grade jurisdiction data (e.g. a paid geo-IP service) and
+   * needs to route a visitor into an operator-defined custom group the built-in map can't express.
+   * `country`/`region`/`locale` are still used for locale resolution and the `requiresSensitiveOptIn`
+   * region carve-out, which are independent of which group applies. Optional — omitting it (or
+   * returning `undefined`) preserves the existing country/region-map resolution exactly as before. */
+  complianceGroup?: string
 }
 
 export type CountryResolverFn = (ctx: {
@@ -166,11 +176,6 @@ export interface OptInStats {
   byDate: OptInByDate[]
 }
 
-export type ComplianceMapOverride =
-  | 'default'          // use embedded map
-  | ComplianceMapData  // operator-supplied full map
-  | 'auto'             // fetch from complianceMapUrl at startup, refresh every 24h
-
 export interface ComplianceMapData {
   version: string
   countries: Record<string, CountryComplianceEntry>
@@ -178,11 +183,14 @@ export interface ComplianceMapData {
 
 export interface CountryComplianceEntry {
   complianceGroup: ComplianceGroupId
-  default: ComplianceGroupId
-  description: string
+  /** Fallback group used when only the country (not the region) is known. Defaults to
+   * `complianceGroup` when omitted — only set this explicitly when a region within this
+   * country can be stricter than the country-wide baseline (see `overriddenRegions`). */
+  default?: ComplianceGroupId
+  description?: string
   overriddenRegions?: Record<string, {
     complianceGroup: ComplianceGroupId
-    description: string
+    description?: string
   }>
 }
 
@@ -222,16 +230,32 @@ export interface ContentValidationResult {
 }
 
 export interface ComplianceConfig {
-  /** @deprecated use type */
-  gdpr?: boolean
-  /** @deprecated use type */
-  ccpa?: boolean
+  /** Server-side GPC enforcement on `POST`/`PUT /consent`: re-applies GPC-driven denial when a
+   * write carries `gpcDetected`, independent of the widget's own client-side `gpcMode` handling.
+   * `false` disables this defense-in-depth check entirely. Default: enabled. */
   gpc?: boolean | 'strict'
   type?: ComplianceGroupId | 'auto'
-  /** @deprecated use 'default' instead of 'language' or 'timezone'; 'geoip' and 'hosted-geoip-lite' removed */
-  geoDataProvider?: 'default' | 'maxmind' | 'language' | 'timezone' | 'geoip' | 'hosted-geoip-lite' | CountryResolverFn
-  autoComplianceMap?: ComplianceMapOverride
-  complianceMapUrl?: string
+  geoDataProvider?: 'default' | 'maxmind' | 'geoip' | 'hosted-geoip-lite' | CountryResolverFn
+  /** `'default'` (embedded map, the default), a URL to fetch a JSON `ComplianceMapData` document
+   * from (refreshed in the background per the response's `Cache-Control`/`Expires` header, 24h
+   * fallback if absent), or an inline operator-supplied `ComplianceMapData` object. Invalid data
+   * from either a URL or an object logs an error and falls back to `'default'`. */
+  complianceMap?: 'default' | string | ComplianceMapData
+  tcf?: TcfConfig
+  gpp?: GppConfig
+  /** Signs server-stored consent records (HMAC-SHA256 at create/update time, hex-encoded into
+   * `signature`, checked on `GET /consent/:visitorId/verify`), ownership cookies, and
+   * parental-consent request/resolve tokens (see `POST /consent/:visitorId/parental-consent-request`),
+   * and salts hashed IPs — independent of the widget's own cookie-signing
+   * (`core.cookieSigningKey`). Auto-generated in memory when unset, so all of the above are
+   * always active — but an auto-generated value isn't persisted, so a restart invalidates
+   * outstanding ownership cookies, in-flight parental-consent tokens, and (if compared across
+   * restarts) hashed-IP continuity. Set this explicitly for anything beyond local dev. */
+  dataSigningHash?: string
+  dataRetention?: DataRetentionConfig
+  /** Expiry window for parental-consent tokens issued by `POST /consent/:visitorId/parental-consent-request`.
+   * Default: 7 days. */
+  parentalConsentTokenTtlDays?: number
 }
 
 export interface DashboardConfig {
@@ -243,25 +267,37 @@ export interface MultiTenantConfig {
   enabled: boolean
 }
 
-export interface AgeGateConfig {
-  enabled: boolean
-  minimumAge: number
-  requireParentalConsent?: boolean
-}
-
 export interface TcfConfig {
   enabled: boolean
   cmpId: number
   cmpVersion: number
+  /** ISO 3166-1 alpha-2 country code of the publisher (e.g. 'DE', 'FR'). Required for
+   * spec-correct binary TC-string encoding — without it, real encoding is skipped and
+   * Consenti falls back to the simplified (non-spec) TC string. No default: there is no
+   * honest country to assume on a publisher's behalf. */
+  publisherCC?: string
+}
+
+/** IAB Global Privacy Platform (GPP), US National ("usnat") section only — the umbrella section
+ * most MSPA/programmatic US bidders read. Individual state sections (US-CA, US-CO, etc.) aren't
+ * encoded yet. Requires the optional `@iabgpp/cmpapi` peer dependency (see `gpp/gpp-string.ts`) —
+ * unlike TCF there's no simplified fallback format, since a non-spec GPP string has no consumer
+ * that would accept it: when the dependency isn't installed, `gppString`/`window.__gpp` are
+ * simply not produced. */
+export interface GppConfig {
+  enabled: boolean
+  cmpId: number
+  cmpVersion: number
+  /** MSPA "covered transaction" — whether this deployment's data transactions fall under MSPA
+   * signatory obligations. No honest default, so it's required rather than optional. */
+  mspaCoveredTransaction: boolean
+  /** IAB's tri-state encoding for both MSPA fields: 0 = not applicable, 1 = yes, 2 = no. */
+  mspaOptOutOptionMode: 0 | 1 | 2
+  mspaServiceProviderMode: 0 | 1 | 2
 }
 
 export interface DataRetentionConfig {
   purgeAfterDays: number
-  /** When set, audit log entries older than this are purged on the same daily timer as consent
-   * record retention. Independent of `purgeAfterDays` since audit trails are often required to
-   * be kept longer than the consent records they reference for compliance/investigation
-   * purposes. Unset by default — audit logs are kept indefinitely unless explicitly configured. */
-  auditLogPurgeAfterDays?: number
 }
 
 export interface BrandingConfig {
@@ -286,18 +322,10 @@ export interface ConsentiServerConfig {
   compliance?: ComplianceConfig
   multiTenant?: MultiTenantConfig
   plugins?: ConsentiServerPlugin[]
-  ageGate?: AgeGateConfig
-  tcf?: TcfConfig
-  dataRetention?: DataRetentionConfig
   maxBodySize?: number
   trustedProxies?: string[]
   branding?: BrandingConfig
   s3Api?: S3ApiConfig
-  /** When set, every consent record is HMAC-SHA256 signed at create/update time (hex-encoded,
-   * stored in `signature`) and the signature is checked on `GET /consent/:visitorId/verify`.
-   * No-op and no schema burden when unset — opt-in tamper-evidence for server-stored records,
-   * independent of the widget's own cookie-signing (`core.cookieSigningKey`). */
-  consentSigningKey?: string
   /** Called after every profile activate/deactivate/delete. isPurge=true means invalidate; false means warm. */
   handleCache?: (paths: string[], profileId: string, isPurge: boolean) => void
 }
@@ -319,13 +347,41 @@ export interface TenantSettings {
    * fallback. The public API has no auth token, so this is its only access gate. */
   allowedOrigins?: string[]
   /** Admin API origin allowlist — an additional CORS-layer check on top of Bearer-token auth
-   * for browser-originated `/consenti/admin/*` requests. Empty/unset means no restriction
+   * for browser-originated `/consenti/admin/v1/*` requests. Empty/unset means no restriction
    * (Bearer token auth alone still applies); only enforced when the request carries an
    * `Origin` header — server-to-server callers are unaffected. */
   adminAllowedOrigins?: string[]
   /** Whether this tenant has completed (or skipped) the first-run setup wizard. Gates the
    * one-time `#/setup` redirect in the dashboard — never reset once true. Default: false. */
   setupCompleted?: boolean
+  /** Whether `POST /setup/seed-profiles` has been called at least once for this tenant (an
+   * empty `groups: []` call counts). `POST /setup/complete` rejects until this is true, closing
+   * the bypass where the wizard's step-1 skip (or a direct API call) could mark setup complete
+   * without ever passing through config review or the profile step. */
+  profilesSeeded?: boolean
+  /** Last-confirmed TCF `{cmpId, cmpVersion}` registration snapshot, hashed rather than stored
+   * in full — the live values always come from the static `compliance.tcf` config, never the DB.
+   * A hash mismatch (including never having confirmed) means TCF is treated as unconfirmed and
+   * fails closed: no `window.__tcfapi`, no TC string, a logged server error. Re-confirming in the
+   * dashboard (against the cached IAB CMP List) writes a fresh hash here. */
+  tcfConfirmation?: RegistrationConfirmation
+  /** Same governance shape as `tcfConfirmation`, for the GPP US National section's own
+   * `compliance.gpp.{cmpId, cmpVersion}`. Self-attestation only — IAB doesn't publish a
+   * CMP-List equivalent for GPP, so there's no external registry to validate against. */
+  gppConfirmation?: RegistrationConfirmation
+}
+
+/** Hash-based confirmation record — proves a specific `{cmpId, cmpVersion}` config was reviewed
+ * and confirmed as registered, without persisting the config values themselves in the DB. */
+export interface RegistrationConfirmation {
+  /** Hash of the confirmed `{cmpId, cmpVersion}` (and `publisherCC` for TCF). Compared against a
+   * fresh hash of the live static config on every check — any drift (including a first-ever
+   * check) means unconfirmed. */
+  configHash: string
+  confirmedAt: string
+  /** User id of the admin who checked the confirmation box. Undefined for confirmations made
+   * before this field existed. */
+  confirmedBy?: string
 }
 
 export interface ApiKey {
@@ -366,9 +422,10 @@ export interface ConsentDbRecord {
   ageVerified?: boolean
   parentalConsentToken?: string
   tcfString?: string
-  /** HMAC-SHA256 signature over the record's core fields, hex-encoded. Only present when
-   * `consentSigningKey` is configured — opt-in tamper-evidence for server-stored records,
-   * independent of the widget's own cookie-signing (`core.cookieSigningKey`). */
+  gppString?: string
+  /** HMAC-SHA256 signature over the record's core fields, hex-encoded — tamper-evidence for
+   * server-stored records via `dataSigningHash` (auto-generated when unset), independent of the
+   * widget's own cookie-signing (`core.cookieSigningKey`). */
   signature?: string
   createdAt: string
   updatedAt: string
@@ -457,10 +514,11 @@ export interface AuditLog {
 }
 
 /** List-view shape for consents — omits the fields not shown in a table row (`consentJson`,
- * `parentalConsentToken`, `tcfString`, `signature`), so paginated list queries don't have to pull
- * those blobs off disk for every row. Fetch the full `ConsentDbRecord` via `getConsent(visitorId)`
- * when a single record's full detail is actually needed (e.g. opening a detail modal). */
-export type ConsentSummary = Omit<ConsentDbRecord, 'consentJson' | 'parentalConsentToken' | 'tcfString' | 'signature'>
+ * `parentalConsentToken`, `tcfString`, `gppString`, `signature`), so paginated list queries don't
+ * have to pull those blobs off disk for every row. Fetch the full `ConsentDbRecord` via
+ * `getConsent(visitorId)` when a single record's full detail is actually needed (e.g. opening a
+ * detail modal). */
+export type ConsentSummary = Omit<ConsentDbRecord, 'consentJson' | 'parentalConsentToken' | 'tcfString' | 'gppString' | 'signature'>
 
 /** List-view shape for audit logs — omits `oldData`/`newData` (full before/after snapshots) for
  * the same reason as `ConsentSummary`. Fetch the full `AuditLog` via `getAuditLogById(id)` when a
@@ -501,6 +559,7 @@ export interface CreateConsentInput {
   ageVerified?: boolean
   parentalConsentToken?: string
   tcfString?: string
+  gppString?: string
   signature?: string
 }
 
@@ -742,7 +801,6 @@ export interface StorageAdapter {
   deleteApiKey(id: string): Promise<void>
   getApiKeys(tenantId: string): Promise<ApiKey[]>
   purgeExpiredConsents(olderThanDays: number): Promise<number>
-  purgeExpiredAuditLogs(olderThanDays: number): Promise<number>
 
   createConsentTemplate(data: import('./ui').CreateConsentTemplateInput): Promise<import('./ui').ServerConsentTemplate>
   updateConsentTemplate(id: string, data: import('./ui').UpdateConsentTemplateInput): Promise<import('./ui').ServerConsentTemplate>

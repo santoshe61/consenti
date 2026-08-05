@@ -33,7 +33,7 @@ This document uses the STRIDE framework. It is a living document — update it w
        │
        ├──▶ GET/POST /consenti/api/v1/*   ← public widget API (rate-limited, no auth)
        │
-       └──▶ GET/POST /consenti/admin/*    ← admin API (JWT required)
+       └──▶ GET/POST /consenti/admin/v1/* ← admin API (JWT required)
                    │
                    ▼
            [Consenti Node.js process]
@@ -105,10 +105,10 @@ This document uses the STRIDE framework. It is a living document — update it w
 
 | Control | Where |
 |---------|-------|
-| SHA-256 IP hashing | `sqlite.adapter.ts` — `hashIp()` |
+| SHA-256 IP hashing (masked + salted) | `utils/crypto.ts` — `hashIp()` |
 | scrypt password hashing | `auth.service.ts` |
 | HMAC-SHA256 JWT signing | `jwt.ts` |
-| Append-only audit log | `audit.repository.ts` — no UPDATE/DELETE |
+| Append-only audit log — no purge path under any config | `repositories/audit.repo.ts` — no UPDATE/DELETE |
 | Rate limiting on public routes | `rate-limit.middleware.ts` |
 | Error detail suppression in production | All route handlers |
 | CORS allowlist (not `*`) | `cors.middleware.ts` |

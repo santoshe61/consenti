@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 // Notice Only: jurisdictions with no dedicated cookie banner law.
 // A simple notice informing the user is sufficient. Only essential cookies are used.

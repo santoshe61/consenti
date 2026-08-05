@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'PIPL Compliance Guide (China 2021)',
@@ -28,6 +29,7 @@ export default function PIPLPage() {
   return (
     <div className="prose max-w-none">
       <h1>PIPL Compliance Guide (China)</h1>
+      <ComplianceTierBadge tier="routing-only" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-in-china</code> — China-specific opt-in with
         separate consent required per processing purpose and strict cross-border transfer rules. Use{' '}
@@ -112,14 +114,15 @@ export default function PIPLPage() {
           <tr>
             <td>Records kept</td>
             <td>
-              Immutable <code>consent_history</code> table; <code>audit_logs</code> for admin
-              actions
+              <code>consent_history</code> table (retained per <code>purgeAfterDays</code>,
+              deleted on erasure); <code>audit_logs</code> for admin actions (append-only, never
+              deleted by Consenti)
             </td>
           </tr>
         </tbody>
       </table>
 
-      <h2>Consent model</h2>
+      <h2>Compliance Group</h2>
       <p>
         PIPL requires <strong>informed, voluntary, specific, and unambiguous</strong> consent before
         collecting or processing personal information. Unlike GDPR, PIPL does not recognise
@@ -148,25 +151,23 @@ export default function PIPLPage() {
         overseas recipient's name, country, and processing purpose in your profile's category
         descriptions. Users must explicitly consent to cross-border transfer.
       </Callout>
+      <Callout type="warning">
+        <strong>Self-hosting Consenti does not by itself satisfy PIPL's residency expectations.</strong>{' '}
+        <code>@consenti/api</code> being self-hosted means <em>you</em> control where it runs — it
+        does not mean it runs in China. If you have PIPL exposure, that server (and its storage)
+        needs to actually be deployed within China for that traffic; a single global instance hosted
+        elsewhere is "self-hosted," not "data-resident."
+      </Callout>
 
       <h2>Children's data</h2>
       <p>
-        PIPL requires separate parental consent for personal information of children under 14. Use
-        the <code>compliance.ageGate</code> config option to enable the age gate:
+        PIPL requires separate parental consent for personal information of children under 14.
+        Age gate is a per-profile dashboard setting, not a widget config option — on the
+        <code>opt-in-china</code> profile's Step 1, enable &quot;Age gate&quot;, set minimum age to
+        14 (the PIPL threshold), and check &quot;Require parental consent&quot;. The widget reads
+        it automatically off the resolved profile — no separate <code>ConsentiSetup()</code> config
+        needed.
       </p>
-      <CodeBlock
-        lang="ts"
-        code={`new ConsentiSetup({
-  compliance: {
-    type: 'opt-in-china',
-    ageGate: {
-      enabled: true,
-      minimumAge: 14,             // PIPL threshold: under 14 requires parental consent
-      requireParentalConsent: true,
-    },
-  },
-})`}
-      />
 
       <h2>Consent configuration example</h2>
       <CodeBlock
@@ -225,6 +226,44 @@ new ConsentiSetup({
   },
 })`}
       />
+
+      <h2>What Consenti does — and what it doesn't</h2>
+      <p>
+        Everything above is the consent-collection UX layer: separate per-purpose opt-in, revocation,
+        cookie-level records, and the age-gate widget. PIPL is a broader statute than a consent
+        widget can satisfy on its own. Consenti does <strong>not</strong>:
+      </p>
+      <ul>
+        <li>
+          Perform the CAC security assessment, obtain the personal-information-protection
+          certification, or execute the standard contract required before a cross-border transfer —
+          those are legal/administrative steps you (or counsel) complete outside the product
+        </li>
+        <li>
+          Guarantee data residency — self-hosting <code>@consenti/api</code> means you control where
+          it runs, not that it runs in China; see the callout above
+        </li>
+        <li>
+          Conduct a Personal Information Protection Impact Assessment (PIPIA), which PIPL requires
+          before certain higher-risk processing (cross-border transfer, sensitive information,
+          automated decision-making) — that's a documentation/process obligation on the controller
+        </li>
+        <li>
+          Appoint a designated representative or protection officer within China where PIPL requires
+          one for organisations processing personal information of Chinese residents from outside
+          the country
+        </li>
+      </ul>
+
+      <h2>Operator checklist</h2>
+      <p>Beyond configuring Consenti's <code>opt-in-china</code> profile, an operator with PIPL exposure still needs to:</p>
+      <ol>
+        <li>Decide whether any Consenti deployment (widget-only or with <code>@consenti/api</code>) needs to be hosted inside China for data-residency purposes, and provision that separately if so</li>
+        <li>Complete the applicable cross-border transfer mechanism (CAC security assessment, certification, or standard contract) before any consented data actually crosses the border — Consenti's consent record proves the user agreed, not that the transfer mechanism itself is in place</li>
+        <li>Run a PIPIA before enabling cross-border transfer, sensitive-data collection, or automated decision-making categories, and keep that assessment on file</li>
+        <li>Appoint and publish contact details for a designated representative/protection officer if your organisation is subject to that requirement</li>
+        <li>Keep the cross-border and children&apos;s-data <code>htmlText</code> disclosures current as your actual vendor/processor list changes — Consenti renders whatever text you configure, it doesn&apos;t audit it against your real data flows</li>
+      </ol>
 
       <h2>Enforcement</h2>
       <p>

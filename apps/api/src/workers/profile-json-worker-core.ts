@@ -1,7 +1,7 @@
 import { writeFileSync, renameSync, mkdirSync, copyFileSync, rmSync, existsSync, readFileSync, lstatSync, symlinkSync, unlinkSync } from 'node:fs'
 import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
-import type { CookieMap, MainBanner, GpcBanner, PreferenceModal, S3ApiConfig, PublicProfileResponse } from '@consenti/types'
+import type { CookieMap, MainBanner, GpcBanner, PreferenceModal, S3ApiConfig, PublicProfileResponse, AgeGateModalContent } from '@consenti/types'
 import { s3Put, s3Delete } from '../storage/s3/s3-client.js'
 
 /** One locale's resolved banner/modal content — see `ProfileService`'s `ResolvedLocaleContent`. */
@@ -9,6 +9,7 @@ interface ResolvedLocaleContent {
   mainBanner: MainBanner
   gpcBanner?: GpcBanner
   preferenceModal: PreferenceModal
+  ageGateModal?: AgeGateModalContent
 }
 
 export interface WorkerMessage {
@@ -24,7 +25,7 @@ export interface WorkerMessage {
     expiryDays?: number
   } & Pick<PublicProfileResponse,
     'gpcMode' | 'complianceGroup' | 'darkMode' | 'allowReceipt' | 'enhanceAccessibility' |
-    'showFooterMetadata' | 'allowedOrigins' | 'complianceConfig' | 'dpdpa' | 'hidePoweredBy'
+    'showFooterMetadata' | 'allowedOrigins' | 'complianceConfig' | 'dpdpa' | 'ageGate' | 'hidePoweredBy'
   >
   /** Resolved content for locales included in this save. Any locale in `profile.locales` not
    * present here is carried forward unchanged from `previousVersion`'s file — see
@@ -68,7 +69,7 @@ function writeJsonFile(filePath: string, content: string): void {
 
 const PROFILE_WIDE_KEYS = [
   'gpcMode', 'complianceGroup', 'darkMode', 'allowReceipt', 'enhanceAccessibility',
-  'showFooterMetadata', 'allowedOrigins', 'complianceConfig', 'dpdpa', 'hidePoweredBy',
+  'showFooterMetadata', 'allowedOrigins', 'complianceConfig', 'dpdpa', 'ageGate', 'hidePoweredBy',
 ] as const
 
 /** Copies whichever profile-wide settings are actually set — same fields on every locale's file,
@@ -112,6 +113,7 @@ export async function writeVersionDir(msg: WorkerMessage): Promise<void> {
         mainBanner: resolved.mainBanner,
         ...(resolved.gpcBanner ? { gpcBanner: resolved.gpcBanner } : {}),
         preferenceModal: resolved.preferenceModal,
+        ...(resolved.ageGateModal ? { ageGateModal: resolved.ageGateModal } : {}),
       }
       content = JSON.stringify(doc, null, 2)
     } else if (previousVersion !== undefined) {

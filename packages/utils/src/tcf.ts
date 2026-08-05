@@ -1,6 +1,13 @@
 // Simplified TC string encoder/decoder.
 // This implementation stores a base64url-encoded JSON payload for basic compatibility.
-// For full IAB TCF v2.2 compliance (binary bitfield encoding), use the iabtcf-core npm package.
+//
+// `@consenti/api` now also ships a spec-correct binary encoder (`apps/api/src/tcf/real-tc-string.ts`)
+// using the optional `@iabtechlabtcf/core` peer dependency (the actively-maintained IAB Tech Lab
+// package — note: the unscoped `iabtcf-core` name referenced in older comments/docs does not exist
+// on npm). That encoder is used automatically when `compliance.tcf.publisherCC` is configured and
+// the dependency is installed; this simplified encoder remains the fallback for everyone else and
+// the only option in `@consenti/ui`'s fully standalone (no-backend) mode, since real encoding needs
+// the multi-megabyte Global Vendor List that only the backend fetches and caches.
 //
 // Implemented with a manual base64url codec over Uint8Array (no `Buffer`) so this file works
 // identically in Node (`@consenti/api`) and the browser (`@consenti/ui`) without a runtime dependency.

@@ -54,7 +54,7 @@ const consenti = createConsenti({
     mode: 'local',
     adminEmail: process.env.CONSENTI_ADMIN_EMAIL ?? 'user@consenti.dev',
     adminPassword: process.env.CONSENTI_ADMIN_PASSWORD ?? 'Consenti@123',
-    jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET ?? 'random-jwt-secret',
+    masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET ?? 'random-jwt-secret',
   },
 
   // Optional
@@ -69,6 +69,18 @@ const consenti = createConsenti({
   compliance: {
     type: 'auto',                 // 'auto' = geo-resolve per visitor | ComplianceGroupId = fixed group
     geoDataProvider: 'default',   // 'default' | 'hosted-geoip-lite' | 'geoip' | 'maxmind' | CountryResolverFn
+
+    tcf: {
+      enabled: false,
+      cmpId: 0,
+      cmpVersion: 1,
+    },
+
+    dataSigningHash: process.env.CONSENTI_DATA_SIGNING_HASH,  // signs consent records, ownership cookies, parental-consent tokens; salts hashed IPs. Auto-generated if omitted.
+
+    dataRetention: {
+      purgeAfterDays: 365,       // delete consent records older than this
+    },
   },
 
   // S3 sync for profile locale JSON files (optional)
@@ -85,22 +97,6 @@ const consenti = createConsenti({
   handleCache: (paths, version, isPurge) => {
     // paths: locale file paths written or removed
     // isPurge: true = files removed (deactivate/delete); false = files written (create/activate)
-  },
-
-  tcf: {
-    enabled: false,
-    cmpId: 0,
-    cmpVersion: 1,
-  },
-
-  ageGate: {
-    enabled: false,
-    minimumAge: 13,
-    requireParentalConsent: false,
-  },
-
-  dataRetention: {
-    purgeAfterDays: 365,       // delete consent records older than this
   },
 
   multiTenant: {
@@ -463,17 +459,17 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
           </tr>
           <tr>
             <td>
-              <code>CONSENTI_ADMIN_JWT_SECRET</code>
+              <code>CONSENTI_ADMIN_MASTER_SECRET</code>
             </td>
             <td>random per restart</td>
             <td>
-              JWT signing secret. Takes precedence over <code>auth.jwtSecret</code>.
+              JWT signing secret. Takes precedence over <code>auth.masterSecret</code>.
             </td>
           </tr>
         </tbody>
       </table>
       <Callout type="warning">
-        A random <code>CONSENTI_ADMIN_JWT_SECRET</code> means all sessions are invalidated on
+        A random <code>CONSENTI_ADMIN_MASTER_SECRET</code> means all sessions are invalidated on
         restart. Always set a stable secret in production.
       </Callout>
 
@@ -502,7 +498,7 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
           </tr>
           <tr>
             <td>
-              <code>jwtSecret</code>
+              <code>masterSecret</code>
             </td>
             <td>
               <code>string</code>
@@ -534,7 +530,7 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
   mode: 'local',
   adminEmail: 'user@consenti.dev',
   adminPassword: process.env.CONSENTI_ADMIN_PASSWORD!, // min 12 chars; 16+ recommended
-  jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!,         // stable secret for production
+  masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!,         // stable secret for production
 }`}
       />
       <table>
@@ -580,7 +576,7 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
       <h3>mode: 'jwt'</h3>
       <p>
         Validate JWTs issued by an external system (e.g. your own auth service). Consenti verifies
-        the token signature with <code>jwtSecret</code> and extracts <code>sub</code>,{' '}
+        the token signature with <code>masterSecret</code> and extracts <code>sub</code>,{' '}
         <code>email</code>, <code>roles</code>, and <code>tenantId</code>
         from the payload.
       </p>
@@ -589,7 +585,7 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
         filename="jwt auth"
         code={`auth: {
   mode: 'jwt',
-  jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!, // must match the secret used to sign your tokens
+  masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!, // must match the secret used to sign your tokens
 }`}
       />
       <p>Your auth service must issue tokens with at least these claims:</p>
@@ -620,7 +616,7 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
         filename="oidc auth"
         code={`auth: {
   mode: 'oidc',
-  jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!, // signs the session cookie after OIDC login
+  masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!, // signs the session cookie after OIDC login
   oidc: {
     issuer: 'https://accounts.google.com',  // or any OIDC-compliant provider
     clientId: process.env.OIDC_CLIENT_ID!,
@@ -720,12 +716,12 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
         filename="saml auth"
         code={`auth: {
   mode: 'saml',
-  jwtSecret: process.env.CONSENTI_ADMIN_JWT_SECRET!,
+  masterSecret: process.env.CONSENTI_ADMIN_MASTER_SECRET!,
   saml: {
     issuer: 'https://idp.example.com',
     entryPoint: 'https://idp.example.com/sso/saml',  // IdP SSO URL
     cert: process.env.IDP_CERT!,                      // IdP signing certificate (PEM, without headers)
-    callbackUrl: 'https://yourapp.com/consenti/auth/saml/callback',
+    callbackUrl: 'https://yourapp.com/consenti/admin/v1/auth/saml/acs',
   },
 }`}
       />
@@ -826,32 +822,32 @@ auth: {
 
       <h3>TOTP / Two-factor authentication</h3>
       <p>
-        TOTP (RFC 6238) is available as an optional second factor in <code>local</code> mode. It is
-        implemented entirely with <code>node:crypto</code> — no external dependency.
+        TOTP (RFC 6238) is available as an optional, per-user second factor, layered on top of
+        whichever <code>auth.mode</code> is active. It is implemented entirely with{' '}
+        <code>node:crypto</code> — no external dependency. Each admin user opts in individually via
+        three admin routes:
       </p>
       <CodeBlock
         lang="ts"
-        filename="TOTP helpers (server-side)"
-        code={`import {
-  generateTotpSecret,
-  totpQrUrl,
-  verifyTotp,
-} from '@consenti/api'
+        filename="TOTP setup (admin REST API)"
+        code={`// 1. Generate a secret + QR code for the current user (requires a valid JWT)
+POST {basePath}/admin/v1/auth/totp/setup
+→ { qrUrl, message }
 
-// 1. Generate and persist a secret per user
-const secret = generateTotpSecret() // base32 string
+// 2. Scan the QR code in an authenticator app, then verify a submitted 6-digit code
+POST {basePath}/admin/v1/auth/totp/verify
+{ "token": "123456" }
+→ { success: true, message: 'TOTP enabled successfully' }
 
-// 2. Show the QR code to the user during setup
-const otpauthUrl = totpQrUrl(secret, 'admin@example.com', 'MyApp')
-// → otpauth://totp/MyApp:admin%40example.com?secret=...
-
-// 3. Verify a submitted 6-digit code (window = ±1 time-step)
-const ok = verifyTotp(secret, submittedCode)
+// 3. Disable TOTP for the current user
+POST {basePath}/admin/v1/auth/totp/disable
+→ { success: true, message: 'TOTP disabled' }
 `}
       />
       <Callout type="info">
-        Each TOTP token is single-use: <code>verifyTotp</code> rejects a token that has already been
-        accepted, preventing replay attacks within the same 30-second window.
+        <code>totpEnabled</code> is reported on <code>GET {'{basePath}'}/admin/v1/auth/me</code>, but is
+        not currently enforced as a required second factor on <code>POST /auth/login</code> itself —
+        treat it as available account-hardening today, not a login gate.
       </Callout>
 
       {/* ── basePath ─────────────────────────────────────────────────────── */}
@@ -1034,7 +1030,7 @@ rateLimit: { enabled: false }`}
       {/* ── compliance ───────────────────────────────────────────────────── */}
       <h2>compliance</h2>
       <p>
-        Controls which cookie consent model is applied to visitors. The recommended approach is
+        Controls which cookie Compliance Group is applied to visitors. The recommended approach is
         automatic geo-routing (<code>type: &apos;auto&apos;</code>) — Consenti resolves the
         visitor&apos;s jurisdiction from geo signals and selects the correct compliance group.
       </p>
@@ -1163,7 +1159,10 @@ rateLimit: { enabled: false }`}
               <code>
                 {'{ country: string | null, region: string | null, locale: string | null }'}
               </code>
-              .
+              , plus an optional <code>complianceGroup?: string</code> — when set, that group is
+              used directly and the country/region jurisdiction-map lookup is skipped entirely
+              (for a provider that already carries legal-grade jurisdiction data and needs to
+              route into an operator-defined custom group).
             </td>
           </tr>
         </tbody>
@@ -1210,19 +1209,84 @@ compliance: {
     const data = await res.json()
     return { country: data.country_code, region: data.region, locale: data.locale ?? null }
   },
+}
+
+// Override the country -> compliance-group map itself
+compliance: {
+  type: 'auto',
+  complianceMap: 'default', // 'default' (embedded map) | a URL string | an inline object
+  // complianceMap: 'https://your-host.com/compliance-map.json',
+  // complianceMap: { version: '2026-01', countries: { US: { complianceGroup: 'opt-out' } } },
+}
+
+// Custom geo resolver that already knows the compliance group — skips the
+// country/region jurisdiction-map lookup entirely for a provider carrying its own
+// legal-grade jurisdiction data (e.g. routing into a custom, non-built-in group)
+compliance: {
+  type: 'auto',
+  geoDataProvider: async ({ ip, timezone, language }) => {
+    const res = await fetch(\`https://api.my-legal-geo-service.com/\${ip}\`)
+    const data = await res.json()
+    return {
+      country: data.country_code,
+      region: data.region,
+      locale: data.locale ?? null,
+      complianceGroup: data.consentModel, // e.g. an operator-defined custom group id
+    }
+  },
 }`}
       />
 
       <Callout type="info">
-        The embedded compliance map covers 195+ countries and territories with 8 compliance groups
-        and is fixed — there is no config option to supply your own map today. See the{' '}
+        The embedded compliance map covers 190+ countries and territories with 8 compliance
+        groups. <code>compliance.complianceMap</code> lets you override it: <code>'default'</code>{' '}
+        (the embedded map, unchanged), a URL string (fetched and used as the map — refreshed in
+        the background per the response's <code>Cache-Control</code>/<code>Expires</code> header,
+        24h fallback if absent), or an inline object matching{' '}
+        <code>ComplianceMapData</code> (<code>{'{ version, countries: { [code]: { complianceGroup, default?, description?, overriddenRegions? } } }'}</code>
+        {' '}— <code>default</code> falls back to <code>complianceGroup</code> when omitted).
+        Invalid data from either a URL or an object logs an error and falls back to{' '}
+        <code>'default'</code> — this never crashes the server. See the{' '}
         <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a> for the
-        full country list, and <code>customComplianceGroup</code> (documented on that page) for
-        routing a profile outside the 8 built-in groups.
+        full embedded country list, and <code>customComplianceGroup</code> (documented on that
+        page) for routing a profile outside the 8 built-in groups.
+      </Callout>
+
+      <p>
+        A region entry under <code>overriddenRegions</code> can also set{' '}
+        <code>requiresSensitiveOptIn: true</code> — a per-region carve-out (not a different
+        group) that denies <code>cpraCategory: 'sensitive'</code> cookies by default for that
+        region while every other cookie in the group still defaults to granted. The embedded map
+        already sets this for Colorado (<code>US.overriddenRegions.CO</code>); add it to any other
+        region your own legal review flags as needing the same treatment:
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`compliance: {
+  type: 'auto',
+  geoDataProvider: 'geoip', // or 'maxmind' / 'hosted-geoip-lite' — needed to resolve a US state at all
+  complianceMap: {
+    version: '2026-01',
+    countries: {
+      US: {
+        complianceGroup: 'opt-out',
+        default: 'opt-out-strict',
+        overriddenRegions: {
+          CO: { complianceGroup: 'opt-out', requiresSensitiveOptIn: true },
+        },
+      },
+    },
+  },
+}`}
+      />
+      <Callout type="info">
+        Only meaningful when <code>geoDataProvider</code> actually resolves a region — the default
+        timezone/language heuristic never determines a US state, so this flag is always unset on
+        that path regardless of what the map says.
       </Callout>
 
       {/* ── s3Api ────────────────────────────────────────────────────────── */}
-      <h2>s3Api</h2>
+      <h2 id="s3Api">s3Api</h2>
       <p>
         When enabled, Consenti mirrors every locale JSON file to S3 in addition to writing it
         locally. Two kinds of object get written:
@@ -1394,6 +1458,75 @@ compliance: {
 }`}
       />
 
+      <h3>Worked example — CloudFront in front of S3</h3>
+      <p>
+        <code>s3Api</code> and <code>handleCache</code> compose into a full CDN-fronted setup:
+        Consenti writes the resolved profiles to S3, CloudFront serves them at the edge, and{' '}
+        <code>handleCache</code> tells CloudFront exactly what changed on every activate/deactivate.
+      </p>
+      <ol>
+        <li>
+          Point a CloudFront distribution&apos;s origin at the <code>s3Api.bucketName</code> bucket
+          (Origin Access Control, bucket not public).
+        </li>
+        <li>
+          Cache <code>{`/profiles/\${tenantId}/\${profileId}/\${version}/\${locale}.json`}</code>{' '}
+          aggressively — that path is content-addressed by <code>version</code>, so it never
+          changes once written. A long <code>max-age</code> (or CloudFront default TTL) is safe.
+        </li>
+        <li>
+          Cache <code>{`/profiles/\${tenantId}/\${complianceGroup}/pointer.json`}</code> with a{' '}
+          <strong>short</strong> TTL, or none at all — it&apos;s the one mutable file, rewritten on
+          every activate/deactivate, and it&apos;s what tells your edge logic (or the requesting
+          client) which version is currently live.
+        </li>
+        <li>
+          Use <code>handleCache</code> to invalidate the pointer path in CloudFront the instant it
+          changes, instead of waiting out its TTL.
+        </li>
+      </ol>
+      <CodeBlock
+        lang="ts"
+        filename="handleCache — CloudFront invalidation"
+        code={`import { CloudFrontClient, CreateInvalidationCommand } from '@aws-sdk/client-cloudfront'
+
+const cloudfront = new CloudFrontClient({ region: 'us-east-1' })
+
+handleCache: async (paths, _version, isPurge) => {
+  // Only the pointer.json paths need active invalidation — versioned locale
+  // files are immutable and can just expire out of cache on their own TTL.
+  const pointerPaths = paths.filter(p => p.endsWith('pointer.json'))
+  if (pointerPaths.length === 0) return
+
+  await cloudfront.send(new CreateInvalidationCommand({
+    DistributionId: process.env.CLOUDFRONT_DISTRIBUTION_ID!,
+    InvalidationBatch: {
+      CallerReference: \`\${Date.now()}\`,
+      Paths: {
+        Quantity: pointerPaths.length,
+        Items: pointerPaths.map(p => \`/\${p.replace(/^.*\\/profiles\\//, 'profiles/')}\`),
+      },
+    },
+  }))
+}`}
+      />
+      <Callout type="info">
+        <code>handleCache</code> fires for <em>any</em> cache integration — nginx, another CDN, a
+        custom edge function — CloudFront here is just the concrete example. The two paths in the
+        contract are always the same:{' '}
+        <code>{`\${profileId}/\${version}/\${locale}.json`}</code> (immutable, safe to cache
+        forever) and <code>{`\${complianceGroup}/pointer.json`}</code> (mutable, must be
+        invalidated or served with a short TTL). See the <code>s3Api</code> section above for what
+        each path contains.
+      </Callout>
+      <Callout type="warning">
+        A CDN in front of S3 only ever serves the static profile JSON. The dynamic routes —{' '}
+        <code>/resolve-profile</code> (geo-resolution) and <code>/consent</code> (record writes) —
+        always hit the Consenti origin server directly; they cannot be served from S3 or cached at
+        the edge. Point the widget&apos;s <code>api.baseUrl</code> at your origin, not the CDN
+        domain — see <a href="/docs/ui/advanced-configuration/#api">the UI <code>api</code> config</a>.
+      </Callout>
+
       {/* ── tcf ──────────────────────────────────────────────────────────── */}
       <h2>tcf</h2>
       <p>
@@ -1401,7 +1534,7 @@ compliance: {
         Global Vendor List and stores TC strings on consent records. <code>cmpId</code>/
         <code>cmpVersion</code> here must match the widget's own <code>compliance.tcf</code> config
         — the client-side <code>window.__tcfapi</code> stub lives in <code>@consenti/ui</code>, not
-        here; see the &quot;TCF v2.2 Implementation Guide&quot;.
+        here; see the &quot;TCF v2.3 Implementation Guide&quot;.
       </p>
       <table>
         <thead>
@@ -1455,10 +1588,12 @@ compliance: {
       <CodeBlock
         lang="ts"
         filename="tcf example"
-        code={`tcf: {
-  enabled: true,
-  cmpId: 42,        // your IAB CMP ID
-  cmpVersion: 1,
+        code={`compliance: {
+  tcf: {
+    enabled: true,
+    cmpId: 42,        // your IAB CMP ID
+    cmpVersion: 1,
+  },
 }`}
       />
       <Callout type="warning">
@@ -1467,19 +1602,17 @@ compliance: {
       </Callout>
 
       {/* ── ageGate ──────────────────────────────────────────────────────── */}
-      <h2>ageGate</h2>
+      <h2>Age gate (per-profile, not a createConsenti() option)</h2>
       <p>
-        This block only needs to exist so the <code>POST /consent</code> endpoint accepts
-        <code>ageVerified</code>/<code>parentalConsentToken</code> off the request body and stores
-        them — it does not itself validate or reject anything. The actual age-confirmation prompt,
-        and the decision to deny-all when the visitor is under age, both happen widget-side; see
-        <code>compliance.ageGate</code> in the &quot;Age Gate&quot; section of the{' '}
-        <code>@consenti/ui</code> README, which needs the same shape configured there too.
+        There is no <code>ageGate</code> field on <code>createConsenti()</code> — one global age
+        rule doesn&apos;t fit a multi-region deployment (GDPR Article 8&apos;s consent age varies
+        13–16 by EU member state; DPDPA has its own child-data age rules). Age gate is configured
+        per-profile, per-locale, in the dashboard&apos;s Profile Editor:
       </p>
       <table>
         <thead>
           <tr>
-            <th>Key</th>
+            <th>Field</th>
             <th>Type</th>
             <th>Default</th>
             <th>Description</th>
@@ -1496,7 +1629,7 @@ compliance: {
             <td>
               <code>false</code>
             </td>
-            <td>Enable age gating.</td>
+            <td>Enable age gating for this profile — Step 1 checkbox.</td>
           </tr>
           <tr>
             <td>
@@ -1506,7 +1639,7 @@ compliance: {
               <code>number</code>
             </td>
             <td>
-              <code>13</code>
+              <code>16</code>
             </td>
             <td>
               Minimum age required to record consent. Common values: 13 (COPPA), 16 (GDPR Article 8
@@ -1526,27 +1659,19 @@ compliance: {
             <td>
               When <code>true</code>, the widget also fires{' '}
               <code>consenti:parentalConsentRequired</code> with a token on decline, instead of just
-              denying all.
+              denying all — see the &quot;Parental consent&quot; section below.
             </td>
           </tr>
         </tbody>
       </table>
-      <CodeBlock
-        lang="ts"
-        filename="ageGate examples"
-        code={`// COPPA — block users under 13
-ageGate: {
-  enabled: true,
-  minimumAge: 13,
-}
-
-// GDPR Article 8 — require parental consent for users 13–15
-ageGate: {
-  enabled: true,
-  minimumAge: 16,
-  requireParentalConsent: true,
-}`}
-      />
+      <p>
+        The age-gate modal&apos;s heading, body text, and Yes/No button labels are authored per
+        locale in the Main Banner content step, alongside the main banner text — translatable,
+        unlike the widget&apos;s own hardcoded UI chrome (close button, locale switcher). The
+        widget reads all of this off the resolved profile (<code>profile.ageGate</code>/
+        <code>profile.ageGateModal</code>) automatically; nothing to configure in{' '}
+        <code>createConsenti()</code> or <code>ConsentiSetup()</code>.
+      </p>
 
       {/* ── dataRetention ────────────────────────────────────────────────── */}
       <h2>dataRetention</h2>
@@ -1583,8 +1708,10 @@ ageGate: {
         lang="ts"
         filename="dataRetention example"
         code={`// Keep consent records for 1 year, then purge automatically
-dataRetention: {
-  purgeAfterDays: 365,
+compliance: {
+  dataRetention: {
+    purgeAfterDays: 365,
+  },
 }`}
       />
       <Callout type="info">
@@ -1944,15 +2071,26 @@ branding: {
         the first request hits the SPA.
       </Callout>
 
-      {/* ── consentSigningKey ────────────────────────────────────────────── */}
-      <h2>consentSigningKey</h2>
+      {/* ── dataSigningHash ────────────────────────────────────────────── */}
+      <h2>compliance.dataSigningHash</h2>
       <p>
-        Opt-in tamper-evidence for server-stored consent records. When set, every consent record is
-        HMAC-SHA256 signed (via <code>node:crypto</code> <code>createHmac</code>) at create and
-        update time — hex-encoded into a <code>signature</code> field, mirroring the widget&apos;s
-        own cookie-signing pattern (<code>core.cookieSigningKey</code>) but for the server-side
-        record rather than the visitor&apos;s cookie. No-op and no schema burden when unset.
+        One secret, four jobs — all server-side, HMAC-SHA256 via <code>node:crypto</code>{' '}
+        <code>createHmac</code>: signs every consent record at create/update time (hex-encoded
+        into <code>signature</code>), signs the <code>consenti_&#123;visitorId&#125;</code>{' '}
+        ownership cookie, signs parental-consent request/resolve tokens, and salts hashed IPs
+        before <code>hashIp()</code>&apos;s SHA-256 (IPv4 is only 4.2B addresses, so an unsalted
+        hash of even a masked IP is a rainbow-table lookup away from reversal). Independent of the
+        widget&apos;s own cookie-signing (<code>core.cookieSigningKey</code>), which protects the
+        visitor&apos;s local cookie instead.
       </p>
+      <Callout type="warning">
+        <strong>Auto-generated if you don&apos;t set it</strong> — a random value is generated in
+        memory at boot, so all four jobs above are always active. That generated value isn&apos;t
+        persisted, though, so every restart invalidates outstanding ownership cookies, any
+        in-flight parental-consent token, and (if compared across restarts) hashed-IP continuity.
+        Set it explicitly — via <code>compliance.dataSigningHash</code> or the{' '}
+        <code>CONSENTI_DATA_SIGNING_HASH</code> env var — for anything beyond local dev.
+      </Callout>
       <table>
         <thead>
           <tr>
@@ -1965,7 +2103,7 @@ branding: {
         <tbody>
           <tr>
             <td>
-              <code>consentSigningKey</code>
+              <code>dataSigningHash</code>
             </td>
             <td>
               <code>string</code>
@@ -1973,25 +2111,28 @@ branding: {
             <td>
               <code>undefined</code>
             </td>
-            <td>Signing key. Unset by default — no records are signed unless this is provided.</td>
+            <td>Signing/salting key. Auto-generated in memory (changes on restart) if omitted.</td>
           </tr>
         </tbody>
       </table>
       <CodeBlock
         lang="ts"
-        filename="consentSigningKey example"
+        filename="dataSigningHash example"
         code={`createConsenti({
-  consentSigningKey: process.env.CONSENTI_CONSENT_SIGNING_KEY,
+  compliance: {
+    dataSigningHash: process.env.CONSENTI_DATA_SIGNING_HASH,
+  },
 })`}
       />
       <p>
-        The signature covers <code>tenantId</code>, <code>visitorId</code>, <code>profileId</code>,{' '}
-        <code>locale</code>, and the sorted <code>consentJson</code> entries — not the
-        database-generated <code>id</code>/<code>createdAt</code>/<code>updatedAt</code>.{' '}
-        <code>GET /consent/:visitorId/verify</code> checks the signature when both a key is
-        configured and the record has one, adding <code>hmac_invalid</code> to the response&apos;s{' '}
-        <code>reasons</code> array on mismatch. <code>signature</code> is included in CSV/JSON/XLSX
-        exports and shown in the dashboard&apos;s Consents detail view.
+        The consent-record signature covers <code>tenantId</code>, <code>visitorId</code>,{' '}
+        <code>profileId</code>, <code>locale</code>, and the sorted <code>consentJson</code>{' '}
+        entries — not the database-generated <code>id</code>/<code>createdAt</code>/
+        <code>updatedAt</code>. <code>GET /consent/:visitorId/verify</code> checks it when the
+        record has one, adding <code>hmac_invalid</code> to the response&apos;s{' '}
+        <code>reasons</code> array on mismatch — a record from before this key existed never fails
+        the check for its absence. <code>signature</code> is included in CSV/JSON/XLSX exports and
+        shown in the dashboard&apos;s Consents detail view.
       </p>
       <Callout type="info">
         Hash-chaining between records (a full tamper-evident log, not just per-record integrity) is
@@ -2002,8 +2143,8 @@ branding: {
       <h2>Security rules (built-in)</h2>
       <ul>
         <li>
-          Raw IP addresses are never stored — SHA-256 hashed:{' '}
-          <code>createHash(&apos;sha256&apos;).update(ip).digest(&apos;hex&apos;)</code>
+          Raw IP addresses are never stored — masked (last IPv4 octet, or last 80 bits of IPv6,
+          zeroed) and salted before SHA-256 hashing
         </li>
         <li>
           Passwords hashed with scrypt via <code>node:crypto</code> — not bcrypt (external dep)

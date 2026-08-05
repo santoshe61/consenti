@@ -4,7 +4,12 @@ import { usePageTitle } from '../context/pageTitle'
 import { useConfirmDialog } from '../components/ConfirmDialog'
 import { useT } from '../context/locale'
 import { rolesApi } from '../api/roles'
+import { apiErrorMessage } from '../api/client'
 import type { Role, Permission } from '@consenti/types'
+
+/** Matches the seeded `role_super_admin` id — locked against edit/delete server-side too
+ * (see roles.routes.ts), so hide the controls rather than let them fail on click. */
+const SUPER_ADMIN_ROLE_ID = 'role_super_admin'
 
 function groupPermissions(perms: Permission[]): Array<{ group: string; items: Permission[] }> {
   const map: Record<string, Permission[]> = {}
@@ -130,8 +135,8 @@ export function RoleList({ current }: { current: string }) {
         await rolesApi.assignPermission(selectedRole.id, perm.id)
         setRolePerms(p => [...p, perm])
       }
-    } catch {
-      setError(t('roles.error.perm'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('roles.error.perm')))
     }
   }
 
@@ -144,8 +149,8 @@ export function RoleList({ current }: { current: string }) {
       load()
       setSelectedRole(role)
       rolesApi.permissions(role.id).then(setRolePerms).catch(() => {})
-    } catch {
-      setError(t('roles.error.create'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('roles.error.create')))
     } finally {
       setSaving(false)
     }
@@ -161,8 +166,8 @@ export function RoleList({ current }: { current: string }) {
       if (selectedRole?.id === id) {
         setSelectedRole(prev => prev ? { ...prev, name, description } : prev)
       }
-    } catch {
-      setError(t('roles.error.update'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('roles.error.update')))
     } finally {
       setSaving(false)
     }
@@ -178,8 +183,8 @@ export function RoleList({ current }: { current: string }) {
       await rolesApi.delete(role.id)
       if (selectedRole?.id === role.id) { setSelectedRole(null); setRolePerms([]) }
       load()
-    } catch {
-      setError(t('roles.error.delete'))
+    } catch (err) {
+      setError(apiErrorMessage(err, t('roles.error.delete')))
     }
   }
 
@@ -234,6 +239,8 @@ export function RoleList({ current }: { current: string }) {
                   )
                 }
 
+                const isLocked = role.id === SUPER_ADMIN_ROLE_ID
+
                 return (
                   <div
                     key={role.id}
@@ -254,26 +261,35 @@ export function RoleList({ current }: { current: string }) {
                         <p class="text-xs text-gray-400 mt-0.5 truncate">{role.description}</p>
                       )}
                     </div>
-                    <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
-                      <button
-                        type="button"
-                        onClick={e => { e.stopPropagation(); setEditingId(role.id); setCreating(false) }}
-                        class="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
-                        aria-label={t('roles.aria.editRole')}
-                        title={t('roles.aria.editRole')}
+                    {isLocked ? (
+                      <span
+                        class="shrink-0 text-xs text-gray-400 mt-0.5"
+                        title={t('roles.superAdminLocked')}
                       >
-                        <Pencil size={13} aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={e => { e.stopPropagation(); handleDelete(role) }}
-                        class="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
-                        aria-label={t('roles.aria.deleteRole')}
-                        title={t('roles.aria.deleteRole')}
-                      >
-                        <Trash2 size={13} aria-hidden="true" />
-                      </button>
-                    </div>
+                        {t('common.locked')}
+                      </span>
+                    ) : (
+                      <div class="flex gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-opacity mt-0.5">
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); setEditingId(role.id); setCreating(false) }}
+                          class="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors"
+                          aria-label={t('roles.aria.editRole')}
+                          title={t('roles.aria.editRole')}
+                        >
+                          <Pencil size={13} aria-hidden="true" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={e => { e.stopPropagation(); handleDelete(role) }}
+                          class="p-1 text-gray-400 hover:text-red-600 rounded transition-colors"
+                          aria-label={t('roles.aria.deleteRole')}
+                          title={t('roles.aria.deleteRole')}
+                        >
+                          <Trash2 size={13} aria-hidden="true" />
+                        </button>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -291,25 +307,32 @@ export function RoleList({ current }: { current: string }) {
 
             {selectedRole ? (
               <div class="space-y-4">
+                {selectedRole.id === SUPER_ADMIN_ROLE_ID && (
+                  <p class="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    {t('roles.superAdminLocked')}
+                  </p>
+                )}
                 {grouped.map(({ group, items }) => (
                   <div key={group} class="bg-white border border-gray-200 rounded-lg overflow-hidden">
                     <div class="px-4 py-2 bg-gray-50 border-b border-gray-200 flex items-center justify-between">
                       <span class="text-xs font-semibold text-gray-600 uppercase tracking-wide">{group}</span>
-                      <div class="flex gap-2">
-                        <button
-                          type="button"
-                          class="text-xs text-blue-600 hover:underline"
-                          onClick={() => {
-                            const allGranted = items.every(p => rolePerms.some(rp => rp.id === p.id))
-                            const toToggle = allGranted
-                              ? items.filter(p => rolePerms.some(rp => rp.id === p.id))
-                              : items.filter(p => !rolePerms.some(rp => rp.id === p.id))
-                            toToggle.forEach(p => togglePerm(p))
-                          }}
-                        >
-                          {items.every(p => rolePerms.some(rp => rp.id === p.id)) ? t('common.revokeAll') : t('common.grantAll')}
-                        </button>
-                      </div>
+                      {selectedRole.id !== SUPER_ADMIN_ROLE_ID && (
+                        <div class="flex gap-2">
+                          <button
+                            type="button"
+                            class="text-xs text-blue-600 hover:underline"
+                            onClick={() => {
+                              const allGranted = items.every(p => rolePerms.some(rp => rp.id === p.id))
+                              const toToggle = allGranted
+                                ? items.filter(p => rolePerms.some(rp => rp.id === p.id))
+                                : items.filter(p => !rolePerms.some(rp => rp.id === p.id))
+                              toToggle.forEach(p => togglePerm(p))
+                            }}
+                          >
+                            {items.every(p => rolePerms.some(rp => rp.id === p.id)) ? t('common.revokeAll') : t('common.grantAll')}
+                          </button>
+                        </div>
+                      )}
                     </div>
                     <div class="divide-y divide-gray-50">
                       {items.map(perm => {
@@ -317,11 +340,12 @@ export function RoleList({ current }: { current: string }) {
                         return (
                           <label
                             key={perm.id}
-                            class="flex items-center gap-3 px-4 py-2.5 hover:bg-gray-50 cursor-pointer transition-colors"
+                            class={`flex items-center gap-3 px-4 py-2.5 transition-colors ${selectedRole.id === SUPER_ADMIN_ROLE_ID ? 'cursor-not-allowed opacity-70' : 'hover:bg-gray-50 cursor-pointer'}`}
                           >
                             <input
                               type="checkbox"
                               checked={has}
+                              disabled={selectedRole.id === SUPER_ADMIN_ROLE_ID}
                               onChange={() => togglePerm(perm)}
                               class="w-4 h-4 accent-blue-600 rounded shrink-0"
                             />

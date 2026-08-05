@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
+import Link from 'next/link'
 import { CodeBlock } from '@/components/CodeBlock'
 import { Callout } from '@/components/Callout'
+import { ComplianceTierBadge } from '@/components/ComplianceTierBadge'
 
 export const metadata: Metadata = {
   title: 'LGPD Compliance Guide (Brazil)',
@@ -28,6 +30,7 @@ export default function LGPDPage() {
   return (
     <div className="prose max-w-none">
       <h1>LGPD Compliance Guide</h1>
+      <ComplianceTierBadge tier="maintained" />
       <Callout type="info">
         <strong>Compliance group:</strong> <code>opt-in-brazil</code> — Brazil-specific opt-in with
         10 lawful bases and ANPD enforcement. Parental consent gate for under-12. Use{' '}
@@ -70,7 +73,7 @@ export default function LGPDPage() {
         </thead>
         <tbody>
           <tr>
-            <td>Consent model</td>
+            <td>Compliance Group</td>
             <td>Opt-in — free, informed, unambiguous, purpose-specific</td>
           </tr>
           <tr>
@@ -154,9 +157,7 @@ export default function LGPDPage() {
       <CodeBlock
         lang="ts"
         code={`new ConsentiSetup({
-  core: {
-    regulation: 'lgpd',
-  },
+  compliance: { type: 'opt-in-brazil' },
 })`}
       />
 
@@ -194,6 +195,10 @@ export default function LGPDPage() {
 
       <h2>Right to erasure (Art. 18)</h2>
       <CodeBlock lang="http" code={`DELETE /consenti/api/v1/consent/:visitorId`} />
+      <p>
+        For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
+        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+      </p>
     </div>
   )
 }

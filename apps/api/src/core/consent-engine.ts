@@ -101,9 +101,10 @@ export function buildConsentSignaturePayload(record: {
  * collected against — looked up by `record.profileId`, which never changes after the fact.
  * `activeProfile` is whatever is currently live for that snapshot's compliance group — if its id
  * no longer matches `recordProfile.id`, a newer edit has superseded it and the consent is stale.
- * `signingKey` is only checked when both it and `record.signature` are present — opt-in, and a
- * record signed before `consentSigningKey` was configured (or never signed) never fails this
- * check for its absence.
+ * `signingKey` is only checked when both it and `record.signature` are present — a record from
+ * before `dataSigningHash` existed (or otherwise never signed) never fails this check for its
+ * absence. New records always have a signature now that `dataSigningHash` auto-generates when
+ * unset, but an old, pre-upgrade record legitimately won't.
  */
 export function verifyConsent(
   record: ConsentDbRecord,

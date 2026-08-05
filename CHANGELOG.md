@@ -7,6 +7,307 @@ For unreleased in-progress work, see the raw files in [`./changelog/`](./changel
 
 ---
 <!-- Changelpg entries here -->
+## [0.4.0] - 2026-08-05
+
+### Summary
+A compliance-and-governance-focused batch: TCF v2.3 with `cmpId`/`cmpVersion` registration
+governance (fails closed against IAB's CMP List), new GPP (US National) support with the same
+self-attestation governance shape, per-profile/per-locale age gate with a stateless signed
+parental-consent hook, a `compliance.complianceMap` override that's now actually wired up on both
+apps, real `getUserId()`/`setUserId()` identity with reconsent-on-change, `Intl.Locale`-based
+auto text direction, and full `ThemeConfig` CSS-variable parity (a breaking rename). Alongside
+that: a re-audit of `COMPLIANCE_VALIDATION_RULES` against the actual regulations (two validation
+gaps promoted from warning to hard error — PIPL legitimate-interest, CPRA/GPC on sale-or-sharing
+parameters), salted/masked `hashIp()`, a configurable cookie name, a synchronous pre-mount GPC
+snippet, a Colorado sensitive-data opt-in carve-out, and the removal of `auditLogPurgeAfterDays` —
+audit logs are now unconditionally append-only. A new internal `apps/test-runner` QA tool (driving
+the real built widget across every jurisdiction/state) caught a real correctness bug: every
+built-in profile's Accept-All button silently denied optional cookies instead of granting them.
+Also: a production boot guard for unset secrets, a wave of dashboard error-handling and
+"Load Defaults" locale-correctness fixes, and a broad marketing/docs claim-precision sweep
+("GDPR-compliant" → "GDPR-style", corrected regulation-to-compliance-group mappings, softened
+unverified competitor claims).
+
+### Added
+
+#### `@consenti/ui`
+- **Age gate** now reads `profile.ageGate`/`profile.ageGateModal` directly off the resolved
+  profile — per-profile, per-locale, translatable — instead of a single global
+  `ConsentiConfig.compliance.ageGate` setting; falls back to the old hardcoded English text when a
+  profile enables `ageGate` without authoring modal text. Standalone `registerProfile()` authors
+  can set `ageGate`/`ageGateModal` directly on their `EmbeddedProfile`/`EmbeddedTranslations`.
+- `resolveAgeGate()` now requests a signed parental-consent token from the server instead of
+  minting one client-side; new standalone `resolveParentalConsent()` export for the parent's own
+  page/session, dispatching `consenti:parentalConsentResolved`.
+- **`compliance.complianceMap`** — `'default'` (embedded map), a URL string, or an inline
+  `ComplianceMapData` object, replacing the previously-unwired `autoComplianceMap`/
+  `complianceMapUrl`. Only meaningful in standalone mode; ignored with a warning when the server
+  owns resolution. Invalid data falls back to `'default'` — never throws.
+- **`getUserId()` / `setUserId(userId, reConsent = true)`** — get/set the logged-in application
+  user ID after init; reconsents by default when the stored consent record's user differs from
+  the new value (deletes the record, re-shows the banner), or pass `reConsent: false` to update
+  identity silently. No-ops when there's no prior consent record to compare against. Wired into
+  the `react`/`vue`/`angular` wrapper exports.
+- **`consenti:listener:identify` event** — inbound equivalent of `setUserId()`, the first event in
+  a new `consenti:listener:*` namespace reserved for inbound (host page → widget) events.
+- `core.dir`'s `'auto'` mode now derives text direction via `Intl.Locale(locale).getTextInfo()`
+  where supported, falling back to the existing RTL-language-prefix table otherwise.
+- `core.cookieName` — configurable consent cookie/localStorage key (default `'consenti_data'`);
+  `'euconsent-v2'` documented as an opt-in choice for the spec-correct binary TCF encoder.
+- `buildSyncGpcSnippet()` — a tiny dependency-free `<head>` script that freezes Google Consent
+  Mode v2 to denied the instant `navigator.globalPrivacyControl` is detected, before any
+  tag-loading script (including Consenti's own bundle) has loaded.
+- `requiresSensitiveOptIn` region carve-out applied in the widget's `opt-out` default-consent
+  branch (see `@consenti/utils`).
+- **GPP (US National) support** — `window.__gpp` stub (`gpp-stub.ts`) using a simplified
+  base64url-JSON encoder; same fail-closed self-attestation governance shape as TCF
+  (`GET /gpp/status`), but without a CMP-List equivalent to validate against.
+- `ComplianceWidgetConfig`, `AgeGateWidgetConfig`, `TcfWidgetConfig`,
+  `ParentalConsentRequiredDetail` continue to be exported from the package root; `compliance.gpp`
+  widget config added (`cmpId`, `cmpVersion`, MSPA covered-transaction/opt-out-option/
+  service-provider-mode fields).
+
+#### `@consenti/api`
+- **Per-profile age gate** — `ProfileConfig`/`PublicProfileResponse`/`ResolvedProfile` gain
+  `ageGate?: AgeGateConfig` and `ageGateModal?: AgeGateModalContent`, mirroring `dpdpa`. Dashboard:
+  Step 1 toggle + minimum-age/parental-consent fields, per-locale modal text authored in the Main
+  Banner content step, mandatory-content validation.
+- **Stateless parental-consent request/resolve hook** — `POST /consent/:visitorId/parental-consent-request`
+  and `POST /consent/parental-consent-resolve`, signed with `compliance.dataSigningHash` when
+  configured (unsigned otherwise, matching existing opt-in tamper-evidence behavior). New
+  `compliance.parentalConsentTokenTtlDays` (default 7). No new DB entity, no `StorageAdapter`
+  changes — replay isn't prevented, an accepted tradeoff of staying fully stateless.
+- **`ConsentCookieData.k`** records the compliance group at consent time, letting a returning,
+  already-decided visitor's `resolveProfile()` skip the `/resolve-profile` geo round-trip entirely
+  and fetch `/profiles/{tenant}/{group}/{locale}` directly — keyed on `complianceGroup`, never a
+  since-deactivated/replaced profile id.
+- `compliance.complianceMap` (server side of the widget feature above) — a URL value is fetched
+  and refreshed in the background per the response's `Cache-Control`/`Expires` header (24h
+  fallback).
+- `compliance.dataSigningHash` — per-deployment salt mixed into `hashIp()` before SHA-256;
+  `hashIp()` now also masks the IP (last IPv4 octet / last 80 bits of IPv6 zeroed) before hashing.
+- `requiresSensitiveOptIn` threaded through `GeoResolverService` → `/resolve-profile` response →
+  `ResolvedProfile.requiresSensitiveOptIn`.
+- **TCF `cmpId`/`cmpVersion` registration governance** — `cmp-list-cache.ts` caches IAB's public
+  CMP List; `TenantSettings.tcfConfirmation` stores a hash of the last-confirmed
+  `{cmpId, cmpVersion, publisherCC}`. `GET /tcf/registration-status` and
+  `POST /tcf/confirm-registration` (admin, `settings:update`) validate against the cached CMP
+  List — hard error on deregistration, soft-block with "Refresh Status" when not found yet. A hash
+  mismatch (including never confirmed) fails closed: `ConsentService` skips `tcfString`
+  generation and the widget skips installing `window.__tcfapi`, checked via a new public
+  `GET /tcf/status` endpoint that runs in parallel with profile resolution.
+- `TcfRegistrationPanel` on the dashboard Vendors page — non-dismissible while unconfirmed,
+  required checkbox, hard error on deregistration, "Refresh Status" button. Translated across all
+  6 locales.
+- **GPP (Global Privacy Platform) support, US National section only** — `compliance.gpp` server
+  config; sale/sharing/targeted-advertising opt-out and notice fields derived from cookies tagged
+  `cpraCategory: 'sale'`/`'sharing'`. Real, spec-correct GPP string encoding via the optional
+  `@iabgpp/cmpapi` peer dependency, falling back to a simplified base64url-JSON encoder when it
+  isn't installed — same fallback shape as TCF's `real-tc-string.ts`.
+- `GppRegistrationPanel` on the dashboard Vendors page, same shape as the TCF panel minus the
+  CMP-List lookup (IAB doesn't publish a CMP-List equivalent for GPP). Translated across all 6
+  locales.
+- **Setup-wizard hardening** — `POST /setup/complete` now rejects (409) unless
+  `POST /setup/seed-profiles` has been called at least once for the tenant.
+- **Production boot guard** — `createConsenti()` now throws when `NODE_ENV=production` and any of
+  `auth.masterSecret`, `compliance.dataSigningHash`, or a non-default `auth.adminPassword` were
+  left unset/default, instead of silently auto-generating/defaulting them. Unaffected outside
+  production.
+- `GeoResolverService` now warns once at construction when the effective `geoDataProvider` is the
+  timezone/language heuristic, since it cannot resolve US state-level regions.
+- `ConsentiServerConfig` config surface reorganized — `tcf`, `dataSigningHash`, and
+  `dataRetention` moved from top-level into `compliance` (alongside `type`/`geoDataProvider`/
+  `complianceMap`/`gpc`), all being compliance-program settings.
+
+#### `@consenti/types`
+- `AgeGateConfig`, `AgeGateModalContent`, `GppConfig`, `TenantSettings.{profilesSeeded,
+  tcfConfirmation,gppConfirmation}`, `ConsentDbRecord.gppString`.
+- `requiresSensitiveOptIn` on `overriddenRegions` entries (embedded map and custom
+  `ComplianceMapData`).
+- `CountryComplianceEntry.default`/`description`, and `overriddenRegions[].description`, are now
+  optional — `default` falls back to `complianceGroup` when omitted.
+- `ThemeConfig` renamed to match its `--consenti-*` CSS variables literally (see Breaking changes)
+  and gains 18 previously-unreachable fields, each mapping 1:1 to its CSS variable.
+
+#### `@consenti/utils`
+- `requiresSensitiveOptIn` set for Colorado (`US.overriddenRegions.CO`) — cookies tagged
+  `cpraCategory: 'sensitive'` default to denied for that region even though the rest of the
+  `opt-out` group defaults to granted. Only takes effect with a geoip/maxmind `geoDataProvider`.
+- `encodeGppString` — simplified GPP fallback encoder, mirroring the existing `encodeTcString`
+  pattern.
+
+#### `apps/test-runner` / `packages/browser-engine`
+- `apps/test-runner`: new internal, never-published Playwright-based QA tool that boots the real
+  `apps/ui` bundle in a fixture page and checks it visually (screenshot + pixel diff against a
+  checked-in baseline) and functionally (button/toggle clicks, consent-script gating,
+  `reConsent()`/`forgetMe()`/`deleteConsent()`). Wired into CI on every PR. Every run writes to its
+  own dated `results/<ISO_DATE>[-V2...]/` directory; `--results-dir <dir>` pins a fixed location.
+- `packages/browser-engine`: shared, unpublished Playwright launch/capture/screenshot core used by
+  `apps/test-runner` (and, going forward, `apps/scanner`). Gained a `reducedMotion`
+  `SessionOptions` field.
+
+#### Docs / Infra
+- Homepage: highlighted section for Google Consent Mode v2 (already fully built, previously
+  unsurfaced).
+- Added the "open-source implementation of the technical spec, not a registered CMP" disclaimer to
+  the root/api/ui READMEs and the TCF guide; documented `core.cookieSigningKey`'s spoofability in
+  standalone mode; added a PIPL/FZ-152 data-residency note to the self-hosting guide.
+- Extended docs coverage for the Colorado `requiresSensitiveOptIn` carve-out (Jurisdiction
+  Coverage Map, Compliance Groups page, CPRA Implementation Guide) and the sync-GPC snippet (CPRA
+  guide, consent-flow guide).
+- `compliance-docs/`: agent-research kit for the quarterly compliance-review cadence
+  (`README.md`, `AGENT-BRIEF.md`, `jurisdiction-registry.md`, a quarterly-report template).
+
+### Changed
+- `@consenti/utils`: `opt-in-china`'s `legalBasis: 'legitimate_interest'` usage promoted from a
+  warning to a hard `categoryError` — PIPL Art. 13 is a closed list of lawful bases that doesn't
+  include legitimate interest, matching how `opt-in-dpdpa` already treats DPDPA.
+- `@consenti/utils`: `opt-out-strict`'s `gpc-strict-required` promoted from a `cookieWarning` to a
+  `cookieError`, scoped to `cpraCategory === 'sale' || 'sharing'` (excludes `sensitive`) — 11 CCR
+  §7025 makes honoring GPC as a Do-Not-Sell/Share signal mandatory for those parameters.
+- `@consenti/utils`: added a `legitimate-interest-balancing-test-recommended` warning to `opt-in`,
+  `opt-in-brazil`, and `general-privacy-consent` — fires when `legalBasis: 'legitimate_interest'`
+  has no `legitimateInterestDescription` (GDPR Art. 6(1)(f), LGPD Art. 10).
+- `@consenti/ui`: default `opt-in` profile's `reject-optional`/`confirm-settings` buttons changed
+  from `style: 'secondary'` to `'primary'`, matching `accept-all`'s visual weight (equal
+  prominence, per CNIL guidance).
+- `@consenti/api` dashboard: the "Load Defaults" starter UI template's `reject-optional` button
+  changed from `type: 'accent'` ("destructive red") to `'primary'`.
+- TCF version references updated from v2.2 to v2.3 throughout code, docs, and READMEs (mandatory
+  since 2026-03-01); the simplified stub encoder's policy-version constant bumped 4→5.
+- Auto-detection docs corrected: the `/resolve-profile` sessionStorage cache is actually a
+  60-minute TTL, not "the tab's lifetime."
+- Broad doc/marketing claim-precision sweep: "GDPR-compliant" → "GDPR-style" across 10+ files;
+  "WCAG 2.2 AAA" → "WCAG 2.x AA / accessibility-focused"; TCF/GPP "Partial" qualifiers added;
+  dropped the bare "76 regulations" claim; "190+ jurisdictions routed" reworded to "190+
+  countries/territories mapped to 8 consent UX groups."
+- GDPR/PIPEDA/POPIA/APPI regulation pages: fixed an auto-resolve-vs-recommended-override
+  mismatch (these regulations auto-resolve to `general-privacy-consent`, with `opt-in` as each
+  one's recommended stronger override, not the default) and a self-contradiction between a page's
+  top Callout and its own code sample further down.
+- Homepage comparison table: corrected two unverified claims (Cookiebot does auto-honour GPC;
+  OneTrust does publish WCAG 2.2 VPAT work) and softened five other competitor WCAG cells to
+  `'unclear'`/`'partial'` rather than leave unverified `false` claims.
+
+### Removed
+- `@consenti/api`: `compliance.dataRetention.auditLogPurgeAfterDays` and the
+  `purgeExpiredAuditLogs` `StorageAdapter` method, across all seven storage adapters — `audit_logs`
+  is now unconditionally append-only, never deleted by Consenti under any configuration. Operators
+  needing shorter retention must do so manually against their own database.
+  `compliance.dataRetention.purgeAfterDays` (consent records) is unaffected.
+- `ConsentiServerConfig.ageGate` and `ConsentiConfig.compliance.ageGate` (widget) — age gate is
+  per-profile now.
+- `ComplianceConfig.gdpr`/`ComplianceConfig.ccpa` deprecated booleans — use `compliance.type`.
+- `ComplianceConfig.autoComplianceMap`/`complianceMapUrl` (api) and
+  `ComplianceWidgetConfig.autoComplianceMap`/`complianceMapUrl` (ui) — use `complianceMap`.
+- Six orphaned, unlinked flat docs files (`apps/docs/{gdpr,ccpa,cpra,tcf,coppa,dpdpa}.md`) —
+  confirmed zero references anywhere, carrying the same stale claims already fixed on their
+  Next.js-page equivalents.
+
+### Fixed
+- **Activate/deactivate conflict bug** — saving a profile via "Deactivate {name} and activate this
+  one" left *both* profiles inactive instead of activating the one being saved.
+- **Setup wizard never linked seeded profiles to templates** — `seedDefaultProfile()` built bare
+  `Profile` rows bypassing the `consentTemplateId`/`uiTemplateId` requirement every
+  dashboard-created profile is held to; now seeds a matching `ConsentTemplate` + `UITemplate` per
+  compliance group.
+- `packages/types/src/api.ts`'s `gpc` config flag was accidentally removed alongside an unrelated,
+  half-finished `gdpr`/`ccpa` deprecation cleanup — restored `gpc`, fixed all broken references.
+- Fixed a latent bug: `--consenti-font-family-mono` was referenced with a hardcoded fallback but
+  never actually defined in `:root`.
+- `@consenti/api`: `errorResponse()` no longer strips the `details` field in production — it only
+  ever carried deliberate, non-sensitive, user-facing structure.
+- Dashboard: `ProfileEditor` save failures now surface the server's actual message and jump to the
+  offending locale tab/step, instead of a generic "Failed to save profile."
+- Dashboard: fixed the root cause of spurious "Profile content is missing required fields" saves —
+  `resolveLocaleContent()` always built a `gpcBanner` payload even when the GPC step was disabled.
+- Dashboard: GPC banner and age-gate modal "Load Defaults" now load locale-correct,
+  content-specific default text instead of reusing the main banner's copy or the admin's own
+  dashboard language.
+- Dashboard: "Cannot delete: template is used by profiles" now actually surfaces for UI Templates
+  and Consent Templates (client was reading the wrong response field).
+- Dashboard: replaced generic/silent error handling with the server's actual message across API
+  Config, Consent/UI Template editors, Setup Wizard, Users, Roles, Sites/Tenants, and the Profile
+  list's copy/activate/deactivate/delete actions.
+- `apps/test-runner`: checked-in baselines captured mid-animation now render deterministically —
+  every session launches with `reducedMotion: 'reduce'`, which the widget's CSS already respects.
+- `@consenti/utils`: every built-in profile's Accept-All/Reject-Optional/Deny-All buttons used
+  `action: 'submit'` instead of `action: 'custom'` — since `submit` ignores a button's `cookies`
+  field entirely, clicking "Accept All" in the default GDPR banner did not actually grant any
+  optional cookie. Found via `apps/test-runner`'s functional checks.
+- `@consenti/utils`: the `opt-out-strict` (CPRA) default profile's `functionality_storage`/
+  `personalization_storage` cookies had no `cpraCategory` set despite the category's own copy
+  disclosing sharing — added `cpraCategory: 'sharing'` to both.
+- `@consenti/utils`: `general-privacy-consent` and `opt-in-brazil` used
+  `legalBasis: 'legitimate_interest'` without ever filling in `legitimateInterestDescription` —
+  added the balancing-test justification text for both.
+- `@consenti/api`: `hashIp()` previously SHA-256'd the raw IP with no masking or salt — now masks
+  and salts with `compliance.dataSigningHash`.
+- Caught and fixed a bug in `node-sqlite3-wasm.adapter.ts`'s `createConsent()` where the
+  `gpp_string` column was added to the INSERT list but the bound parameter was missed.
+- `SECURITY.md`/`THREATMODEL.md`: corrected the standalone-HMAC "planned for a future phase" claim
+  (server-side verification already exists via `dataSigningHash`) and updated the audit-log
+  sections/mitigation map for the purge removal above; fixed two stale file-path references.
+- Root `README.md`'s "Repository Structure" tree updated to include `apps/test-runner`,
+  `packages/utils`, and `packages/browser-engine`.
+
+### Breaking changes
+- `ConsentiServerConfig.tcf` → `compliance.tcf`; `.dataSigningHash` → `compliance.dataSigningHash`;
+  `.dataRetention` → `compliance.dataRetention`.
+- `ThemeConfig` fields renamed to match their `--consenti-*` CSS variable literally:
+
+  | Old | New |
+  |---|---|
+  | `bgColor` | `colorBg` |
+  | `textColor` | `colorText` |
+  | `primaryColor` | `colorPrimary` |
+  | `primaryTextColor` | `colorPrimaryText` |
+  | `secondaryColor` | `colorSecondary` |
+  | `secondaryTextColor` | `colorSecondaryText` |
+  | `borderColor` | `colorBorder` |
+  | `buttonBorderRadius` | `borderRadiusBtn` |
+  | `accentColor` | `colorAccent` |
+  | `accentTextColor` | `colorAccentText` |
+
+- `compliance.dataRetention.auditLogPurgeAfterDays` and `StorageAdapter.purgeExpiredAuditLogs`
+  removed from `@consenti/types` — a type-level breaking change for anyone referencing either
+  directly; no known operator-visible behavior changes (never exposed in any dashboard UI, docs
+  page, or README).
+- `opt-in-china` legitimate-interest usage and `opt-out-strict` GPC-on-sale/sharing are now
+  blocking compliance errors instead of warnings — no shipped default profile trips either (all 8
+  re-verified against their own group's rules), but a tenant's own customized profile in either
+  situation will now block save.
+- `createConsenti()` now throws instead of booting when `NODE_ENV=production` and required secrets
+  are unset/default — a deploy that previously booted with a warning will now fail fast.
+
+### Migration
+- Move `tcf`/`dataSigningHash`/`dataRetention` from the top level of your `createConsenti()`
+  config into a nested `compliance: { ... }` object.
+- If you were setting `compliance.ageGate` on either `createConsenti()` or `new ConsentiSetup()`:
+  move age-gate configuration to the profile itself in the dashboard (Profile Editor Step 1), or
+  set `ageGate`/`ageGateModal` on your standalone `EmbeddedProfile`/`EmbeddedTranslations`.
+- Replace `compliance.autoComplianceMap`/`complianceMapUrl` with `compliance.complianceMap` on
+  both apps — `'default'` stays `'default'`, a `complianceMapUrl` string or inline
+  `autoComplianceMap` object becomes the `complianceMap` value directly.
+- Rename any `core.theme` fields on `new ConsentiSetup()`/`setTheme()` per the table above.
+- If you were relying on `gdpr`/`ccpa` boolean flags anywhere in `ComplianceConfig`: use
+  `compliance.type` instead.
+- Operators deploying with `NODE_ENV=production` must ensure `auth.masterSecret`,
+  `compliance.dataSigningHash`, and a non-default `auth.adminPassword` are explicitly set before
+  upgrading, or the process will now refuse to start.
+- Operators wanting TCF/GPP active must confirm registration in the dashboard once (or after any
+  `cmpId`/`cmpVersion` change) — both fail closed until confirmed.
+- No real installations predate any of this batch's schema changes — every new/changed column
+  ships directly in the fresh-install schema path, never a retroactive `ALTER TABLE`/backfill. A
+  tenant with an existing custom `opt-in-china` profile using Legitimate Interest, or an
+  `opt-out-strict` profile with a Sale/Sharing-tagged parameter not listening for GPC, will see a
+  blocking compliance error next time that profile is edited — fix by switching the category's
+  legal basis (China) or enabling "Listen for GPC signal" on the parameter (CPRA). An
+  already-seeded `opt-out-strict` profile predating the CPRA-category fix won't pick it up
+  automatically (seeding is idempotent) — add the category in the dashboard or re-seed.
+
+---
+
 ## [0.3.0] - 2026-07-24
 
 ### Summary
@@ -125,7 +426,7 @@ first-run setup wizard is now enforced as truly one-time.
   every BCP 47 locale pre-populated as a row. `renderContentText()` (moved to `@consenti/utils`)
   converts the compact rich-text JSON format to real HTML — previously the served `htmlText` was
   the raw JSON string on every profile with formatted body text.
-- **Signed consent records (opt-in)** — `consentSigningKey` config HMAC-SHA256 signs every
+- **Signed consent records (opt-in)** — `dataSigningHash` config HMAC-SHA256 signs every
   consent record at create/update; `GET /consent/:visitorId/verify` checks it and flags
   `hmac_invalid` on mismatch; signature status shown in exports and the dashboard detail modal.
 - **Reports dashboard page** — opt-in trend, category/locale breakdowns, powered by the
@@ -151,7 +452,7 @@ first-run setup wizard is now enforced as truly one-time.
   — GA4, Meta Pixel, Hotjar, Segment, Intercom, HubSpot, Mixpanel, and more) powering autocomplete
   and auto-categorization when defining a new cookie parameter.
 - `ConsentAction`/`CategoryAction` server-side hooks — event-bus-driven counterparts to the
-  widget's primitives, watching `consent.created`/`consent.updated` per parameter or category.
+  widget's primitives, watching `consent:created`/`consent:updated` per parameter or category.
 - Tenant-wide `Settings` resource (`tenant_settings` table) — `allowedOrigins` and
   `adminAllowedOrigins` (the latter enforced centrally on every `/consenti/admin/*` route except
   the unauthenticated `widget.js`/`widget.css`); fixes a bug where full-URL allowlist entries
@@ -436,9 +737,9 @@ White-label dashboard branding, geo-based compliance routing, full i18n/a11y swe
 - `safeJsonWrite` — atomic file write: bak→tmp→validate-schema→rename; restores backup on failure
 - `StorageAdapter.findActiveProfileByComplianceGroup()` — native `json_extract` query in SQLite adapters; in-memory filter for other adapters
 - `geoip-lite >= 1.4.0` added as optional peer dependency
-- Event bus now emits `profile.created`, `profile.updated`, `profile.deleted` from `ProfileService`
-- Event bus now emits `visitor.created` from `VisitorService`
-- Event bus now emits `consent.erased` from `ConsentService.erase()`
+- Event bus now emits `profile:created`, `profile:updated`, `profile:deleted` from `ProfileService`
+- Event bus now emits `visitor:created` from `VisitorService`
+- Event bus now emits `consent:erased` from `ConsentService.erase()`
 - Full i18n (internationalisation) — `apps/api/locale/en.json` with ~290 flat-key translations covering all dashboard pages and components
 - `apps/api/src/dashboard/src/utils/t.ts` — typed translation resolver; `TranslationKey` excludes `_section_*` keys; supports `{{var}}` interpolation
 - `apps/api/src/dashboard/src/context/locale.tsx` — `LocaleProvider`, `useLocale()`, `useT()` hooks; locale persisted in `localStorage('dashboard-locale')`; `LocaleSwitcher` component (Globe icon + `<select>`) in top nav
@@ -627,7 +928,7 @@ Initial public release of Consenti — an open-source, zero-external-dependency 
 - Append-only `audit_logs` — GDPR-compliant evidence trail; never UPDATE/DELETE
 - IP addresses stored as SHA-256 hashes only — never raw IPs
 - `ConsentStatus`: three-value `'granted' | 'denied' | 'objected'` (Legal Interest support)
-- Plugin engine with hook execution and event bus (`consent.created`, etc.)
+- Plugin engine with hook execution and event bus (`consent:created`, etc.)
 - Zero external runtime dependencies; Node 20+ required
 
 #### `apps/docs`

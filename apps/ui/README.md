@@ -1,6 +1,6 @@
 # @consenti/ui
 
-Zero-dependency, GDPR-compliant cookie consent widget for any web framework.
+GDPR-style cookie consent widget for any web framework — zero required runtime dependencies.
 
 [![npm version](https://img.shields.io/npm/v/@consenti/ui.svg)](https://www.npmjs.com/package/@consenti/ui)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](../../LICENSE)
@@ -12,12 +12,15 @@ Zero-dependency, GDPR-compliant cookie consent widget for any web framework.
 
 - **Zero runtime dependencies** — browser built-ins only (`fetch`, `crypto.subtle`, `BroadcastChannel`, `CustomEvent`, `document.cookie`, `localStorage`)
 - **Fully standalone or API-connected** — works offline with pre-built profiles, or connects to `@consenti/api` for dashboard-managed profiles
-- **Multi-regulation** — GDPR, CCPA, CPRA, LGPD, DPDPA, PIPL, and more via 8 built-in compliance groups
+- **Multi-regulation** — Maintained: GDPR, CCPA, CPRA, LGPD. Partial: TCF v2.3 (real binary encoding requires the `@consenti/api` backend) — only relevant if you monetize through programmatic/RTB ad exchanges. In development: DPDPA. More via 8 built-in compliance groups — see [ECOSYSTEM.md](../../ECOSYSTEM.md) for per-regulation status
+
+> **Registration is only needed for programmatic ad monetization.** For first-party analytics/marketing consent, Consenti is fully compliant with zero external registration. Consenti implements the IAB TCF/GPP technical specs but is **not** itself a registered CMP; if you do need TCF/GPP, you must register your own `cmpId` with IAB Europe/MSPA independently before going live — see the [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration).
 - **Automatic geo-resolution** — detects visitor jurisdiction client-side (timezone + language) or server-side (`/resolve-profile`)
 - **GPC aware** — Global Privacy Control signal detection with `'honor'` / `'strict'` / `'ignore'` modes per profile
 - **GTM / Google Consent Mode v2** — built-in `dataLayer` integration
 - **SSR-safe** — all browser API access is guarded; `new ConsentiSetup()` during SSR is a silent no-op
 - **Fully typed** — ships TypeScript definitions; no `@types` needed
+- **Companion CLI**: [`@consenti/scanner`](../scanner) crawls a site under none/reject-all/accept-all consent states and reports undeclared third-party trackers
 
 ---
 
@@ -35,17 +38,15 @@ ES2020+ · Chrome 80+ · Firefox 74+ · Safari 13.1+
 npm install @consenti/ui
 ```
 
-Then import CSS and the class:
+Then import the class:
 
 ```ts
 import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 ```
 
 ### CDN / UMD (no build step)
 
 ```html
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@consenti/ui/dist/index.css" />
 <script src="https://cdn.jsdelivr.net/npm/@consenti/ui/dist/index.umd.js"></script>
 <script>
   const { ConsentiSetup } = ConsentiUI
@@ -63,12 +64,15 @@ import '@consenti/ui/dist/index.css'
 ```
 
 ### CSS options
+Choose any approach to load stylesheet, by default it will be auto injected
 
 | Approach                          | How                                                                   |
 |-----------------------------------|-----------------------------------------------------------------------|
-| Import from package (recommended) | `import '@consenti/ui/dist/index.css'`                        |
+| Auto Injection (recommended)      | by default consenti will inject css                                   |
+| Manual injection (avoids FOUC)    | `import '@consenti/ui/dist/index.css'` in your bundler entry or code and set `disableCssTemplate: true;` |
 | Skip all CSS (bring your own)     | Set `core.disableCssTemplate: true` — no styles injected              |
 | CSS custom properties only        | Import CSS, then override `--consenti-*` variables in your stylesheet |
+| core.theme config in ConsentiSetup| Provide css variables for your stylesheet in the setup as js object   |
 
 ---
 
@@ -107,21 +111,30 @@ A consent banner appears on first visit. Everything below is optional.
 
 ```ts
 import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({
   // ── Core (optional) ──────────────────────────────────────────────────────────
   core: {
     tenantId: 'acme',              // identifies your tenant's profiles; default: 'default'
     locale: 'en',                  // BCP 47; 'auto' = navigator.language; default: 'auto'
-    dir: 'auto',                   // 'ltr' | 'rtl' | 'auto'; 'auto' derives from locale
-                                   // (ar/he/fa/ur/ps/sd/ug/yi → rtl); default: 'auto'
+    dir: 'auto',                   // 'ltr' | 'rtl' | 'auto'; 'auto' derives from locale via
+                                   // Intl.Locale(...).getTextInfo().direction (falls back to a
+                                   // hand-maintained ar/he/fa/ur/ps/sd/ug/yi → rtl list on
+                                   // engines without getTextInfo() support); default: 'auto'
     storage: 'cookie',             // 'cookie' | 'localStorage'; default: 'cookie'
+    cookieName: 'consenti_data',   // cookie/localStorage key name; default: 'consenti_data'
+                                   // not switched automatically by detected region — set
+                                   // explicitly if you want a different name (e.g. 'euconsent-v2',
+                                   // only meaningful if you're using the spec-correct binary TCF
+                                   // encoder — @consenti/api + @iabtechlabtcf/core — since that
+                                   // name implies IAB's binary format, not Consenti's own encoding)
     cookieDomains: '.example.com', // comma-separated; first entry used as Domain attribute
     cookieSigningKey: 'min-32-char-secret', // HMAC-SHA256 signing; implicit from presence
     allowReceipt: true,            // allow consent receipt download; default: false
     disableCssTemplate: false,     // skip all style injection; default: false
     userId: 'server-assigned-uuid', // authenticated users — enables cross-device sync
+                                   // prefer widget.getUserId()/setUserId() (or the
+                                   // consenti:listener:identify event) to change it after init
 
     // Pre-built profile fallback
     usePrebuiltProfiles: 'all',    // 'all' (default) | ['opt-in', 'opt-out', ...] (non-empty)
@@ -131,24 +144,31 @@ const widget = new ConsentiSetup({
     console: ['error'],            // log levels emitted: 'info' | 'log' | 'warning' | 'error'
                                    // default: ['error'] only — no noise in production
 
+    // Field names mirror their --consenti-* CSS variable literally (--consenti-color-primary
+    // → colorPrimary). Every field is optional and maps 1:1 to one CSS custom property — see
+    // apps/ui/src/styles/_variables.scss for the full set of ~33 variables. Common ones:
     theme: {
-      bgColor: '#ffffff',
-      textColor: '#1a1a1a',
-      primaryColor: '#1565c0',
-      primaryTextColor: '#ffffff',
-      secondaryColor: '#f0f4f8',
-      secondaryTextColor: '#1a3460',
-      borderColor: '#e2e8f0',
-      accentColor: '#d32f2f',
-      accentTextColor: '#ffffff',
+      colorBg: '#ffffff',
+      colorText: '#1a1a1a',
+      colorTextMuted: '#949dab',
+      colorPrimary: '#1565c0',
+      colorPrimaryText: '#ffffff',
+      colorSecondary: '#f0f4f8',
+      colorSecondaryText: '#1a3460',
+      colorBorder: '#e2e8f0',
+      colorAccent: '#d32f2f',
+      colorAccentText: '#ffffff',
       fontFamily: 'system-ui, sans-serif',
       fontSizeBase: '14px',
       fontSizeHeading: '18px',
       fontSizeMultiplier: '1',
       borderRadius: '8px',
-      buttonBorderRadius: '4px',
+      borderRadiusBtn: '4px',
       toggleBgOn: '#1565c0',
       toggleBgOff: '#cccccc',
+      // ...plus colorSecondaryBorder, colorOverlay, fontFamilyMono, fontWeightHeading,
+      // lineHeight, spacingXs/Sm/Md/Lg, shadow, toggleBgPartial, toggleKnob,
+      // toggleWidth/Height, zBanner/Overlay/Modal
     },
   },
 
@@ -166,18 +186,28 @@ const widget = new ConsentiSetup({
     // WidgetCountryResolverFn → custom async function: () => Promise<{ country, region, confidence }>
     geoDataProvider: 'default',
 
-    // Age gate (optional) — see "Age Gate" section below
-    ageGate: {
-      enabled: false,
-      minimumAge: 13,
-      requireParentalConsent: false,
-    },
+    // Only meaningful when api.enabled = false (ignored, with a warning, otherwise — the server
+    // resolves the group in that mode). Only overrides country→group mapping; country/region
+    // detection above always uses the embedded geo data.
+    // 'default' → embedded map (default) | a URL string (fetched; the browser's own HTTP cache
+    // honors whatever Cache-Control/ETag the response sends) | an inline ComplianceMapData object
+    complianceMap: 'default',
 
     // TCF (IAB Transparency & Consent Framework) client stub (optional) — see "TCF" section below
     tcf: {
       enabled: false,
       cmpId: 0,       // must match the cmpId configured on the backend (TcfConfig)
       cmpVersion: 1,
+    },
+
+    // GPP (IAB Global Privacy Platform, US National section) client stub (optional) — see "GPP" section below
+    gpp: {
+      enabled: false,
+      cmpId: 0,                    // must match the cmpId configured on the backend (GppConfig)
+      cmpVersion: 1,
+      mspaCoveredTransaction: false, // no honest default — required
+      mspaOptOutOptionMode: 0,     // 0 = not applicable | 1 = yes | 2 = no
+      mspaServiceProviderMode: 0,
     },
   },
 
@@ -309,30 +339,67 @@ Set `api.trustDomain: true` to bypass this check (useful for localhost / dev env
 
 GPC mode is set per-profile on the server (`gpcMode: 'honor' | 'strict' | 'ignore'`). Widget config profileOverrides overrides the profile value when explicitly set.
 
+`gpcMode` only applies once the widget itself has loaded and initialized. If a tag-loading script
+sits earlier in `<head>` (GTM/gtag.js, or another script), it can still fire before that. Use
+`buildSyncGpcSnippet()` to close that gap — it returns a tiny, dependency-free `<script>` string to
+place first in `<head>`, ahead of everything else, that checks `navigator.globalPrivacyControl`
+synchronously and pre-freezes Google Consent Mode v2 to denied:
+
+```ts
+import { buildSyncGpcSnippet } from '@consenti/ui'
+
+buildSyncGpcSnippet()                                  // default dataLayer name
+buildSyncGpcSnippet({ dataLayerName: 'myDataLayer' })  // custom dataLayer name
+```
+
+Safe to run before Consenti's own `gtm` config pushes its defaults on init — same values, same
+stub-queue, so the second push is a no-op rather than a conflict. Full walkthrough with the
+`<head>` ordering: [Advanced Configuration → GPC](https://consenti.dev/docs/ui/advanced-configuration).
+
 ---
 
 ## Age Gate
 
-Set `compliance.ageGate.enabled: true` to require age confirmation before the visitor sees any
-other consent UI (banner, GPC, CCPA opt-out — all of it waits behind the age gate on first visit):
+Age gate is a **per-profile, per-locale** setting — not a widget-config option. GDPR Article 8's
+consent age varies 13–16 by EU member state and DPDPA has its own child-data age rules, so one
+global age doesn't fit a multi-region deployment. Enable it on a profile in the dashboard's Profile
+Editor Step 1 (minimum age, optional parental-consent requirement), and author the modal's
+heading/body/button text per locale in the Main Banner content step — the widget reads it off the
+resolved profile (`profile.ageGate`/`profile.ageGateModal`) automatically, no widget config needed.
+For a standalone/local profile (`registerProfile()`), set `ageGate`/`ageGateModal` directly on the
+`EmbeddedProfile`/`EmbeddedTranslations` you register.
 
-```ts
-new ConsentiSetup({
-  compliance: {
-    ageGate: { enabled: true, minimumAge: 16, requireParentalConsent: true },
-  },
-})
-```
+When enabled, it blocks every other consent UI (banner, GPC, CCPA opt-out — all of it waits behind
+the age gate on first visit):
 
 - **Confirmed** (visitor is old enough) → the normal banner/GPC/CCPA flow proceeds exactly as if
   the age gate didn't exist, and every consent submission from then on carries `ageVerified: true`.
 - **Declined, `requireParentalConsent: false`** → a deny-all consent is submitted immediately
   (mandatory/strictly-necessary cookies still granted), no banner shown, `ageVerified: false`.
 - **Declined, `requireParentalConsent: true`** → same deny-all submission, plus a
-  `parentalConsentToken` is generated and a `consenti:parentalConsentRequired` event fires
-  carrying it. There's no email-verification pipeline built into this package — the event is the
-  hook for wiring your own out-of-band parental-consent process (once verified externally, call
-  `PUT /consent/:visitorId` yourself to update the record).
+  `parentalConsentToken` is requested from the backend (`POST /consent/:visitorId/parental-consent-request`,
+  signed with the backend's `compliance.dataSigningHash` when configured — falls back to a
+  client-generated, unsigned token if `api.enabled` is false) and a
+  `consenti:parentalConsentRequired` event fires carrying it. There's no email-sending pipeline
+  built into this package — the event (or your backend's `eventBus.on('consent.parentalConsentRequired', ...)`
+  listener, see the `@consenti/api` README's "Parental consent" section) is the hook for wiring
+  your own out-of-band verification process.
+
+When the parent later completes that process (often on a fresh page with no live widget instance —
+their own device, not the child's), resolve the token with the standalone `resolveParentalConsent`
+export instead of a `ConsentiSetup` method:
+
+```ts
+import { resolveParentalConsent } from '@consenti/ui'
+
+const { visitorId, profileId } = await resolveParentalConsent(token, { baseUrl: 'https://consent.example.com' })
+// dispatches consenti:parentalConsentResolved on window — a page with a live widget instance
+// can listen for it and react (e.g. re-show the banner for the real consent choice); what
+// "resolved" should actually do to consent state is host-defined, same as the request side.
+```
+
+This is plumbing, not verifiable parental consent by itself — see the `@consenti/api` README for
+the full caveats (token replay isn't prevented, staying stateless is a deliberate tradeoff).
 
 The prompt only asks once per visitor per profile — it doesn't re-appear once any consent record
 exists (same "already decided" check the banner itself uses).
@@ -359,9 +426,50 @@ may own `window.__tcfapi` per page — if it's already set (a real CMP, or anoth
 instance on a multi-profile page), this stub does not overwrite it.
 
 This is a simplified implementation: `tcString` is a base64url-encoded JSON payload (the same
-format the backend's `tcfString` uses), not the full IAB binary bitfield encoding, and vendor-list
-metadata (`gvlVersion`, `publisherCC`) is a placeholder since the widget doesn't fetch the GVL
-client-side. For full IAB TCF v2.2 compliance, use the `iabtcf-core` npm package instead.
+default format the backend's `tcfString` uses), not the full IAB binary bitfield encoding, and
+vendor-list metadata (`gvlVersion`, `publisherCC`) is operator-supplied via `TcfWidgetConfig`
+rather than fetched client-side (the GVL is multi-megabyte; IAB policy expects CMPs to cache their
+own copy server-side rather than have every visitor's browser re-fetch it). `gdprApplies` is
+derived automatically from the resolved profile's compliance group.
+
+For spec-correct binary TC-string encoding, run with the `@consenti/api` backend, set
+`compliance.tcf.publisherCC`, and install the optional `@iabtechlabtcf/core` peer dependency
+(the actively-maintained IAB Tech Lab package — not `iabtcf-core`, which doesn't exist on npm).
+See the [TCF & GPP Registration Guide](https://consenti.dev/docs/compliance/tcf-and-gpp-registration) for details.
+
+---
+
+## GPP — IAB Global Privacy Platform (US National)
+
+Set `compliance.gpp.enabled: true` to install `window.__gpp`, the standard IAB entry point
+scripts call for US state-privacy-law signals (`ping`, `addEventListener`, `removeEventListener`,
+`getSection`, `hasSection`) — `usnat` (US National) section only:
+
+```ts
+new ConsentiSetup({
+  compliance: {
+    gpp: {
+      enabled: true,
+      cmpId: 280,                   // must match the backend's GppConfig
+      cmpVersion: 1,
+      mspaCoveredTransaction: true, // whether this deployment falls under MSPA signatory obligations
+      mspaOptOutOptionMode: 1,      // 0 = not applicable | 1 = yes | 2 = no
+      mspaServiceProviderMode: 0,
+    },
+  },
+})
+```
+
+Sale/sharing opt-out flags are derived automatically from the resolved profile's cookies tagged
+`cpraCategory: 'sale'` / `'sharing'` and the visitor's actual consent — no separate config needed.
+Like TCF, only one CMP may own `window.__gpp` per page; this stub does not overwrite an existing one,
+and follows the standard stub-queue convention so load order relative to third-party scripts doesn't
+matter.
+
+Unlike TCF, GPP's US National section needs no Global Vendor List, so both this stub's `gppString`
+and the backend's `gppString` use the same real, spec-correct encoder when the optional
+`@iabgpp/cmpapi` peer dependency is installed on `@consenti/api` — there's no "simplified fallback"
+format the way TCF has. Without it, `gppString` falls back to a base64url-encoded JSON payload.
 
 ---
 
@@ -433,7 +541,7 @@ const profile = new ConsentiProfile({
           // key = machine id, rendered as the button's DOM id: `consenti-btn-{id}`, for targeting a specific button
           // cookies: '*' = grant all | '!' = deny all | ['id1','id2'] = grant specific
           'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
-          'reject-optional': { text: 'Reject Optional', style: 'secondary', action: 'custom', cookies: '!' },
+          'reject-optional': { text: 'Reject Optional', style: 'primary', action: 'custom', cookies: '!' }, // same weight as accept-all — CNIL requires reject not be visually subordinate
           customize: { text: 'Customize', style: 'secondary', action: 'manage' },
           'privacy-policy': { text: 'Privacy Policy', style: 'text', action: 'link', url: '/privacy' },
         },
@@ -652,11 +760,19 @@ widget.deleteConsent()           // delete consent record (cookie + backend if e
 widget.reConsent()               // delete consent and re-show banner
 widget.destroy()                 // unmount DOM elements and remove all event listeners
 
+// Logged-in user identity
+widget.getUserId()               // string | null — current application user ID
+widget.setUserId('user-42')      // reconsents (by default) if it differs from the stored cookie's user
+widget.setUserId(null)           // clear identity (e.g. logout)
+widget.setUserId('user-42', false) // update identity without reconsenting
+// Or dispatch from anywhere (e.g. right after your own login flow completes):
+// window.dispatchEvent(new CustomEvent('consenti:listener:identify', { detail: { userId: 'user-42' } }))
+
 // Runtime configuration
 widget.setDarkMode()             // toggle dark mode
 widget.setDarkMode(true)         // force dark on
 widget.setDarkMode(false)        // force light
-widget.setTheme({ primaryColor: '#ff0000' })  // hot-swap CSS tokens (merges into current theme)
+widget.setTheme({ colorPrimary: '#ff0000' })  // hot-swap CSS tokens (merges into current theme)
 widget.setConfig({ darkMode: true })          // deep-merge partial config (no re-init)
 widget.setProfile({ mainBanner: { heading: 'Updated' } })  // re-render UI with new profile data
 
@@ -742,6 +858,14 @@ Custom DOM events fire on `window` at every lifecycle step. All are prefixed `co
 | `consenti:consentBeingSubmitted` | User clicked a consent button (before API call)        |
 | `consenti:consentSubmitted`    | Consent saved (cookie written + API call if configured)  |
 | `consenti:parentalConsentRequired` | Age gate declined with `requireParentalConsent: true` — carries `parentalConsentToken` |
+
+The events above are **outbound** (widget → host). `consenti:listener:*` is the opposite
+direction — **inbound** (host → widget), dispatched by your own code to tell the widget
+something:
+
+| Event                          | Dispatch when                                            |
+|--------------------------------|----------------------------------------------------------|
+| `consenti:listener:identify`   | Your own login/logout flow completes — `detail: { userId: string \| null, reConsent?: boolean }`, equivalent to calling `widget.setUserId(userId, reConsent)` |
 
 **Recommended:** use `widget.on()` / `widget.off()` for typed subscriptions (the `consenti:` prefix is optional):
 
@@ -843,20 +967,64 @@ new ConsentScript({
 })
 ```
 
-### CookieTrigger — open banner or modal from any element
+### ConsentAction — run a callback on a parameter's grant status
+
+For integrations that expose their own `sdk.optIn()`/`sdk.optOut()` API (Segment, Mixpanel,
+Amplitude, Sentry, etc.) instead of a `<script>` tag — use `ConsentScript` for that case instead.
 
 ```ts
-import { CookieTrigger } from '@consenti/ui'
+import { ConsentAction } from '@consenti/ui'
+
+new ConsentAction({
+  id: 'analytics_storage',
+  widget,
+  onGrant: () => analyticsSdk.optIn(),
+  onDeny: () => analyticsSdk.optOut(),
+  // bind: true (default) — re-fires on every future consent change
+})
+```
+
+### CategoryScript / CategoryAction — gate on a whole category
+
+Same as `ConsentScript`/`ConsentAction`, but keyed on a preference-modal category instead of a
+single parameter — "granted" only when *every* parameter in the category is `'granted'`.
+
+```ts
+import { CategoryScript, CategoryAction } from '@consenti/ui'
+
+new CategoryScript({ categoryId: 'marketing', widget, src: 'https://example.com/ad-pixel.js' })
+
+new CategoryAction({
+  id: 'marketing',
+  widget,
+  onGrant: () => adSdk.enableAll(),
+  onDeny: () => adSdk.disableAll(),
+})
+```
+
+### scanConsentScripts — declarative `data-*` script gating
+
+Zero-JS integration path: mark `<script>` tags with `data-consenti-consent-script` /
+`data-consenti-category-script` and Consenti scans and wires them up automatically at the end of
+every `init()` cycle (call `scanConsentScripts(widget)` again manually after adding tags at runtime).
+
+```html
+<script type="text/plain" data-consenti-consent-script="analytics_storage" src="https://www.googletagmanager.com/gtag/js?id=G-XXXXX"></script>
+<script type="text/plain" data-consenti-category-script="marketing" src="https://example.com/pixel.js"></script>
+<script type="text/plain" data-consenti-consent-script="ad_storage" data-consenti-bind="false">/* inline snippet, evaluated once */</script>
+```
+
+### BannerTrigger — open banner or modal from any element
+
+```ts
+import { BannerTrigger } from '@consenti/ui'
 
 // Attach to existing element
-new CookieTrigger({ selector: '#cookie-settings', action: 'modal' })
+new BannerTrigger({ widget, el: '#cookie-settings', action: 'modal' })
 
 // Auto-create a button
-new CookieTrigger({
-  action: 'modal',
-  label: 'Manage Cookies',
-  appendTo: document.querySelector('#footer'),
-})
+const trigger = new BannerTrigger({ widget, action: 'modal', label: 'Manage Cookies' })
+document.querySelector('#footer')?.appendChild(trigger.getElement())
 ```
 
 ---
@@ -870,41 +1038,50 @@ Override any token in your own stylesheet:
 ```css
 :root {
   /* Colors */
-  --consenti-primary-text: #1a3460;
-  --consenti-secondary-text: #555555;
-  --consenti-primary-bg: #ffffff;
-  --consenti-secondary-bg: #f5f5f5;
-  --consenti-overlay-bg: rgba(0, 0, 0, 0.5);
-
-  /* Buttons */
-  --consenti-btn-primary-bg: #1565c0;
-  --consenti-btn-primary-text: #ffffff;
-  --consenti-btn-secondary-bg: #f5f5f5;
-  --consenti-btn-secondary-text: #1a3460;
-  --consenti-btn-radius: 6px;
-  --consenti-btn-padding: 0.5rem 1.25rem;
-  --consenti-btn-font-weight: 600;
-
-  /* Banner */
-  --consenti-banner-shadow: 0 -4px 24px rgba(0, 0, 0, 0.12);
-  --consenti-banner-radius: 0;
-  --consenti-banner-padding: 1.5rem;
-  --consenti-banner-max-width: 960px;
-
-  /* Modal */
-  --consenti-modal-radius: 12px;
-  --consenti-modal-shadow: 0 8px 32px rgba(0, 0, 0, 0.24);
-  --consenti-modal-width: 560px;
-  --consenti-modal-max-height: 80vh;
-
-  /* Toggle */
-  --consenti-toggle-on: #1565c0;
-  --consenti-toggle-off: #ccc;
+  --consenti-color-bg: #ffffff;
+  --consenti-color-text: #1a2e4a;
+  --consenti-color-text-muted: #949dab;
+  --consenti-color-primary: #04111f;
+  --consenti-color-primary-text: #ffffff;
+  --consenti-color-secondary: #f0f4f8;
+  --consenti-color-secondary-text: #1a2e4a;
+  --consenti-color-border: #dbe4ee;
+  --consenti-color-secondary-border: #1a2e4a;
+  --consenti-color-overlay: #04111f;
+  --consenti-color-accent: #d32f2f;
+  --consenti-color-accent-text: #ffffff;
 
   /* Typography */
-  --consenti-font-size-base: 14px;
-  --consenti-font-size-mult: 1;
   --consenti-font-family: system-ui, -apple-system, sans-serif;
+  --consenti-font-family-mono: ui-monospace, monospace;
+  --consenti-font-size-base: 14px;
+  --consenti-font-size-heading: 16px;
+  --consenti-font-weight-heading: 600;
+  --consenti-line-height: 1.5;
+
+  /* Spacing */
+  --consenti-spacing-xs: 5px;
+  --consenti-spacing-sm: 8px;
+  --consenti-spacing-md: 16px;
+  --consenti-spacing-lg: 24px;
+
+  /* Shape */
+  --consenti-border-radius: 8px;
+  --consenti-border-radius-btn: 0;
+  --consenti-shadow: 0 4px 24px rgba(21, 101, 192, 0.14);
+
+  /* Toggle (preference modal) */
+  --consenti-toggle-bg-on: #43a047;
+  --consenti-toggle-bg-partial: #97c098;
+  --consenti-toggle-bg-off: #9ca3af;
+  --consenti-toggle-knob: #ffffff;
+  --consenti-toggle-width: 52px;
+  --consenti-toggle-height: 28px;
+
+  /* Stacking */
+  --consenti-z-banner: 9999;
+  --consenti-z-overlay: 9998;
+  --consenti-z-modal: 10000;
 }
 ```
 
@@ -915,10 +1092,10 @@ new ConsentiSetup({
   compliance: { type: 'opt-in' },
   core: {
     theme: {
-      primaryColor: '#7c3aed',       // purple brand
-      primaryTextColor: '#ffffff',
+      colorPrimary: '#7c3aed',       // purple brand
+      colorPrimaryText: '#ffffff',
       borderRadius: '12px',
-      buttonBorderRadius: '999px',   // pill buttons
+      borderRadiusBtn: '999px',   // pill buttons
       fontFamily: 'Inter, sans-serif',
     },
   },
@@ -983,7 +1160,6 @@ new ConsentiSetup({
 
 import { useEffect } from 'react'
 import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 export function ConsentSetup() {
   useEffect(() => {
@@ -1036,7 +1212,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
 import { useEffect, useRef } from 'react'
 import type { ConsentiSetup as WidgetType } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 export function ConsentSetup() {
   const widgetRef = useRef<WidgetType | null>(null)
@@ -1067,7 +1242,6 @@ let widget: unknown = null
 
 onMounted(async () => {
   const { ConsentiSetup } = await import('@consenti/ui')
-  await import('@consenti/ui/dist/index.css')
   widget = new ConsentiSetup({ compliance: { type: 'opt-in' } })
 })
 
@@ -1106,15 +1280,18 @@ export class ConsentService implements OnDestroy {
 }
 ```
 
-Or use the built-in Angular service:
+Or use the built-in Angular integration (`setConsentiWidget()` once at app root, then
+`injectConsent()` in any component/service):
 
 ```ts
-import { ConsentiService } from '@consenti/ui/angular'
+import { injectConsent } from '@consenti/ui/angular'
 
 @Component({ /* ... */ })
 export class MyComponent {
-  consent = inject(ConsentiService)
+  consent = injectConsent()
   // consent.hasConsent() | consent.showModal() | consent.getConsent()
+  // consent.onConsentChange(cb) / onBannerChange(cb) / onModalChange(cb) — call in
+  // ngOnInit, unsubscribe with the returned function in ngOnDestroy
 }
 ```
 
@@ -1122,7 +1299,6 @@ export class MyComponent {
 
 ```js
 import { ConsentiSetup } from '@consenti/ui'
-import '@consenti/ui/dist/index.css'
 
 const widget = new ConsentiSetup({ compliance: { type: 'opt-in' }, core: { locale: 'en' } })
 
@@ -1227,10 +1403,8 @@ new ConsentiSetup({
 // Arabic site — RTL derived automatically from locale
 new ConsentiSetup({ core: { locale: 'ar' } })
 
-// COPPA — block under-13s, require parental consent
-new ConsentiSetup({
-  compliance: { ageGate: { enabled: true, minimumAge: 13, requireParentalConsent: true } },
-})
+// COPPA — block under-13s, require parental consent: set on the profile in the dashboard
+// (Profile Editor Step 1 → Enable age gate → minimum age 13, require parental consent), not here.
 
 // TCF — install the __tcfapi stub for ad-tech scripts (cmpId must match the backend's tcf config)
 new ConsentiSetup({
@@ -1250,11 +1424,11 @@ import type {
   CoreConfig,               // core section
   ApiConfig,                // api section
   ComplianceWidgetConfig,   // compliance section
-  AgeGateWidgetConfig,      // compliance.ageGate section
   WidgetCountryResolverFn,  // custom geo resolver function type
   UtilsConfig,              // utils section
   GtmConfig,                // utils.gtm section
   ThemeConfig,              // core.theme section
+  IdentifyEventDetail,      // consenti:listener:identify event detail
   ConsentValue,             // 'granted' | 'denied' | 'objected'
   ConsentiProfile,          // local profile class
   NonEmptyArray,            // [T, ...T[]] — used by usePrebuiltProfiles
@@ -1271,6 +1445,17 @@ The following `CoreConfig` fields were **removed** in v0.1.x:
 | `core.regulation`    | Use `compliance.type` — compliance group is derived server-side or from pre-built profiles |
 | `core.signCookies`   | Implicit: set `core.cookieSigningKey` to enable signing; no separate flag needed |
 | `core.privacyPolicyUrl` | Add a link button directly in the profile banner/modal `buttons` map with `action: 'link'` |
+
+---
+
+## Security notes
+
+**`core.cookieSigningKey` is spoofable in standalone mode.** Without a `@consenti/api` backend,
+this key has nowhere to live but the shipped browser bundle — so anyone can read it out of your JS
+and re-sign a forged cookie with it. It still catches accidental tampering (e.g. a stale value from
+an older config), but it is not tamper-*proof* against a motivated attacker. If you need consent
+records that hold up as evidence, sign them server-side instead with `compliance.dataSigningHash`
+(`@consenti/api`), where the key never reaches the browser.
 
 ---
 

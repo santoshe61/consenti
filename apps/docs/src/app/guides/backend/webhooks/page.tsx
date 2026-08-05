@@ -70,11 +70,11 @@ async function postToWebhook(event: 'created' | 'updated', record: ConsentDbReco
 
 const { eventBus } = createConsenti({ /* ... */ })
 
-eventBus.on('consent.created', (record: ConsentDbRecord) => {
+eventBus.on('consent:created', (record: ConsentDbRecord) => {
   void postToWebhook('created', record)
 })
 
-eventBus.on('consent.updated', ({ current }: { previous: ConsentDbRecord; current: ConsentDbRecord }) => {
+eventBus.on('consent:updated', ({ current }: { previous: ConsentDbRecord; current: ConsentDbRecord }) => {
   void postToWebhook('updated', current)
 })`}
       />
@@ -151,12 +151,13 @@ async function postToWebhook(record: ConsentDbRecord) {
 }
 
 const { eventBus } = createConsenti({ /* ... */ })
-eventBus.on('consent.created', postToWebhook)`}
+eventBus.on('consent:created', postToWebhook)`}
       />
 
       <Callout type="warning">
-        If <code>consentSigningKey</code> is configured, <code>record.signature</code> is already
-        present on every <code>ConsentDbRecord</code> — that&apos;s a signature over the
+        <code>record.signature</code> — signed with <code>compliance.dataSigningHash</code>, which
+        is auto-generated if you don&apos;t set it — is already present on every{' '}
+        <code>ConsentDbRecord</code> — that&apos;s a signature over the
         record&apos;s own contents (tamper-evidence for storage), not a signature of your webhook
         payload. They serve different purposes; use the payload-signing pattern above for the
         webhook itself.
@@ -177,7 +178,7 @@ eventBus.on('consent.created', postToWebhook)`}
           {
             href: '/docs/api/advanced-configuration/',
             label: 'Advanced Configuration',
-            desc: 'consentSigningKey and every other createConsenti() option',
+            desc: 'compliance.dataSigningHash and every other createConsenti() option',
           },
         ]}
       />
@@ -211,7 +212,7 @@ eventBus.on('consent.created', postToWebhook)`}
             question: 'Can I forward to multiple webhook URLs?',
             answer: (
               <p className="m-0">
-                Yes — register multiple <code>eventBus.on(&apos;consent.created&apos;, ...)</code>{' '}
+                Yes — register multiple <code>eventBus.on(&apos;consent:created&apos;, ...)</code>{' '}
                 listeners, or loop over a list of URLs inside one handler. Each listener runs
                 independently.
               </p>

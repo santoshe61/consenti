@@ -61,7 +61,7 @@ export default function APIRoutesPage() {
             <span className="inline-flex items-center rounded-md bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
               Admin
             </span>
-            <code className="text-xs text-slate-500">/consenti/admin</code>
+            <code className="text-xs text-slate-500">/consenti/admin/v1</code>
           </div>
           <p className="text-sm font-semibold text-slate-800 group-hover:text-violet-700 mb-1">
             Admin API Routes

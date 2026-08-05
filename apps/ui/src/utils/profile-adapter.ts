@@ -110,5 +110,7 @@ export function adaptEmbeddedProfile(
     gpcMode: embedded.gpcMode,
     complianceGroup: embedded.complianceGroup,
     ...(tx.gpcBanner ? { gpcBanner: mapBanner(tx.gpcBanner) } : {}),
+    ...(embedded.ageGate ? { ageGate: embedded.ageGate } : {}),
+    ...(tx.ageGateModal ? { ageGateModal: tx.ageGateModal } : {}),
   }
 }

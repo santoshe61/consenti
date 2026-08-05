@@ -122,7 +122,7 @@ export default function APIDashboardPage() {
           </tr>
           <tr>
             <td>Audit Log</td>
-            <td>Immutable log of all admin actions</td>
+            <td>Append-only log of all admin actions, never deleted by Consenti</td>
             <td>All users</td>
           </tr>
           <tr>
@@ -187,7 +187,7 @@ export default function APIDashboardPage() {
               <code>jwt</code>
             </td>
             <td>
-              <code>auth: &#123; mode: &apos;jwt&apos;, jwtSecret &#125;</code>
+              <code>auth: &#123; mode: &apos;jwt&apos;, masterSecret &#125;</code>
             </td>
             <td>
               Validate externally issued JWTs (HS256). Your auth service issues tokens; Consenti

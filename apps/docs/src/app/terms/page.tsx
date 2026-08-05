@@ -63,9 +63,11 @@ export default function TermsPage() {
           compliant with GDPR, CCPA, or any other privacy law. Whether a given deployment is
           actually compliant depends entirely on how it&apos;s configured: which compliance group is
           selected, how cookies/categories/legal bases are set up, whether the banner copy is
-          accurate for that business, and so on. See the{' '}
+          accurate for that business, and so on. See{' '}
+          <Link href="/docs/compliance/compliance-groups/">Compliance Groups</Link> for what each
+          compliance group actually satisfies, and the{' '}
           <Link href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</Link>{' '}
-          for how the software maps countries to consent models — and consult qualified counsel for
+          for how the software maps countries to Compliance Groups — and consult qualified counsel for
           your specific situation. The maintainers bear no responsibility for legal or regulatory
           outcomes resulting from the use, misuse, or misconfiguration of this software. This is
           also stated in{' '}

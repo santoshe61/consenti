@@ -38,6 +38,7 @@ for (const name of events) {
 // ── Profile ───────────────────────────────────────────────────────────────────
 const profileConfig: ProfileConfig = {
   id: "special-profile",
+  showFooterMetadata: true,
   // gpcMode: "strict",
   defaultLocale: 'en',
   allowReceipt: true,
@@ -166,7 +167,7 @@ const fullConfig: ConsentiConfig = {
   verbose: true,
   hidePoweredBy: false,
   compliance: {
-    type: 'general-privacy-consent',// consentiProfile.getType() // 'auto' | 'opt-in' | 'opt-out' | 'opt-out-strict' | 'opt-in-dpdpa' | 'opt-in-china' | 'opt-in-brazil' | 'general-privacy-consent' | 'notice-only' | local profile Symbol
+    type: 'auto',// consentiProfile.getType() // 'auto' | 'opt-in' | 'opt-out' | 'opt-out-strict' | 'opt-in-dpdpa' | 'opt-in-china' | 'opt-in-brazil' | 'general-privacy-consent' | 'notice-only' | local profile Symbol
   },
   core: {
     disableCssTemplate: true,
@@ -180,21 +181,42 @@ const fullConfig: ConsentiConfig = {
     // trustDomain?: boolean
   },
   profileOverride: {
-    // mainBanner: {
-    //   position: "middle",
-    //   showLocaleSwitcher: true,
-    //   showClose: true,
-    //   buttons: [
-    //     { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
-    //     { text: 'Reject Optional', style: 'secondary', action: 'submit', cookies: '!' },
-    //     { text: 'Reject All', style: 'accent', action: 'submit', cookies: '!' },
-    //     { text: 'Preferences', style: 'text', action: 'manage' },
-    //     { text: 'Primary', style: 'primary', action: 'link', url: 'https://www.google.com' },
-    //     { text: 'Secondary', style: 'secondary', action: 'link', url: 'https://www.google.com' },
-    //     { text: 'Accent', style: 'accent', action: 'link', url: 'https://www.google.com' },
-    //     { text: 'Privacy Policy', style: 'text', action: 'link', url: 'https://www.google.com' },
-    //   ],
+    showFooterMetadata: true,
+    // ageGate is per-profile now (dashboard Profile Editor Step 1) — overridden here for local
+    // dev testing only, bypassing the need to configure it on the actual backend profile.
+    // ageGate: {
+    //   minimumAge: 16,
+    //   enabled: true,
+    //   requireParentalConsent: true,
     // },
+    ageGateModal: {
+      heading: "Sachchi Sachchi bolna",
+      htmlText: "Tu 18 saal ka hai na? mummy kasam hai.",
+      confirmButtonLabel: "Haan yar",
+      denyButtonLabel: "Nahi chhota hu",
+      parentalConsent: {
+        heading: "Mummy papa se pooch ke aana",
+        htmlText: "Bhai ye content tumhare mummy papa se pooch ke dikhaunga, thik hai na?",
+        confirmButtonLabel: "Thik hai",
+      },
+    },
+    mainBanner: {
+      position: "middle",
+      showLocaleSwitcher: true,
+      showClose: true,
+
+      // buttons: {
+      //   'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+      //   'reject-optional': { text: 'Reject Optional', style: 'secondary', action: 'submit', cookies: '!' },
+      //   'reject-all': { text: 'Reject All', style: 'accent', action: 'submit', cookies: '!' },
+      //   'preferences': { text: 'Preferences', style: 'text', action: 'manage' },
+
+      //   'primary': { text: 'Primary', style: 'primary', action: 'link', url: 'https://www.google.com' },
+      //   'secondary': { text: 'Secondary', style: 'secondary', action: 'link', url: 'https://www.google.com' },
+      //   'accent': { text: 'Accent', style: 'accent', action: 'link', url: 'https://www.google.com' },
+      //   'privacy-policy': { text: 'Privacy Policy', style: 'text', action: 'link', url: 'https://www.google.com' },
+      // },
+    },
     // gpcBanner: {
     //   position: 'bottom',
     //   heading: 'GPC opt-out applied automatically',
@@ -211,51 +233,52 @@ const fullConfig: ConsentiConfig = {
     //     { text: 'Privacy Policy', style: 'text', action: 'link', url: 'https://www.google.com' },
     //   ],
     // },
-    // preferenceModal: {
-    //   showLocaleSwitcher: true,
-    //   showClose: true,
-    //   position: "center",
-    //   buttons: [
-    //     { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
-    //     { text: 'Reject Optional', style: 'secondary', action: 'submit', cookies: '!' },
-    //     { text: 'Reject All', style: 'accent', action: 'submit', cookies: '!' },
-    //     { text: 'Close', style: 'text', action: 'close' },
-    //     { text: 'Primary', style: 'primary', action: 'link', url: 'https://www.google.com' },
-    //     { text: 'Secondary', style: 'secondary', action: 'link', url: 'https://www.google.com' },
-    //     { text: 'Accent', style: 'accent', action: 'link', url: 'https://www.google.com' },
-    //     { text: 'Privacy Policy', style: 'text', action: 'link', url: 'https://www.google.com' },
-    //   ],
-    //   categories: {
-    //     necessary: {
-    //       heading: 'Strictly Necessary',
-    //       htmlText:
-    //         'Required to deliver the core service. No personal data is shared and consent is not required for these.',
-    //       legalBasis: 'mandatory',
-    //       cookies: ['security_storage'],
-    //     },
-    //     functional: {
-    //       heading: 'Functional',
-    //       htmlText:
-    //         'Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes. Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes. Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes. Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes.',
-    //       legalBasis: 'consent',
-    //       cookies: ['functionality_storage', 'personalization_storage'],
-    //     },
-    //     analytics: {
-    //       heading: 'Analytics',
-    //       htmlText:
-    //         'Help us understand how you interact with the site. Your consent is required before any analytics data is collected.',
-    //       legalBasis: 'consent',
-    //       cookies: ['analytics_storage'],
-    //     },
-    //     marketing: {
-    //       heading: 'Marketing & Advertising',
-    //       htmlText:
-    //         'Allow personalised advertising based on your browsing activity. Requires your explicit consent under the DPDPA.',
-    //       legalBasis: 'consent',
-    //       cookies: ['ad_storage'],
-    //     },
-    //   }
-    // }
+    preferenceModal: {
+      showLocaleSwitcher: true,
+      showClose: true,
+      position: "center",
+      showForgetMe: true,
+      // buttons: {
+      //   'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+      //   'reject-optional': { text: 'Reject Optional', style: 'secondary', action: 'submit', cookies: '!' },
+      //   'reject-all': { text: 'Reject All', style: 'accent', action: 'submit', cookies: '!' },
+      //   'close': { text: 'Close', style: 'text', action: 'close' },
+      //   'primary': { text: 'Primary', style: 'primary', action: 'link', url: 'https://www.google.com' },
+      //   'secondary': { text: 'Secondary', style: 'secondary', action: 'link', url: 'https://www.google.com' },
+      //   'accent': { text: 'Accent', style: 'accent', action: 'link', url: 'https://www.google.com' },
+      //   'privacy-policy': { text: 'Privacy Policy', style: 'text', action: 'link', url: 'https://www.google.com' },
+      // },
+      categories: {
+        necessary: {
+          heading: 'Strictly Necessary',
+          htmlText:
+            'Required to deliver the core service. No personal data is shared and consent is not required for these.',
+          legalBasis: 'mandatory',
+          cookies: ['security_storage'],
+        },
+        functional: {
+          heading: 'Functional',
+          htmlText:
+            'Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes. Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes. Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes. Enable enhanced features and personalisation. Your explicit consent is required under the DPDPA before we process data for these purposes.',
+          legalBasis: 'consent',
+          cookies: ['functionality_storage', 'personalization_storage'],
+        },
+        analytics: {
+          heading: 'Analytics',
+          htmlText:
+            'Help us understand how you interact with the site. Your consent is required before any analytics data is collected.',
+          legalBasis: 'consent',
+          cookies: ['analytics_storage'],
+        },
+        marketing: {
+          heading: 'Marketing & Advertising',
+          htmlText:
+            'Allow personalised advertising based on your browsing activity. Requires your explicit consent under the DPDPA.',
+          legalBasis: 'consent',
+          cookies: ['ad_storage'],
+        },
+      }
+    }
   },
 };
 
@@ -268,7 +291,7 @@ const minimalConfig: ConsentiConfig = {
     preferenceModal: {
       showLocaleSwitcher: true
     },
-  }
+  },
 }
 
 const widget = new ConsentiSetup(fullConfig)

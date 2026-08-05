@@ -1,4 +1,4 @@
-import type { EmbeddedProfile } from '../types'
+import type { EmbeddedProfile } from '../types.js'
 
 // Brazil LGPD: opt-in consent required. Legitimate interest is a valid legal
 // basis (one of ten under LGPD) and is appropriate for functional/preference cookies.
@@ -22,11 +22,11 @@ export const OPT_IN_BRAZIL_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           "In accordance with Brazil's Lei Geral de Proteção de Dados (LGPD), we process personal data only with a valid legal basis. Non-essential cookies require your prior consent. You may withdraw consent at any time. Legitimate interest applies where noted.",
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'reject-optional': {
             text: 'Reject Optional',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           manage: { text: 'Manage', style: 'text', action: 'manage' },
@@ -39,11 +39,11 @@ export const OPT_IN_BRAZIL_EN_PROFILE: EmbeddedProfile = {
         htmlText:
           'You have rights under the LGPD including: access, correction, deletion, portability, and withdrawal of consent. Categories based on legitimate interest are indicated below — you may object to these at any time.',
         buttons: {
-          'accept-all': { text: 'Accept All', style: 'primary', action: 'submit', cookies: '*' },
+          'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
           'reject-optional': {
             text: 'Reject Optional',
             style: 'secondary',
-            action: 'submit',
+            action: 'custom',
             cookies: '!',
           },
           'save-preferences': { text: 'Save My Preferences', style: 'primary', action: 'submit' },
@@ -61,6 +61,8 @@ export const OPT_IN_BRAZIL_EN_PROFILE: EmbeddedProfile = {
             htmlText:
               'Enhance site functionality and remember your settings. Legal basis: legitimate interest (LGPD Art. 7, X). You may object to this processing at any time.',
             legalBasis: 'legitimate_interest',
+            legitimateInterestDescription:
+              'Remembering a visitor\'s in-session preferences (e.g. layout, saved settings) is necessary to deliver the functionality they engaged with, has minimal privacy impact since no data is shared with third parties, and is limited to what a visitor would reasonably expect from using the site, per the balancing test required by LGPD Art. 10.',
             cookies: ['functionality_storage', 'personalization_storage'],
           },
           analytics: {

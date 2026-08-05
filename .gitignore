@@ -47,6 +47,11 @@ ehthumbs.db
 coverage/
 .nyc_output/
 
+# apps/test-runner: baseline/ is checked in and reviewed like code;
+# results/<ISO_DATE>/ (screenshots, diffs, report.json/html) is regenerated per run.
+apps/test-runner/results/
+apps/scanner/scan-results/
+
 # ─── AI agent session files ───────────────────────────────────────────────────
 # Claude Code (Anthropic) & Cursor
 .claude/

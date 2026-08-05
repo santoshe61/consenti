@@ -268,6 +268,7 @@ export class JsonFileAdapter implements StorageAdapter {
       ...(data.ageVerified != null && { ageVerified: data.ageVerified }),
       ...(data.parentalConsentToken != null && { parentalConsentToken: data.parentalConsentToken }),
       ...(data.tcfString != null && { tcfString: data.tcfString }),
+      ...(data.gppString != null && { gppString: data.gppString }),
       ...(data.signature != null && { signature: data.signature }),
       createdAt: now,
       updatedAt: now,
@@ -760,15 +761,6 @@ export class JsonFileAdapter implements StorageAdapter {
     this.db.consents = this.db.consents.filter(c => !toDelete.has(c.visitorId))
     this.scheduleWrite()
     return toDelete.size
-  }
-
-  async purgeExpiredAuditLogs(olderThanDays: number): Promise<number> {
-    const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
-    const before = this.db.audit_logs.length
-    this.db.audit_logs = this.db.audit_logs.filter(l => l.createdAt >= cutoff)
-    const removed = before - this.db.audit_logs.length
-    if (removed > 0) this.scheduleWrite()
-    return removed
   }
 
   // ── API Keys ───────────────────────────────────────────────────────────────

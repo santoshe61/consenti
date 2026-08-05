@@ -76,7 +76,7 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.existingSecret }}
                   key: admin-password
-            - name: CONSENTI_ADMIN_JWT_SECRET
+            - name: CONSENTI_ADMIN_MASTER_SECRET
               valueFrom:
                 secretKeyRef:
                   name: {{ .Values.existingSecret }}
