@@ -61,7 +61,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^26.1.1",
-    "@types/pg": "^8.11.0",
+    "@types/pg": "^8.20.4",
     "autoprefixer": "^10.5.4",
     "lucide-react": "^1.28.0",
     "mongodb": "^7.5.0",
