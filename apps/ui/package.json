@@ -82,7 +82,7 @@
     "@consenti/types": "*",
     "@consenti/utils": "*",
     "@types/node": "^26.1.1",
-    "@types/react": "^19.0.0",
+    "@types/react": "^19.2.18",
     "sass": "^1.102.0",
     "tsup": "^8.5.0",
     "tsx": "^4.23.0",
