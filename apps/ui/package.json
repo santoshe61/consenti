@@ -81,7 +81,7 @@
   "devDependencies": {
     "@consenti/types": "*",
     "@consenti/utils": "*",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/react": "^19.0.0",
     "sass": "^1.102.0",
     "tsup": "^8.5.0",
