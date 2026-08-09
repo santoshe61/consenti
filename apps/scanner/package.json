@@ -28,7 +28,7 @@
     "scan": "node dist/cli.js"
   },
   "dependencies": {
-    "playwright": "^1.62.0"
+    "playwright": "^1.62.1"
   },
   "devDependencies": {
     "@consenti/browser-engine": "*",
