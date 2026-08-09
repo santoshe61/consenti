@@ -60,7 +60,7 @@
     "@preact/preset-vite": "^2.10.6",
     "@tailwindcss/vite": "^4.3.3",
     "@types/better-sqlite3": "^7.6.13",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "@types/pg": "^8.11.0",
     "autoprefixer": "^10.5.4",
     "lucide-react": "^1.28.0",
