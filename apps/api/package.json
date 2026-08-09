@@ -65,7 +65,7 @@
     "autoprefixer": "^10.5.4",
     "lucide-react": "^1.28.0",
     "mongodb": "^7.5.0",
-    "mysql2": "^3.23.1",
+    "mysql2": "^3.23.2",
     "node-sqlite3-wasm": "^0.8.60",
     "pg": "^8.0.0",
     "postcss": "^8.5.25",
