@@ -143,7 +143,9 @@ const widget = new ConsentiSetup({})
         <a href="/docs/ui/advanced-configuration/#profileoverride">
           profileOverride in the Advanced Configuration reference
         </a>{' '}
-        for the full deep-merge and delete semantics.
+        for the full deep-merge and delete semantics. To <em>replace</em> a whole <code>buttons</code>{' '}
+        or <code>categories</code> map instead of deleting entries one by one, add{' '}
+        <code>{"'*': null"}</code> to it — it deletes every base key your override doesn&apos;t name.
       </p>
 
       <Callout type="info">

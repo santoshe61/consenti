@@ -28,13 +28,13 @@
     "scan": "node dist/cli.js"
   },
   "dependencies": {
-    "playwright": "^1.62.0"
+    "playwright": "^1.62.1"
   },
   "devDependencies": {
     "@consenti/browser-engine": "*",
     "@consenti/types": "*",
     "@consenti/utils": "*",
-    "@types/node": "^26.1.1",
+    "@types/node": "^26.1.2",
     "tsup": "^8.5.0",
     "typescript": "^6.0.3"
   },

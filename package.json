@@ -20,6 +20,7 @@
     "build:api": "npm run build --workspace=apps/api",
     "build": "npm run build:ui && npm run build:api",
     "build:docs": "npm run build && npm run build --workspace=apps/docs",
+    "docs:demo": "bash scripts/docs-demo.sh",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "turbo test",
@@ -35,7 +36,7 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "postcss": "^8.5.25"
+    "postcss": "^8.5.26"
   },
   "packageManager": "npm@10.9.2",
   "engines": {

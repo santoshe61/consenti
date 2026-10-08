@@ -92,6 +92,8 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
   )
 }
 
+const WILDCARD_KEY = '*'
+
 function mergeValue(base: unknown, override: unknown): unknown {
   if (override === undefined) {
     return base
@@ -120,9 +122,13 @@ function mergeValue(base: unknown, override: unknown): unknown {
 
   // Merge plain objects
   if (isPlainObject(base) && isPlainObject(override)) {
-    const result: Record<string, unknown> = { ...base }
+    // `'*': null` is a wildcard delete: drop every base key the override doesn't name. Named keys
+    // still merge onto their base value, so `{ '*': null, 'accept-all': { text: 'Allow' } }` keeps
+    // that button's style/action and only replaces its text.
+    const result: Record<string, unknown> = override[WILDCARD_KEY] === null ? {} : { ...base }
 
     for (const key of Object.keys(override)) {
+      if (key === WILDCARD_KEY) continue
       const overrideValue = override[key]
       if (overrideValue === null) {
         delete result[key]
@@ -132,6 +138,12 @@ function mergeValue(base: unknown, override: unknown): unknown {
     }
 
     return result
+  }
+
+  // No base object to merge onto (key absent in base): still resolve the override's own
+  // null/wildcard markers instead of leaking them into the result as real entries.
+  if (isPlainObject(override) && !isPlainObject(base) && !Array.isArray(base)) {
+    return mergeValue({}, override)
   }
 
   // Primitive or incompatible types -> override wins

@@ -1574,6 +1574,12 @@ new ConsentiSetup({
   },
 })`}
       />
+      <p>
+        To <em>replace</em> a whole map (say, swap every built-in button for your own), put{' '}
+        <code>{"'*': null"}</code> in it: every base key your override doesn&apos;t name is deleted,
+        and named keys are kept and merged. See{' '}
+        <a href="/docs/ui/advanced-profiles/#replacing-a-map">Replacing a whole map</a>.
+      </p>
 
       <hr />
 

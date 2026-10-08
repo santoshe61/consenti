@@ -182,7 +182,10 @@ export default function JurisdictionCoverageMapPage() {
         Every named regulation guide carries a status badge — <strong>Maintained</strong>,{' '}
         <strong>Supported</strong>, <strong>In-development</strong>, <strong>Partial</strong>, or{' '}
         <strong>Routing-only</strong>. The tier reflects how confidently Consenti tracks that
-        regulation's ongoing legal changes, not just whether the code exists.
+        regulation's ongoing legal changes, not just whether the code exists. The Maintained and
+        Supported regulations are re-checked every quarter (see{' '}
+        <a href="/guides/what-is-consenti/">how Consenti aims to stay compliant</a>); the most
+        recent review ran on <strong>8 October 2026</strong> (2026 Q4).
       </p>
       <table>
         <thead>

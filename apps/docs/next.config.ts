@@ -1,5 +1,16 @@
 import type { NextConfig } from 'next'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+
+// Where @consenti/api's built dashboard lives: the workspace's apps/api/dist normally, or
+// node_modules/@consenti/api/dist when this app runs as a consumer of an installed package
+// (scripts/docs-demo.sh). Falls back to the workspace path before the API has been built.
+const apiDistDir = (() => {
+  try {
+    return dirname(require.resolve('@consenti/api'))
+  } catch {
+    return join(__dirname, '..', 'api', 'dist')
+  }
+})()
 
 const OPTIONAL_EXTERNALS = ['samlify', 'xlsx', 'mongodb', 'mysql2', 'pg', '@node-rs/argon2']
 
@@ -100,7 +111,7 @@ const nextConfig: NextConfig = {
   },
   // outputFileTracingRoot: join(__dirname, '../../'),
   outputFileTracingIncludes: {
-    '/consenti/[[...path]]': [join(__dirname, '..', 'api', 'dist', 'dashboard', '**', '*')],
+    '/consenti/[[...path]]': [join(apiDistDir, 'dashboard', '**', '*')],
   },
   serverExternalPackages: ['@consenti/api', ...OPTIONAL_EXTERNALS],
   webpack(config, { isServer }) {

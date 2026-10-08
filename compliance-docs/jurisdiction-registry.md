@@ -20,21 +20,21 @@ or search within the given domain for current guidance each run.
 
 | Regulation | Jurisdiction(s) | Regulator | Source(s) to check | Current Consenti mapping | last_reviewed |
 |---|---|---|---|---|---|
-| GDPR | EU / EEA (all member states, e.g. `FR`, `DE` in the map) | European Data Protection Board (EDPB); national DPAs | `edpb.europa.eu`; `eur-lex.europa.eu` (Regulation (EU) 2016/679 consolidated text) | `opt-in` group; `compliance: ['gdpr','eprivacy']` per country — `packages/utils/src/compliance.ts:554-555` (France/Germany shown, pattern repeats per EU country) | 2026-07-30 |
-| UK-GDPR | United Kingdom (`UK`) | Information Commissioner's Office (ICO) | `ico.org.uk` | `opt-in` group; `compliance: ['uk-gdpr','pecr']` — `packages/utils/src/compliance.ts:823` | 2026-07-30 |
-| CCPA | California, USA (`US` → `CA` region) | California Privacy Protection Agency (CPPA); CA Attorney General | `cppa.ca.gov`; `oag.ca.gov/privacy/ccpa` | `opt-out-strict` group (California region entry) — `packages/utils/src/compliance.ts:615` | 2026-07-30 |
-| CPRA | California, USA (same region entry as CCPA — CPRA amends CCPA) | California Privacy Protection Agency (CPPA) | `cppa.ca.gov` | Same as CCPA row — `packages/utils/src/compliance.ts:615`; see `CPRA_CATEGORIES` at `packages/utils/src/compliance.ts:187` | 2026-07-30 |
+| GDPR | EU / EEA (all member states, e.g. `FR`, `DE` in the map) | European Data Protection Board (EDPB); national DPAs | `edpb.europa.eu`; `eur-lex.europa.eu` (Regulation (EU) 2016/679 consolidated text) | `opt-in` group; `compliance: ['gdpr','eprivacy']` per country — `packages/utils/src/compliance.ts:554-555` (France/Germany shown, pattern repeats per EU country) | 2026-10-08 |
+| UK-GDPR | United Kingdom (`UK`) | Information Commissioner's Office (ICO) | `ico.org.uk` | `opt-in` group; `compliance: ['uk-gdpr','pecr']` — `packages/utils/src/compliance.ts:823` | 2026-10-08 |
+| CCPA | California, USA (`US` → `CA` region) | California Privacy Protection Agency (CPPA); CA Attorney General | `cppa.ca.gov`; `oag.ca.gov/privacy/ccpa` | `opt-out-strict` group (California region entry) — `packages/utils/src/compliance.ts:615` | 2026-10-08 |
+| CPRA | California, USA (same region entry as CCPA — CPRA amends CCPA) | California Privacy Protection Agency (CPPA) | `cppa.ca.gov` | Same as CCPA row — `packages/utils/src/compliance.ts:615`; see `CPRA_CATEGORIES` at `packages/utils/src/compliance.ts:187` | 2026-10-08 |
 | LGPD | Brazil (`BR`) | Autoridade Nacional de Proteção de Dados (ANPD) | `gov.br/anpd` | `opt-in-brazil` group; `compliance: ['lgpd']` — `packages/utils/src/compliance.ts:644` | 2026-07-30 |
 
 ## Supported tier (no currency claim beyond this quarterly cycle)
 
 | Regulation | Jurisdiction(s) | Regulator | Source(s) to check | Current Consenti mapping | last_reviewed |
 |---|---|---|---|---|---|
-| PIPEDA / Law 25 | Canada (`CA`), with Quebec (`QC`) carved out separately | Office of the Privacy Commissioner of Canada (OPC) — PIPEDA; Commission d'accès à l'information (CAI) — Law 25 | `priv.gc.ca`; `cai.gouv.qc.ca` | Canada default `general-privacy-consent`; Quebec region override → `opt-in` (Law 25 stricter carve-out) — `packages/utils/src/compliance.ts:595,600` | 2026-07-30 |
-| POPIA | South Africa (`ZA`) | Information Regulator (South Africa) | `justice.gov.za/inforeg` | `general-privacy-consent` group; `compliance: ['popia']` — `packages/utils/src/compliance.ts:781` | 2026-07-30 |
+| PIPEDA / Law 25 | Canada (`CA`), with Quebec (`QC`) carved out separately | Office of the Privacy Commissioner of Canada (OPC) — PIPEDA; Commission d'accès à l'information (CAI) — Law 25 | `priv.gc.ca`; `cai.gouv.qc.ca` | Canada default `general-privacy-consent`; Quebec region override → `opt-in` (Law 25 stricter carve-out) — `packages/utils/src/compliance.ts:595,600` | 2026-10-08 |
+| POPIA | South Africa (`ZA`) | Information Regulator (South Africa) | `justice.gov.za/inforeg` | `general-privacy-consent` group; `compliance: ['popia']` — `packages/utils/src/compliance.ts:781` | 2026-10-08 |
 | PDPA-TH | Thailand (`TH`) | Personal Data Protection Committee (PDPC Thailand) | `pdpc.or.th` | `opt-in` group (GDPR-style); `compliance: ['pdpa-th']` — `packages/utils/src/compliance.ts:693` | 2026-07-30 |
-| APPI | Japan (`JP`) | Personal Information Protection Commission (PPC Japan) | `ppc.go.jp` | `general-privacy-consent` group; `compliance: ['appi']` — `packages/utils/src/compliance.ts:698` | 2026-07-30 |
-| KVKK | Türkiye (`TR`) | Kişisel Verileri Koruma Kurumu (KVKK authority) | `kvkk.gov.tr` | `opt-in` group; `compliance: ['kvkk']` — `packages/utils/src/compliance.ts:588` | 2026-07-30 |
+| APPI | Japan (`JP`) | Personal Information Protection Commission (PPC Japan) | `ppc.go.jp` | `general-privacy-consent` group; `compliance: ['appi']` — `packages/utils/src/compliance.ts:698` | 2026-10-08 |
+| KVKK | Türkiye (`TR`) | Kişisel Verileri Koruma Kurumu (KVKK authority) | `kvkk.gov.tr` | `opt-in` group; `compliance: ['kvkk']` — `packages/utils/src/compliance.ts:588` | 2026-10-08 |
 
 ---
 

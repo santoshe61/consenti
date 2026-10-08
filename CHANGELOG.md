@@ -7,6 +7,94 @@ For unreleased in-progress work, see the raw files in [`./changelog/`](./changel
 
 ---
 <!-- Changelpg entries here -->
+## [0.5.0] - 2026-10-08
+
+### Summary
+Storage-adapter parity and a profile-override ergonomics release. The first-run setup wizard
+(`POST /setup/seed-profiles`) failed with `500 {"details":"Not implemented"}` on the MySQL/MariaDB,
+PostgreSQL and MongoDB drivers because those adapters stubbed out template storage, which
+default-profile seeding depends on — all three now implement the full storage contract and were
+verified end to end (setup wizard over HTTP) against MariaDB 10.5 / 10.11, MySQL 8.4, PostgreSQL 16
+and MongoDB 7. Testing against genuine MySQL 8 also surfaced and fixed a fresh-install failure on JSON
+column defaults. On the widget side, `profileOverride` can now replace a whole keyed map (buttons,
+categories, cookies) with the wildcard `'*': null` instead of nulling each built-in entry by hand,
+`setProfile()` now honours `null` deletes after an earlier override, and a dev warning flags banners
+left with "accept all" but no reject or manage path. Also: a 2026 Q4 compliance review (no code or
+compliance-group changes needed), dependency bumps, and `npm audit fix` clearing both critical
+advisories.
+
+### Added
+
+#### `@consenti/ui`
+- **`'*': null` wildcard in profile overrides** — inside any keyed map (`buttons`, `categories`,
+  `cookies`) it deletes every base key the override doesn't name. Named keys are kept and merged onto
+  their base value (so `'accept-all': { text: 'Allow all' }` keeps its `style`/`action`/`cookies`);
+  new keys are added. Applies per map, so each surface (`mainBanner`, `gpcBanner`,
+  `preferenceModal`) can be replaced independently, and works under `profileOverride`,
+  `complianceGroupsOverride` and `setProfile()`.
+- **Dev warning for accept-only banners** — via the configured logger at `warning` level, when
+  overrides leave `mainBanner`/`gpcBanner` with an "accept all" button (`cookies: '*'`) but no reject
+  (`cookies: '!'`) or `manage` button (GDPR Art. 7(3); CNIL/EDPB equal-prominence guidance). Hidden by
+  default; enable with `verbose: true` or `core.console: ['warning']`.
+
+#### `@consenti/api`
+- **MySQL, PostgreSQL and MongoDB adapters** now implement consent/UI template CRUD
+  (`create`/`update`/`delete`/`get`/`getAll`/`copy` for both), `listProfilesSummary`,
+  `findProfilesUsingConsentTemplate`/`findProfilesUsingUITemplate` and `getOptInStats` — previously
+  stubs that threw `Not implemented` or returned `[]`.
+
+#### Docs
+- `apps/ui/README.md`, `/docs/ui/advanced-profiles` (new "Replacing a whole map" section), the
+  configuration, profiles and advanced-configuration pages, and `llms-full.txt` document the
+  wildcard, the `setProfile()` ordering and the compliance warning.
+- `apps/docs` can now run as a production-like **consumer** of a local build of `@consenti/ui` and
+  `@consenti/api`: `npm run docs:demo` publishes the built packages to a throwaway Verdaccio registry
+  (Docker), installs them into a copy of the docs app outside the workspace via `apps/docs/.npmrc.demo`
+  (local registry or npmjs — one line commented), builds for production and starts it with a fresh
+  database. See `apps/docs/DEMO.md`. `next.config.ts` now locates the API's dashboard bundle from the
+  resolved package, so it works for both the workspace and an installed copy.
+- `compliance-docs/reviews/2026-Q4.md` — second quarterly compliance review (2026-07-30 → 2026-10-08);
+  `jurisdiction-registry.md` dates advanced for the eight rows scanned; the Jurisdiction Coverage Map
+  page now states the most recent review date.
+
+### Changed
+- `@consenti/api`: shared profile-summary and opt-in tally logic lives in
+  `storage/derived-queries.ts`, used by the MySQL, PostgreSQL and MongoDB adapters.
+- `@consenti/ui`: `setProfile()` keeps its patches as an ordered list and replays them on the resolved
+  profile instead of folding each into `config.profileOverride` with `deepMerge`.
+- Dependencies: `@iabgpp/cmpapi` 3.2.0, `playwright` ^1.62.1, `postcss` ^8.5.26, `mysql2` ^3.23.2,
+  `@types/node` ^26.1.2, `vue` ^3.5.41, `@types/pg` ^8.20.4, `@types/react` ^19.2.18. TypeScript 7 is
+  intentionally deferred.
+- `npm audit fix` (no `--force`): `next` 16.4.0, `sharp` 0.35.5, `shell-quote`, `js-yaml`,
+  `brace-expansion` — clears both critical advisories (26 → 23 findings; what remains is release
+  tooling and a `postcss` copy vendored inside `next`). `apps/docs` only; nothing in the published
+  packages' runtime.
+
+### Fixed
+- `@consenti/api`: **MySQL/MariaDB, PostgreSQL, MongoDB** — setup wizard "Install & continue"
+  (`POST /setup/seed-profiles`) no longer fails with "Not implemented"; the Templates, Profiles list
+  and Opt-in stats pages work on these drivers.
+- `@consenti/api`: **MySQL (Oracle) 8.x** — fresh install failed at startup with
+  `ER_BLOB_CANT_HAVE_DEFAULT` (error 1101) because JSON columns were created as
+  `LONGTEXT … DEFAULT '{}'`; defaults are now parenthesised expressions (`DEFAULT ('{}')`), accepted by
+  MySQL 8.0.13+ and MariaDB 10.2.1+. MariaDB was unaffected.
+- `@consenti/api`: **MySQL/MariaDB** — `getTimeline` returned a stringified JS `Date` (e.g.
+  `"Thu Oct 08 2026 …"`) instead of `YYYY-MM-DD`, breaking the dashboard timeline chart.
+- `@consenti/ui`: `setProfile({ … key: null })` called after an earlier override lost its `null`
+  delete (patch-onto-patch merge consumed the marker before it reached the profile).
+- `@consenti/ui`: a profile override whose base has no object at that key (e.g. `gpcBanner` buttons
+  when the base profile has no `gpcBanner`) no longer leaks `null` markers into the result as real
+  entries.
+- `llms-full.txt`: stale `buttons: [...]` array example corrected to the keyed-map shape.
+
+### Breaking changes
+None. `'*'` is now reserved as a key in keyed profile maps (buttons, categories, cookies) — an id of
+literally `*` in those maps would previously have been a normal entry.
+
+### Migration
+None. Existing `{ key: null }` overrides behave as before. Schema already contained
+`consent_templates` / `ui_templates` on fresh installs; no ALTER/re-seed step is needed.
+
 ## [0.4.0] - 2026-08-05
 
 ### Summary

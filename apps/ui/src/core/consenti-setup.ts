@@ -69,12 +69,14 @@ import { Renderer } from '../ui/renderer'
 import type { ButtonClickHandler } from '../ui/buttons'
 import { deepMerge } from '../utils/locale'
 import { logger, initConsole } from '../utils/console'
+import { findAcceptOnlyBanners } from './profile-warnings'
 
 export class ConsentiSetup implements ConsentiWidgetAPI {
   private initialized = false
   private initializing = false
   private profile: ResolvedProfile | null = null
   private resolvedBase: ResolvedProfile | null = null
+  private profilePatches: DeepPartial<ResolvedProfile>[] = []
   /** cookieId → Category lookup, rebuilt whenever `profile` changes. Avoids rescanning categories on every consent action. */
   private categoryIndex: Map<string, Category> = new Map()
   /** Watchers created by the declarative `data-consenti-*` DOM scan — destroyed alongside the widget since they have no other owner. */
@@ -173,6 +175,32 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
   }
 
   /**
+   * Applied in order: compliance-group override → `config.profileOverride` → each `setProfile()`
+   * patch. The `setProfile()` patches are kept as a list and replayed, not folded into one
+   * object, because folding runs `deepMerge` patch-onto-patch, which consumes `null`/`'*': null`
+   * delete markers before they ever reach the profile they were meant to delete from.
+   */
+  private applyProfileOverrides(base: ResolvedProfile): ResolvedProfile {
+    const withGroupOverride = this.applyComplianceGroupOverride(base)
+    const patches = [this.config.profileOverride, ...this.profilePatches].filter(
+      (p): p is DeepPartial<ResolvedProfile> => p !== undefined,
+    )
+    const profile = patches.reduce<ResolvedProfile>((acc, patch) => deepMerge<ResolvedProfile>(acc, patch), withGroupOverride)
+    if (profile !== base) this.warnIfAcceptOnly(profile)
+    return profile
+  }
+
+  private warnIfAcceptOnly(profile: ResolvedProfile): void {
+    const banners = findAcceptOnlyBanners(profile)
+    if (banners.length === 0) return
+    logger.warn(
+      `${banners.join(' and ')} offers an "accept all" button but no reject ("cookies: '!'") or manage ` +
+      `button after profile overrides were applied. Visitors must be able to refuse as easily as they ` +
+      `accept (GDPR Art. 7(3); CNIL/EDPB cookie-banner guidance).`,
+    )
+  }
+
+  /**
    * Whether `window.__tcfapi`/`window.__gpp` should stay uninstalled because the corresponding
    * server-side registration (`compliance.tcf`/`compliance.gpp`) is unconfirmed (cmpId/cmpVersion
    * changed since the dashboard's confirmation checkbox was last checked, or never confirmed).
@@ -225,11 +253,7 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
       // Apply widget-level config overrides on top of the resolved profile
       if (this.config.darkMode !== undefined) resolvedProfile.darkMode = this.config.darkMode
 
-      const withGroupOverride = this.applyComplianceGroupOverride(resolvedProfile)
-
-      const profile = this.config.profileOverride
-        ? deepMerge<ResolvedProfile>(withGroupOverride, this.config.profileOverride)
-        : withGroupOverride
+      const profile = this.applyProfileOverrides(resolvedProfile)
 
       const gpcActive = detectGPC();
 
@@ -1647,12 +1671,8 @@ export class ConsentiSetup implements ConsentiWidgetAPI {
   setProfile(override: DeepPartial<ResolvedProfile>): void {
     if (!isClient() || !this.resolvedBase) return
 
-    this.config.profileOverride = this.config.profileOverride
-      ? deepMerge<DeepPartial<ResolvedProfile>>(this.config.profileOverride, override)
-      : override
-
-    const withGroupOverride = this.applyComplianceGroupOverride(this.resolvedBase)
-    this.profile = deepMerge<ResolvedProfile>(withGroupOverride, this.config.profileOverride!)
+    this.profilePatches.push(override)
+    this.profile = this.applyProfileOverrides(this.resolvedBase)
     this.categoryIndex = buildCookieCategoryIndex(this.profile.preferenceModal.categories)
 
     const modalWasOpen = this.modal?.isOpen() ?? false

@@ -1,0 +1,20 @@
+# Throwaway local npm registry for scripts/docs-demo.sh — serves ONLY locally built @consenti/*
+# packages. It deliberately has no uplink to npmjs: everything else (next, react, …) is fetched
+# straight from npmjs by the consumer copy's .npmrc, so a local build can never be shadowed by,
+# or leak into, the real registry.
+storage: /verdaccio/storage
+
+auth:
+  htpasswd:
+    file: /verdaccio/storage/htpasswd
+    max_users: 1000
+
+packages:
+  '@consenti/*':
+    access: $all
+    publish: $authenticated
+    unpublish: $authenticated
+  '**':
+    access: $all
+
+log: { type: stdout, format: pretty, level: warn }
