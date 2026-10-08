@@ -405,8 +405,10 @@ const MYSQL_TEXT: Partial<Record<ColType, string>> = {
 
 function mysqlDef(def: string | number | boolean): string {
   if (def === '$now') return 'DEFAULT CURRENT_TIMESTAMP'
-  if (def === '$arr') return `DEFAULT '[]'`
-  if (def === '$obj') return `DEFAULT '{}'`
+  // Parenthesised expression defaults: Oracle MySQL rejects a literal DEFAULT on TEXT/LONGTEXT
+  // columns (error 1101); the expression form is accepted by MySQL 8.0.13+ and MariaDB 10.2.1+.
+  if (def === '$arr') return `DEFAULT ('[]')`
+  if (def === '$obj') return `DEFAULT ('{}')`
   if (def === true)   return 'DEFAULT 1'
   if (def === false)  return 'DEFAULT 0'
   if (typeof def === 'string') return `DEFAULT '${def}'`
