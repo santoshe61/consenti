@@ -2,6 +2,7 @@ import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_MYSQL } from '../seed-data'
 import { likePrefix } from '../../utils/sql-search'
+import { buildProfileSummaries, tallyOptIn } from '../derived-queries'
 import type {
   StorageAdapter, StorageConfig, Profile, StoredProfileJson,
   CreateProfileInput, UpdateProfileInput,
@@ -18,7 +19,7 @@ import type {
   ServerConsentTemplate, ServerUITemplate,
   CreateConsentTemplateInput, UpdateConsentTemplateInput,
   CreateUITemplateInput, UpdateUITemplateInput,
-  ProfileSummary, ComplianceGroupId, OptInFilters, OptInStats,
+  ProfileSummary, OptInFilters, OptInStats,
 } from '@consenti/types'
 
 // ── Raw row shapes ─────────────────────────────────────────────────────────────
@@ -1040,23 +1041,11 @@ export class MySQLAdapter implements StorageAdapter {
       Promise.all(tenantIds.map(t => this.getConsentTemplates(t))),
       Promise.all(tenantIds.map(t => this.getUITemplates(t))),
     ])
-    const consentNames = new Map(consentTemplates.flat().map(t => [t.id, t.name]))
-    const uiNames = new Map(uiTemplates.flat().map(t => [t.id, t.name]))
-    return profiles.map(p => {
-      const pj = p.profileJson as StoredProfileJson & { customComplianceGroup?: string; consentTemplateId?: string; uiTemplateId?: string }
-      return {
-        id: p.id,
-        name: p.name,
-        defaultLocale: p.defaultLocale,
-        complianceGroup: (pj.complianceGroup ?? null) as ComplianceGroupId | null,
-        customComplianceGroup: pj.customComplianceGroup ?? null,
-        isActive: pj.isActive === true,
-        consentTemplateName: pj.consentTemplateId ? consentNames.get(pj.consentTemplateId) ?? null : null,
-        uiTemplateName: pj.uiTemplateId ? uiNames.get(pj.uiTemplateId) ?? null : null,
-        createdAt: p.createdAt,
-        updatedAt: p.updatedAt,
-      }
-    })
+    return buildProfileSummaries(
+      profiles,
+      new Map(consentTemplates.flat().map(t => [t.id, t.name])),
+      new Map(uiTemplates.flat().map(t => [t.id, t.name])),
+    )
   }
 
   async listProfilesSummary(tenantId: string): Promise<ProfileSummary[]> {
@@ -1095,30 +1084,6 @@ export class MySQLAdapter implements StorageAdapter {
       params,
     )
 
-    type Bucket = { total: number; granted: number; denied: number; managed: number }
-    const empty = (): Bucket => ({ total: 0, granted: 0, denied: 0, managed: 0 })
-    const overall = empty()
-    const byLocale: Record<string, Bucket> = {}
-    const byDay = new Map<string, Bucket>()
-
-    for (const r of rows) {
-      const statuses = Object.values(JSON.parse(r.consent_json) as Record<string, string>)
-      const grantedShare = statuses.length > 0 ? statuses.filter(s => s === 'granted').length / statuses.length : 0
-      const deniedShare = statuses.length > 0 ? statuses.filter(s => s === 'denied').length / statuses.length : 0
-      const outcome = grantedShare >= 0.9 ? 'granted' : deniedShare >= 0.9 ? 'denied' : 'managed'
-      if (!byDay.has(r.day)) byDay.set(r.day, empty())
-      byLocale[r.locale] ??= empty()
-      for (const b of [overall, byLocale[r.locale]!, byDay.get(r.day)!]) { b.total++; b[outcome]++ }
-    }
-
-    const pct = (n: number) => overall.total > 0 ? Math.round((n / overall.total) * 1000) / 10 : 0
-    return {
-      ...overall,
-      grantedPct: pct(overall.granted),
-      deniedPct: pct(overall.denied),
-      managedPct: pct(overall.managed),
-      byLocale,
-      byDate: Array.from(byDay, ([date, v]) => ({ date, ...v })),
-    }
+    return tallyOptIn(rows.map(r => ({ locale: r.locale, day: r.day, consentJson: JSON.parse(r.consent_json) as ConsentValue })))
   }
 }

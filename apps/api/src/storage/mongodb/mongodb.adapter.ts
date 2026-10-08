@@ -1,6 +1,7 @@
 import type { MongoClient, Db } from 'mongodb'
-import { randomUUID, randomProfileId, randomVisitorId, randomConsentId } from '../../utils/crypto'
+import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, ALL_INDEXES } from '../seed-data'
+import { buildProfileSummaries, tallyOptIn } from '../derived-queries'
 import type {
   StorageAdapter, StorageConfig, Profile, StoredProfileJson,
   CreateProfileInput, UpdateProfileInput,
@@ -14,9 +15,24 @@ import type {
   CountryStat, GpcStats, Tenant, ApiKey, CreateApiKeyInput,
   CreateTenantInput, UpdateTenantInput, TenantSettings,
   NoticeShownRecord, CreateNoticeShownInput, PagedResult,
+  ServerConsentTemplate, ServerUITemplate,
+  CreateConsentTemplateInput, UpdateConsentTemplateInput,
+  CreateUITemplateInput, UpdateUITemplateInput,
+  ProfileSummary, OptInFilters, OptInStats,
 } from '@consenti/types'
 
 // ── Raw document shapes ────────────────────────────────────────────────────────
+
+interface DocConsentTemplate {
+  _id: string; tenant_id: string; name: string
+  cookies_json: ServerConsentTemplate['cookies']; categories_json: ServerConsentTemplate['categories']
+  created_at: string; updated_at: string
+}
+interface DocUITemplate {
+  _id: string; tenant_id: string; name: string
+  settings_json: Omit<ServerUITemplate, 'id' | 'tenantId' | 'name' | 'createdAt' | 'updatedAt'>
+  created_at: string; updated_at: string
+}
 
 interface DocProfile {
   _id: string; tenant_id: string; name: string; default_locale: string
@@ -916,23 +932,152 @@ export class MongoDBAdapter implements StorageAdapter {
     return docs.length
   }
 
-  // Template methods — not yet implemented for MongoDB adapter
-  async createConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async updateConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async deleteConsentTemplate(): Promise<void> { throw new Error('Not implemented') }
-  async getConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async getConsentTemplates(): Promise<never> { throw new Error('Not implemented') }
-  async copyConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async createUITemplate(): Promise<never> { throw new Error('Not implemented') }
-  async updateUITemplate(): Promise<never> { throw new Error('Not implemented') }
-  async deleteUITemplate(): Promise<void> { throw new Error('Not implemented') }
-  async getUITemplate(): Promise<never> { throw new Error('Not implemented') }
-  async getUITemplates(): Promise<never> { throw new Error('Not implemented') }
-  async copyUITemplate(): Promise<never> { throw new Error('Not implemented') }
+  // ── Consent Templates ────────────────────────────────────────────────────────
 
-  // Profile summary / analytics — not yet implemented for MongoDB adapter
-  async listProfilesSummary(): Promise<never[]> { return [] }
-  async findProfilesUsingConsentTemplate(): Promise<never[]> { return [] }
-  async findProfilesUsingUITemplate(): Promise<never[]> { return [] }
-  async getOptInStats(): Promise<never> { throw new Error('Not implemented') }
+  private mapConsentTemplate(d: DocConsentTemplate): ServerConsentTemplate {
+    return {
+      id: d._id, tenantId: d.tenant_id, name: d.name,
+      cookies: d.cookies_json, categories: d.categories_json,
+      createdAt: d.created_at, updatedAt: d.updated_at,
+    }
+  }
+
+  async createConsentTemplate(data: CreateConsentTemplateInput): Promise<ServerConsentTemplate> {
+    const now = new Date().toISOString()
+    const doc: DocConsentTemplate = {
+      _id: randomConsentTemplateId(), tenant_id: data.tenantId, name: data.name,
+      cookies_json: data.cookies, categories_json: data.categories,
+      created_at: now, updated_at: now,
+    }
+    await this.col('consent_templates').insertOne(doc)
+    return this.mapConsentTemplate(doc)
+  }
+
+  async updateConsentTemplate(id: string, data: UpdateConsentTemplateInput): Promise<ServerConsentTemplate> {
+    const set: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (data.name !== undefined) set['name'] = data.name
+    if (data.cookies !== undefined) set['cookies_json'] = data.cookies
+    if (data.categories !== undefined) set['categories_json'] = data.categories
+    const res = cast<DocConsentTemplate>(await this.col('consent_templates').findOneAndUpdate(
+      { _id: id }, { $set: set }, { returnDocument: 'after' },
+    ))
+    if (!res) throw new Error('Consent template not found')
+    return this.mapConsentTemplate(res)
+  }
+
+  async deleteConsentTemplate(id: string): Promise<void> {
+    await this.col('consent_templates').deleteOne({ _id: id })
+  }
+
+  async getConsentTemplate(id: string): Promise<ServerConsentTemplate | null> {
+    const doc = cast<DocConsentTemplate>(await this.col('consent_templates').findOne({ _id: id }))
+    return doc ? this.mapConsentTemplate(doc) : null
+  }
+
+  async getConsentTemplates(tenantId: string): Promise<ServerConsentTemplate[]> {
+    const docs = castArr<DocConsentTemplate>(await this.col('consent_templates').find({ tenant_id: tenantId }).sort({ name: 1 }).toArray())
+    return docs.map(d => this.mapConsentTemplate(d))
+  }
+
+  async copyConsentTemplate(id: string, newName: string): Promise<ServerConsentTemplate> {
+    const src = await this.getConsentTemplate(id)
+    if (!src) throw new Error('Consent template not found')
+    return this.createConsentTemplate({ tenantId: src.tenantId, name: newName, cookies: src.cookies, categories: src.categories })
+  }
+
+  // ── UI Templates ─────────────────────────────────────────────────────────────
+
+  private mapUITemplate(d: DocUITemplate): ServerUITemplate {
+    return { id: d._id, tenantId: d.tenant_id, name: d.name, ...d.settings_json, createdAt: d.created_at, updatedAt: d.updated_at }
+  }
+
+  async createUITemplate(data: CreateUITemplateInput): Promise<ServerUITemplate> {
+    const now = new Date().toISOString()
+    const { tenantId, name, ...settings } = data
+    const doc: DocUITemplate = {
+      _id: randomUITemplateId(), tenant_id: tenantId, name, settings_json: settings,
+      created_at: now, updated_at: now,
+    }
+    await this.col('ui_templates').insertOne(doc)
+    return this.mapUITemplate(doc)
+  }
+
+  async updateUITemplate(id: string, data: UpdateUITemplateInput): Promise<ServerUITemplate> {
+    const current = cast<DocUITemplate>(await this.col('ui_templates').findOne({ _id: id }))
+    if (!current) throw new Error('UI template not found')
+    const { name, ...settingsUpdate } = data
+    const set: Record<string, unknown> = { updated_at: new Date().toISOString() }
+    if (name !== undefined) set['name'] = name
+    if (Object.keys(settingsUpdate).length > 0) set['settings_json'] = { ...current.settings_json, ...settingsUpdate }
+    const res = cast<DocUITemplate>(await this.col('ui_templates').findOneAndUpdate(
+      { _id: id }, { $set: set }, { returnDocument: 'after' },
+    ))
+    if (!res) throw new Error('UI template not found')
+    return this.mapUITemplate(res)
+  }
+
+  async deleteUITemplate(id: string): Promise<void> {
+    await this.col('ui_templates').deleteOne({ _id: id })
+  }
+
+  async getUITemplate(id: string): Promise<ServerUITemplate | null> {
+    const doc = cast<DocUITemplate>(await this.col('ui_templates').findOne({ _id: id }))
+    return doc ? this.mapUITemplate(doc) : null
+  }
+
+  async getUITemplates(tenantId: string): Promise<ServerUITemplate[]> {
+    const docs = castArr<DocUITemplate>(await this.col('ui_templates').find({ tenant_id: tenantId }).sort({ name: 1 }).toArray())
+    return docs.map(d => this.mapUITemplate(d))
+  }
+
+  async copyUITemplate(id: string, newName: string): Promise<ServerUITemplate> {
+    const src = await this.getUITemplate(id)
+    if (!src) throw new Error('UI template not found')
+    const { tenantId, mainBanner, gpcBanner, preferenceModal } = src
+    return this.createUITemplate({ tenantId, name: newName, mainBanner, gpcBanner, preferenceModal })
+  }
+
+  // ── Profile summaries ────────────────────────────────────────────────────────
+
+  private async toProfileSummaries(profiles: Profile[]): Promise<ProfileSummary[]> {
+    if (profiles.length === 0) return []
+    const tenantIds = [...new Set(profiles.map(p => p.tenantId))]
+    const [consentTemplates, uiTemplates] = await Promise.all([
+      Promise.all(tenantIds.map(t => this.getConsentTemplates(t))),
+      Promise.all(tenantIds.map(t => this.getUITemplates(t))),
+    ])
+    return buildProfileSummaries(
+      profiles,
+      new Map(consentTemplates.flat().map(t => [t.id, t.name])),
+      new Map(uiTemplates.flat().map(t => [t.id, t.name])),
+    )
+  }
+
+  async listProfilesSummary(tenantId: string): Promise<ProfileSummary[]> {
+    const docs = castArr<DocProfile>(await this.col('profiles').find({ tenant_id: tenantId }).sort({ created_at: 1 }).toArray())
+    return this.toProfileSummaries(docs.map(mapProfile))
+  }
+
+  async findProfilesUsingConsentTemplate(templateId: string): Promise<ProfileSummary[]> {
+    const docs = castArr<DocProfile>(await this.col('profiles').find({ 'profile_json.consentTemplateId': templateId }).sort({ name: 1 }).toArray())
+    return this.toProfileSummaries(docs.map(mapProfile))
+  }
+
+  async findProfilesUsingUITemplate(templateId: string): Promise<ProfileSummary[]> {
+    const docs = castArr<DocProfile>(await this.col('profiles').find({ 'profile_json.uiTemplateId': templateId }).sort({ name: 1 }).toArray())
+    return this.toProfileSummaries(docs.map(mapProfile))
+  }
+
+  // ── Opt-in stats ─────────────────────────────────────────────────────────────
+
+  async getOptInStats(tenantId: string, filters: OptInFilters): Promise<OptInStats> {
+    const match: Record<string, unknown> = { tenant_id: tenantId }
+    if (filters.profileId) match['profile_id'] = filters.profileId
+    if (filters.locale) match['locale'] = filters.locale
+    if (filters.from || filters.to) {
+      match['created_at'] = { ...(filters.from ? { $gte: filters.from } : {}), ...(filters.to ? { $lte: filters.to } : {}) }
+    }
+    const docs = castArr<DocConsent>(await this.col('consent_records').find(match, { projection: { locale: 1, consent_json: 1, created_at: 1 } }).sort({ created_at: 1 }).toArray())
+    return tallyOptIn(docs.map(d => ({ locale: d.locale, day: d.created_at.slice(0, 10), consentJson: d.consent_json })))
+  }
 }
