@@ -1,5 +1,11 @@
 # @consenti/ui
 
+## 0.5.0
+
+### Minor Changes
+
+- 4507552: profileOverride: `'*': null` wildcard deletes every base key a keyed map override doesn't name (buttons, categories, cookies); dev warning for accept-only banners; setProfile() now replays patches in order so later null deletes are honoured
+
 ## 0.4.0
 
 ### Minor Changes
