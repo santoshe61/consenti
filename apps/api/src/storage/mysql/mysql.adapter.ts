@@ -570,12 +570,12 @@ export class MySQLAdapter implements StorageAdapter {
   async getTimeline(tenantId: string, days = 30): Promise<TimelineEntry[]> {
     const from = new Date(Date.now() - days * 86400_000).toISOString().slice(0, 10)
     const rows = await this.q<RowDateCount>(
-      `SELECT DATE(created_at) AS date, COUNT(*) AS count
+      `SELECT DATE_FORMAT(created_at, '%Y-%m-%d') AS date, COUNT(*) AS count
        FROM consent_records WHERE tenant_id=? AND created_at>=?
-       GROUP BY DATE(created_at) ORDER BY date ASC`,
+       GROUP BY DATE_FORMAT(created_at, '%Y-%m-%d') ORDER BY date ASC`,
       [tenantId, from],
     )
-    return rows.map(r => ({ date: String(r.date), count: r.count }))
+    return rows.map(r => ({ date: r.date, count: r.count }))
   }
 
   // ── Users ─────────────────────────────────────────────────────────────────────
