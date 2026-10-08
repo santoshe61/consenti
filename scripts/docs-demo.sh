@@ -69,10 +69,12 @@ cmd_down() {
 }
 
 registry_token() {
-  # Verdaccio signs the user in (or creates it) and returns an auth token.
+  # A fresh throwaway user per publish: Verdaccio will not log an already-registered user back in
+  # through this endpoint, and the registry is local-only, so there is nothing to protect.
+  local user="demo$(date +%s)"
   curl -fsS -X PUT -H 'content-type: application/json' \
-    -d '{"name":"demo","password":"demo-password-123","email":"demo@example.com"}' \
-    "${REG_URL}/-/user/org.couchdb.user:demo" \
+    -d "{\"name\":\"${user}\",\"password\":\"demo-password-123\",\"email\":\"${user}@example.com\"}" \
+    "${REG_URL}/-/user/org.couchdb.user:${user}" \
     | node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync(0,"utf8")).token)'
 }
 

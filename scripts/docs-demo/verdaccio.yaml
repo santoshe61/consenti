@@ -7,7 +7,7 @@ storage: /verdaccio/storage
 auth:
   htpasswd:
     file: /verdaccio/storage/htpasswd
-    max_users: 5
+    max_users: 1000
 
 packages:
   '@consenti/*':
