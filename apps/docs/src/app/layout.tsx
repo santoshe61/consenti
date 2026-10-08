@@ -268,7 +268,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             {children}
             <Footer />
             <ScrollToTop />
-            <SaasRequestBadge />
+            {/* <SaasRequestBadge /> */}
           </DocsMenuProvider>
         </ThemeProvider>
       </body>

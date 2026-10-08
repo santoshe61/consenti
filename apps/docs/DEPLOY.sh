@@ -1,17 +1,17 @@
 cd /Volumes/www/learning/consenti
-npm install
+# npm install
 
 # Build the types package (ui,api,docs depends on it)
-npm run build --workspace=packages/types
+# npm run build --workspace=packages/types
 
 # Build the utils package (ui,api,docs depends on it)
-npm run build --workspace=packages/utils
+# npm run build --workspace=packages/utils
 
 # Build the ui library (docs depends on it)
-npm run build --workspace=apps/ui
+# npm run build --workspace=apps/ui
 
 # Build the API library + dashboard SPA → apps/api/dist/
-npm run build --workspace=apps/api
+# npm run build --workspace=apps/api
 
 # Build the docs Next.js app → apps/docs/.next/standalone/
 npm run build --workspace=apps/docs
