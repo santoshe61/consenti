@@ -1,5 +1,5 @@
 import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
-import { randomUUID, randomProfileId, randomVisitorId, randomConsentId } from '../../utils/crypto'
+import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_MYSQL } from '../seed-data'
 import { likePrefix } from '../../utils/sql-search'
 import type {
@@ -15,6 +15,10 @@ import type {
   CountryStat, GpcStats, Tenant, ApiKey, CreateApiKeyInput,
   CreateTenantInput, UpdateTenantInput, TenantSettings,
   NoticeShownRecord, CreateNoticeShownInput, PagedResult,
+  ServerConsentTemplate, ServerUITemplate,
+  CreateConsentTemplateInput, UpdateConsentTemplateInput,
+  CreateUITemplateInput, UpdateUITemplateInput,
+  ProfileSummary, ComplianceGroupId, OptInFilters, OptInStats,
 } from '@consenti/types'
 
 // ── Raw row shapes ─────────────────────────────────────────────────────────────
@@ -80,6 +84,15 @@ interface RowApiKey extends RowDataPacket {
   id: string; tenant_id: string; key_hash: string; name: string; is_active: number
   created_by: string | null; expire_by: string | null; created_at: string; updated_at: string | null
 }
+interface RowConsentTemplate extends RowDataPacket {
+  id: string; tenant_id: string; name: string; cookies_json: string; categories_json: string
+  created_at: string; updated_at: string
+}
+interface RowUITemplate extends RowDataPacket {
+  id: string; tenant_id: string; name: string; settings_json: string
+  created_at: string; updated_at: string
+}
+interface RowOptInConsent extends RowDataPacket { locale: string; day: string; consent_json: string }
 interface RowTenant extends RowDataPacket { id: string; name: string; slug: string; created_at: string; updated_at: string }
 interface RowTenantSettings extends RowDataPacket {
   allowed_origins_json: string; admin_allowed_origins_json: string; setup_completed: number
@@ -904,23 +917,208 @@ export class MySQLAdapter implements StorageAdapter {
     return ids.length
   }
 
-  // Template methods — not yet implemented for MySQL adapter
-  async createConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async updateConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async deleteConsentTemplate(): Promise<void> { throw new Error('Not implemented') }
-  async getConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async getConsentTemplates(): Promise<never> { throw new Error('Not implemented') }
-  async copyConsentTemplate(): Promise<never> { throw new Error('Not implemented') }
-  async createUITemplate(): Promise<never> { throw new Error('Not implemented') }
-  async updateUITemplate(): Promise<never> { throw new Error('Not implemented') }
-  async deleteUITemplate(): Promise<void> { throw new Error('Not implemented') }
-  async getUITemplate(): Promise<never> { throw new Error('Not implemented') }
-  async getUITemplates(): Promise<never> { throw new Error('Not implemented') }
-  async copyUITemplate(): Promise<never> { throw new Error('Not implemented') }
+  // ── Consent Templates ────────────────────────────────────────────────────────
 
-  // Profile summary / analytics — not yet implemented for MySQL adapter
-  async listProfilesSummary(): Promise<never[]> { return [] }
-  async findProfilesUsingConsentTemplate(): Promise<never[]> { return [] }
-  async findProfilesUsingUITemplate(): Promise<never[]> { return [] }
-  async getOptInStats(): Promise<never> { throw new Error('Not implemented') }
+  private mapConsentTemplate(r: RowConsentTemplate): ServerConsentTemplate {
+    return {
+      id: r.id, tenantId: r.tenant_id, name: r.name,
+      cookies: JSON.parse(r.cookies_json), categories: JSON.parse(r.categories_json),
+      createdAt: r.created_at, updatedAt: r.updated_at,
+    }
+  }
+
+  async createConsentTemplate(data: CreateConsentTemplateInput): Promise<ServerConsentTemplate> {
+    const id = randomConsentTemplateId()
+    await this.exec(
+      'INSERT INTO consent_templates (id, tenant_id, name, cookies_json, categories_json) VALUES (?,?,?,?,?)',
+      [id, data.tenantId, data.name, JSON.stringify(data.cookies), JSON.stringify(data.categories)],
+    )
+    const created = await this.getConsentTemplate(id)
+    if (!created) throw new Error('Consent template creation failed')
+    return created
+  }
+
+  async updateConsentTemplate(id: string, data: UpdateConsentTemplateInput): Promise<ServerConsentTemplate> {
+    const sets: string[] = []
+    const vals: string[] = []
+    if (data.name !== undefined) { sets.push('name=?'); vals.push(data.name) }
+    if (data.cookies !== undefined) { sets.push('cookies_json=?'); vals.push(JSON.stringify(data.cookies)) }
+    if (data.categories !== undefined) { sets.push('categories_json=?'); vals.push(JSON.stringify(data.categories)) }
+    if (sets.length > 0) await this.exec(`UPDATE consent_templates SET ${sets.join(',')} WHERE id=?`, [...vals, id])
+    const updated = await this.getConsentTemplate(id)
+    if (!updated) throw new Error('Consent template not found')
+    return updated
+  }
+
+  async deleteConsentTemplate(id: string): Promise<void> {
+    await this.exec('DELETE FROM consent_templates WHERE id=?', [id])
+  }
+
+  async getConsentTemplate(id: string): Promise<ServerConsentTemplate | null> {
+    const rows = await this.q<RowConsentTemplate>('SELECT * FROM consent_templates WHERE id=?', [id])
+    return rows[0] ? this.mapConsentTemplate(rows[0]) : null
+  }
+
+  async getConsentTemplates(tenantId: string): Promise<ServerConsentTemplate[]> {
+    const rows = await this.q<RowConsentTemplate>('SELECT * FROM consent_templates WHERE tenant_id=? ORDER BY name ASC', [tenantId])
+    return rows.map(r => this.mapConsentTemplate(r))
+  }
+
+  async copyConsentTemplate(id: string, newName: string): Promise<ServerConsentTemplate> {
+    const src = await this.getConsentTemplate(id)
+    if (!src) throw new Error('Consent template not found')
+    return this.createConsentTemplate({ tenantId: src.tenantId, name: newName, cookies: src.cookies, categories: src.categories })
+  }
+
+  // ── UI Templates ─────────────────────────────────────────────────────────────
+
+  private mapUITemplate(r: RowUITemplate): ServerUITemplate {
+    const settings = JSON.parse(r.settings_json) as Omit<ServerUITemplate, 'id' | 'tenantId' | 'name' | 'createdAt' | 'updatedAt'>
+    return { id: r.id, tenantId: r.tenant_id, name: r.name, ...settings, createdAt: r.created_at, updatedAt: r.updated_at }
+  }
+
+  async createUITemplate(data: CreateUITemplateInput): Promise<ServerUITemplate> {
+    const id = randomUITemplateId()
+    const { tenantId, name, ...settings } = data
+    await this.exec(
+      'INSERT INTO ui_templates (id, tenant_id, name, settings_json) VALUES (?,?,?,?)',
+      [id, tenantId, name, JSON.stringify(settings)],
+    )
+    const created = await this.getUITemplate(id)
+    if (!created) throw new Error('UI template creation failed')
+    return created
+  }
+
+  async updateUITemplate(id: string, data: UpdateUITemplateInput): Promise<ServerUITemplate> {
+    const rows = await this.q<RowUITemplate>('SELECT * FROM ui_templates WHERE id=?', [id])
+    const row = rows[0]
+    if (!row) throw new Error('UI template not found')
+    const { name, ...settingsUpdate } = data
+    const sets: string[] = []
+    const vals: string[] = []
+    if (name !== undefined) { sets.push('name=?'); vals.push(name) }
+    if (Object.keys(settingsUpdate).length > 0) {
+      const merged = { ...(JSON.parse(row.settings_json) as Record<string, unknown>), ...settingsUpdate }
+      sets.push('settings_json=?'); vals.push(JSON.stringify(merged))
+    }
+    if (sets.length > 0) await this.exec(`UPDATE ui_templates SET ${sets.join(',')} WHERE id=?`, [...vals, id])
+    const updated = await this.getUITemplate(id)
+    if (!updated) throw new Error('UI template not found')
+    return updated
+  }
+
+  async deleteUITemplate(id: string): Promise<void> {
+    await this.exec('DELETE FROM ui_templates WHERE id=?', [id])
+  }
+
+  async getUITemplate(id: string): Promise<ServerUITemplate | null> {
+    const rows = await this.q<RowUITemplate>('SELECT * FROM ui_templates WHERE id=?', [id])
+    return rows[0] ? this.mapUITemplate(rows[0]) : null
+  }
+
+  async getUITemplates(tenantId: string): Promise<ServerUITemplate[]> {
+    const rows = await this.q<RowUITemplate>('SELECT * FROM ui_templates WHERE tenant_id=? ORDER BY name ASC', [tenantId])
+    return rows.map(r => this.mapUITemplate(r))
+  }
+
+  async copyUITemplate(id: string, newName: string): Promise<ServerUITemplate> {
+    const src = await this.getUITemplate(id)
+    if (!src) throw new Error('UI template not found')
+    const { tenantId, mainBanner, gpcBanner, preferenceModal } = src
+    return this.createUITemplate({ tenantId, name: newName, mainBanner, gpcBanner, preferenceModal })
+  }
+
+  // ── Profile summaries ────────────────────────────────────────────────────────
+  // Template ids live inside profile_json, so the summary is assembled in JS rather than via
+  // JSON_EXTRACT/JSON_TABLE in SQL — those differ between MySQL and MariaDB (JSON_TABLE only
+  // exists from MariaDB 10.6) and this adapter targets both.
+
+  private async toProfileSummaries(profiles: Profile[]): Promise<ProfileSummary[]> {
+    if (profiles.length === 0) return []
+    const tenantIds = [...new Set(profiles.map(p => p.tenantId))]
+    const [consentTemplates, uiTemplates] = await Promise.all([
+      Promise.all(tenantIds.map(t => this.getConsentTemplates(t))),
+      Promise.all(tenantIds.map(t => this.getUITemplates(t))),
+    ])
+    const consentNames = new Map(consentTemplates.flat().map(t => [t.id, t.name]))
+    const uiNames = new Map(uiTemplates.flat().map(t => [t.id, t.name]))
+    return profiles.map(p => {
+      const pj = p.profileJson as StoredProfileJson & { customComplianceGroup?: string; consentTemplateId?: string; uiTemplateId?: string }
+      return {
+        id: p.id,
+        name: p.name,
+        defaultLocale: p.defaultLocale,
+        complianceGroup: (pj.complianceGroup ?? null) as ComplianceGroupId | null,
+        customComplianceGroup: pj.customComplianceGroup ?? null,
+        isActive: pj.isActive === true,
+        consentTemplateName: pj.consentTemplateId ? consentNames.get(pj.consentTemplateId) ?? null : null,
+        uiTemplateName: pj.uiTemplateId ? uiNames.get(pj.uiTemplateId) ?? null : null,
+        createdAt: p.createdAt,
+        updatedAt: p.updatedAt,
+      }
+    })
+  }
+
+  async listProfilesSummary(tenantId: string): Promise<ProfileSummary[]> {
+    const rows = await this.q<RowProfile>('SELECT * FROM profiles WHERE tenant_id=? ORDER BY created_at ASC', [tenantId])
+    return this.toProfileSummaries(rows.map(mapProfile))
+  }
+
+  async findProfilesUsingConsentTemplate(templateId: string): Promise<ProfileSummary[]> {
+    const rows = await this.q<RowProfile>(
+      `SELECT * FROM profiles WHERE JSON_UNQUOTE(JSON_EXTRACT(profile_json, '$.consentTemplateId'))=? ORDER BY name ASC`,
+      [templateId],
+    )
+    return this.toProfileSummaries(rows.map(mapProfile))
+  }
+
+  async findProfilesUsingUITemplate(templateId: string): Promise<ProfileSummary[]> {
+    const rows = await this.q<RowProfile>(
+      `SELECT * FROM profiles WHERE JSON_UNQUOTE(JSON_EXTRACT(profile_json, '$.uiTemplateId'))=? ORDER BY name ASC`,
+      [templateId],
+    )
+    return this.toProfileSummaries(rows.map(mapProfile))
+  }
+
+  // ── Opt-in stats ─────────────────────────────────────────────────────────────
+
+  async getOptInStats(tenantId: string, filters: OptInFilters): Promise<OptInStats> {
+    let where = 'tenant_id=?'
+    const params: (string | number)[] = [tenantId]
+    if (filters.profileId) { where += ' AND profile_id=?'; params.push(filters.profileId) }
+    if (filters.from) { where += ' AND created_at>=?'; params.push(filters.from) }
+    if (filters.to) { where += ' AND created_at<=?'; params.push(filters.to) }
+    if (filters.locale) { where += ' AND locale=?'; params.push(filters.locale) }
+
+    const rows = await this.q<RowOptInConsent>(
+      `SELECT locale, DATE_FORMAT(created_at, '%Y-%m-%d') AS day, consent_json FROM consent_records WHERE ${where} ORDER BY created_at ASC`,
+      params,
+    )
+
+    type Bucket = { total: number; granted: number; denied: number; managed: number }
+    const empty = (): Bucket => ({ total: 0, granted: 0, denied: 0, managed: 0 })
+    const overall = empty()
+    const byLocale: Record<string, Bucket> = {}
+    const byDay = new Map<string, Bucket>()
+
+    for (const r of rows) {
+      const statuses = Object.values(JSON.parse(r.consent_json) as Record<string, string>)
+      const grantedShare = statuses.length > 0 ? statuses.filter(s => s === 'granted').length / statuses.length : 0
+      const deniedShare = statuses.length > 0 ? statuses.filter(s => s === 'denied').length / statuses.length : 0
+      const outcome = grantedShare >= 0.9 ? 'granted' : deniedShare >= 0.9 ? 'denied' : 'managed'
+      if (!byDay.has(r.day)) byDay.set(r.day, empty())
+      byLocale[r.locale] ??= empty()
+      for (const b of [overall, byLocale[r.locale]!, byDay.get(r.day)!]) { b.total++; b[outcome]++ }
+    }
+
+    const pct = (n: number) => overall.total > 0 ? Math.round((n / overall.total) * 1000) / 10 : 0
+    return {
+      ...overall,
+      grantedPct: pct(overall.granted),
+      deniedPct: pct(overall.denied),
+      managedPct: pct(overall.managed),
+      byLocale,
+      byDate: Array.from(byDay, ([date, v]) => ({ date, ...v })),
+    }
+  }
 }
