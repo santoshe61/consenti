@@ -47,6 +47,12 @@ advisories.
 - `apps/ui/README.md`, `/docs/ui/advanced-profiles` (new "Replacing a whole map" section), the
   configuration, profiles and advanced-configuration pages, and `llms-full.txt` document the
   wildcard, the `setProfile()` ordering and the compliance warning.
+- `apps/docs` can now run as a production-like **consumer** of a local build of `@consenti/ui` and
+  `@consenti/api`: `npm run docs:demo` publishes the built packages to a throwaway Verdaccio registry
+  (Docker), installs them into a copy of the docs app outside the workspace via `apps/docs/.npmrc.demo`
+  (local registry or npmjs — one line commented), builds for production and starts it with a fresh
+  database. See `apps/docs/DEMO.md`. `next.config.ts` now locates the API's dashboard bundle from the
+  resolved package, so it works for both the workspace and an installed copy.
 - `compliance-docs/reviews/2026-Q4.md` — second quarterly compliance review (2026-07-30 → 2026-10-08);
   `jurisdiction-registry.md` dates advanced for the eight rows scanned; the Jurisdiction Coverage Map
   page now states the most recent review date.

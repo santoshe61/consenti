@@ -20,6 +20,7 @@
     "build:api": "npm run build --workspace=apps/api",
     "build": "npm run build:ui && npm run build:api",
     "build:docs": "npm run build && npm run build --workspace=apps/docs",
+    "docs:demo": "bash scripts/docs-demo.sh",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
     "test": "turbo test",

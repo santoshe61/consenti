@@ -1,0 +1,15 @@
+# Template for the consumer copy built by `npm run docs:demo` (scripts/docs-demo.sh).
+#
+# It is NOT named .npmrc on purpose: apps/docs is an npm workspace, and npm ignores an .npmrc
+# inside a workspace member (and warns on every command). The script copies this file to
+# `.npmrc` in a throwaway project OUTSIDE the workspace, where npm does read it.
+#
+# Pick where @consenti/ui and @consenti/api are installed from by (un)commenting ONE of the two
+# @consenti lines. Everything else always comes from npmjs.
+registry=https://registry.npmjs.org/
+
+# ── Local build (Verdaccio started by scripts/docs-demo.sh) — default ────────
+@consenti:registry=http://localhost:4873/
+
+# ── Published packages from npmjs ────────────────────────────────────────────
+# @consenti:registry=https://registry.npmjs.org/
