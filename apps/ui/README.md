@@ -272,6 +272,47 @@ profileOverride: {
 no-op (same as omitting the key), the latter merges an empty object onto the existing category,
 changing nothing. Only an explicit `null` removes it.
 
+#### Replacing a whole map: `'*': null`
+
+Removing entries one by one doesn't scale when you want to *replace* a map: every built-in
+profile uses different button ids (`reject-optional`, `save-choices`, `manage-preferences`, …),
+and there are three `buttons` maps (`mainBanner`, `gpcBanner`, `preferenceModal`). Use the
+wildcard key `'*': null` to delete **every key of the base map that your override doesn't name**:
+
+```ts
+profileOverride: {
+  mainBanner: {
+    buttons: {
+      '*': null,                                        // drop all other built-in buttons
+      'accept-all': { text: 'Allow all' },              // kept — only its text changes
+      'my-button': { text: 'Custom', style: 'secondary', action: 'custom', cookies: '!' },
+    },
+  },
+  preferenceModal: {
+    buttons:    { '*': null, 'my-save': { text: 'Save', style: 'primary', action: 'submit' } },
+    categories: { '*': null, necessary: {}, analytics: {} },   // keep only these two categories
+  },
+},
+```
+
+- Keys you **name** are kept and merged onto their base value (so `'accept-all': { text }` keeps
+  its `style`/`action`/`cookies`); keys you **don't name** are deleted; new keys are added.
+- It works per map, so you choose which surfaces to replace — leave `gpcBanner` alone and it keeps
+  its built-in buttons.
+- `'*': null` alone empties the map. It works on any keyed map (`cookies` too), and under
+  `complianceGroupsOverride` and `widget.setProfile()`.
+- `'*'` is reserved in these maps and can't be used as a button/category id.
+- `widget.setProfile()` patches are replayed in order on the resolved profile (rather than being
+  folded together first), so `null` and `'*': null` deletes in a later `setProfile()` call are
+  honoured even after an earlier override.
+
+> **Compliance:** refusing must be as easy as accepting (GDPR Art. 7(3); CNIL/EDPB cookie-banner
+> guidance). If, after overrides, a `mainBanner`/`gpcBanner` has an "accept all" button
+> (`cookies: '*'`) but no reject (`cookies: '!'`) or `manage` button, the widget logs a
+> `console.warn`. Warnings are hidden by default — enable them with `verbose: true` or
+> `core: { console: ['warning'] }`. Keep a reject or manage path when
+> you replace the built-in buttons.
+
 ---
 
 ## Compliance Groups

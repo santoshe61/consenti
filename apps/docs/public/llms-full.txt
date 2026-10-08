@@ -391,11 +391,11 @@ const widget = new ConsentiSetup({
       position: 'bottom',
       heading: 'We value your privacy',
       htmlText: 'We use cookies to improve your experience.',
-      buttons: [
-        { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
-        { text: 'Reject Optional', style: 'secondary', action: 'custom', cookies: '!' },
-        { text: 'Customize', style: 'secondary', action: 'manage' },
-      ],
+      buttons: {
+        'accept-all': { text: 'Accept All', style: 'primary', action: 'custom', cookies: '*' },
+        'reject-optional': { text: 'Reject Optional', style: 'secondary', action: 'custom', cookies: '!' },
+        'customize': { text: 'Customize', style: 'secondary', action: 'manage' },
+      },
     },
     preferenceModal: {
       categories: {
@@ -406,6 +406,37 @@ const widget = new ConsentiSetup({
   },
 })
 ```
+
+### profileOverride — deleting and replacing map entries
+
+`profileOverride` (also `complianceGroupsOverride` and `widget.setProfile()`) is deep-merged onto the resolved profile using JSON Merge Patch (RFC 7396) delete semantics:
+
+- Omitted / `undefined` keys leave the base value untouched. Objects merge recursively.
+- A key set to `null` is **deleted**: `categories: { marketing: null }`, `buttons: { 'reject-optional': null }`. `undefined` and `{}` do NOT delete.
+- `'*': null` inside a keyed map (`buttons`, `categories`, `cookies`) deletes **every base key the override does not name**. Named keys are kept and merged onto their base value; new keys are added. It applies per map, so you choose which of `mainBanner.buttons`, `gpcBanner.buttons`, `preferenceModal.buttons`, `preferenceModal.categories` get replaced. `'*'` alone empties the map. `'*'` is reserved and can't be a button/category id.
+
+```ts
+const widget = new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  profileOverride: {
+    mainBanner: {
+      buttons: {
+        '*': null,                                  // drop all other built-in buttons
+        'accept-all': { text: 'Allow all' },        // kept — only text changes, style/action/cookies inherited
+        'my-button': { text: 'Custom', style: 'secondary', action: 'custom', cookies: '!' },
+      },
+    },
+    preferenceModal: {
+      buttons:    { '*': null, 'my-save': { text: 'Save', style: 'primary', action: 'submit' } },
+      categories: { '*': null, necessary: {}, analytics: {} },   // keep only these two categories
+    },
+  },
+})
+```
+
+`widget.setProfile()` patches are replayed in order on the resolved profile (not folded together first), so later `null` / `'*': null` deletes are honoured after an earlier override.
+
+Compliance: refusing must be as easy as accepting (GDPR Art. 7(3); CNIL/EDPB cookie-banner guidance). If, after overrides, `mainBanner`/`gpcBanner` has an "accept all" button (`cookies: '*'`) but no reject (`cookies: '!'`) or `manage` button, the widget logs a `console.warn`. Warnings are hidden by default — enable them with `verbose: true` or `core: { console: ['warning'] }`.
 
 ---
 

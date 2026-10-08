@@ -72,7 +72,10 @@ new ConsentiSetup({ compliance: { type: 'opt-in' } })`}
         Setting a cookie, category, or button to <code>null</code> instead of an object removes it
         from the resolved profile — e.g. <code>cookies: {'{'} marketing: null {'}'}</code> drops the
         &quot;marketing&quot; cookie entirely. See{' '}
-        <a href="/docs/ui/advanced-profiles/#removing-a-key">Removing a key</a> for the full rules.
+        <a href="/docs/ui/advanced-profiles/#removing-a-key">Removing a key</a> for the full rules,
+        and <a href="/docs/ui/advanced-profiles/#replacing-a-map">Replacing a whole map</a> for{' '}
+        <code>{"'*': null"}</code>, which swaps every built-in button or category for your own in
+        one line.
       </p>
 
       <h2>Three ways to get a profile</h2>

@@ -1460,6 +1460,69 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
         same way under <a href="#compliancegroupsoverride">complianceGroupsOverride</a>.
       </Callout>
 
+      <h3 id="replacing-a-map">Replacing a whole map: <code>{"'*': null"}</code></h3>
+      <p>
+        Removing entries one at a time doesn&apos;t scale when you want to <em>replace</em> a map:
+        each built-in profile uses different button ids (<code>reject-optional</code>,{' '}
+        <code>save-choices</code>, <code>manage-preferences</code>, …) and there are three{' '}
+        <code>buttons</code> maps (<code>mainBanner</code>, <code>gpcBanner</code>,{' '}
+        <code>preferenceModal</code>). Use the wildcard key <code>{"'*': null"}</code> to delete{' '}
+        <strong>every key of the base map that your override doesn&apos;t name</strong>.
+      </p>
+      <CodeBlock
+        lang="ts"
+        code={`new ConsentiSetup({
+  compliance: { type: 'opt-in' },
+  profileOverride: {
+    mainBanner: {
+      buttons: {
+        '*': null,                                   // drop all other built-in buttons
+        'accept-all': { text: 'Allow all' },         // kept — only its text changes
+        'my-button': { text: 'Custom', style: 'secondary', action: 'custom', cookies: '!' },
+      },
+    },
+    preferenceModal: {
+      buttons:    { '*': null, 'my-save': { text: 'Save', style: 'primary', action: 'submit' } },
+      categories: { '*': null, necessary: {}, analytics: {} }, // keep only these two categories
+    },
+  },
+})`}
+      />
+      <ul>
+        <li>
+          Keys you <strong>name</strong> are kept and merged onto their base value (so{' '}
+          <code>{"'accept-all': { text }"}</code> keeps its <code>style</code>, <code>action</code>{' '}
+          and <code>cookies</code>); keys you <strong>don&apos;t name</strong> are deleted; new keys
+          are added.
+        </li>
+        <li>
+          It applies per map — leave <code>gpcBanner</code> alone and it keeps its built-in buttons.
+        </li>
+        <li>
+          <code>{"'*': null"}</code> on its own empties the map. It works on any keyed map (
+          <code>cookies</code> too), and under{' '}
+          <a href="#compliancegroupsoverride">complianceGroupsOverride</a> and{' '}
+          <code>widget.setProfile()</code>.
+        </li>
+        <li>
+          <code>*</code> is reserved in these maps and can&apos;t be used as a button or category id.
+        </li>
+        <li>
+          <code>widget.setProfile()</code> patches are replayed in order on the resolved profile
+          instead of being folded together first, so a later <code>null</code> or{' '}
+          <code>{"'*': null"}</code> is honoured even after an earlier override.
+        </li>
+      </ul>
+      <Callout type="warning">
+        Refusing must be as easy as accepting (GDPR Art. 7(3); CNIL/EDPB cookie-banner guidance). If,
+        after overrides, a <code>mainBanner</code>/<code>gpcBanner</code> has an &quot;accept
+        all&quot; button (<code>cookies: &apos;*&apos;</code>) but no reject (
+        <code>cookies: &apos;!&apos;</code>) or <code>manage</code> button, the widget logs a{' '}
+        <code>console.warn</code>. Warnings are hidden by default — enable them with{' '}
+        <code>verbose: true</code> or <code>core: {'{'} console: [&apos;warning&apos;] {'}'}</code>.
+        Keep a reject or manage path when you replace the built-in buttons.
+      </Callout>
+
       <h3>Override banner copy and buttons only</h3>
       <CodeBlock
         lang="ts"
