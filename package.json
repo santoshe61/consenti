@@ -35,7 +35,7 @@
     "typescript": "^6.0.3"
   },
   "overrides": {
-    "postcss": "^8.5.25"
+    "postcss": "^8.5.26"
   },
   "packageManager": "npm@10.9.2",
   "engines": {
