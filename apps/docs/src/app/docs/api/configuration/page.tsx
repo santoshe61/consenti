@@ -122,7 +122,10 @@ http.createServer(consenti.handler).listen(3001)
             <td>
               Pin one of the 8 built-in compliance groups instead of geo-detecting — see the{' '}
               <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a>{' '}
-              for every country and its assigned group.
+              for every country and its assigned group. With <code>'auto'</code>,{' '}
+              <code>compliance.geoDataProvider</code> and <code>compliance.complianceMap</code>{' '}
+              control detection and the country → group mapping — see{' '}
+              <a href="/docs/api/advanced-configuration/">Advanced Configuration</a>.
             </td>
           </tr>
           <tr>

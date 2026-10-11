@@ -3,7 +3,7 @@ import { httpRequest } from '../utils/http'
 import { deepMerge, resolveLocale } from '../utils/locale'
 import { logger } from '../utils/console'
 import { getBrowserGeoHints, encodeGeoHints } from '../utils/geo-hints'
-import { EMBEDDED_COMPLIANCE_MAP, resolveComplianceMapOverride, type ComplianceMapData } from '@consenti/utils'
+import { EMBEDDED_COMPLIANCE_MAP, findCountryEntry, resolveComplianceMapOverride, type ComplianceMapData } from '@consenti/utils'
 import { adaptEmbeddedProfile } from '../utils/profile-adapter'
 import { peekConsentLocale, peekConsentGroup } from './consent-store'
 
@@ -177,7 +177,7 @@ function getTimezoneCountryIndex(): Map<string, string[]> {
 function countryFromLangTag(lang: string): string | undefined {
   const parts = lang.replace(/_/g, '-').split('-')
   const tag = parts.length >= 2 ? parts[parts.length - 1]?.toUpperCase() : undefined
-  return tag && /^[A-Z]{2}$/.test(tag) && tag in EMBEDDED_COMPLIANCE_MAP.countries ? tag : undefined
+  return tag && /^[A-Z]{2}$/.test(tag) && findCountryEntry(EMBEDDED_COMPLIANCE_MAP.countries, tag) ? tag : undefined
 }
 
 function resolveCountryFromHints(tz: string, langs: readonly string[]): string | undefined {
@@ -204,12 +204,15 @@ function resolveGroupFromHints(tz: string, langs: readonly string[], overrideMap
   // (above) always uses the embedded geo data, since operator-supplied maps don't carry the
   // timezone/locale index that detection depends on.
   if (overrideMap && countryCode) {
-    const overrideEntry = overrideMap.countries[countryCode]
+    const overrideEntry = findCountryEntry(overrideMap.countries, countryCode)
     if (overrideEntry) return (overrideEntry.default ?? overrideEntry.complianceGroup) as ComplianceGroupId
+    // `override: true` = the operator's map replaces the embedded one: a detected country it
+    // doesn't list gets the strictest group rather than falling back to the embedded mapping.
+    if (overrideMap.override === true) return 'opt-in'
   }
 
   const countries = EMBEDDED_COMPLIANCE_MAP.countries as Record<string, CountryEntry>
-  const entry = countryCode ? countries[countryCode] : undefined
+  const entry = countryCode ? findCountryEntry(countries, countryCode) : undefined
   if (entry?.default) return entry.default as ComplianceGroupId
 
   // Last-resort continent-level fallback for timezones we couldn't map at all
@@ -240,11 +243,12 @@ function resolveGroupForCountry(
   if (!country) return 'opt-in'
 
   if (overrideMap) {
-    const entry = overrideMap.countries[country]
+    const entry = findCountryEntry(overrideMap.countries, country)
     if (entry) {
       const regionGroup = region ? entry.overriddenRegions?.[region]?.complianceGroup : undefined
       return (regionGroup ?? entry.default ?? entry.complianceGroup) as ComplianceGroupId
     }
+    if (overrideMap.override === true) return 'opt-in'
   }
 
   const countries = EMBEDDED_COMPLIANCE_MAP.countries as Record<string, {
@@ -252,7 +256,7 @@ function resolveGroupForCountry(
     complianceGroup: ComplianceGroupId
     overriddenRegions?: Record<string, { complianceGroup: ComplianceGroupId }>
   }>
-  const entry = countries[country]
+  const entry = findCountryEntry(countries, country)
   if (!entry) return 'opt-in'
   const regionGroup = region ? entry.overriddenRegions?.[region]?.complianceGroup : undefined
   return regionGroup ?? entry.default ?? entry.complianceGroup
@@ -346,7 +350,8 @@ async function scenario1A(config: ConsentiConfig): Promise<ResolvedProfile> {
   let complianceGroup: ComplianceGroupId
 
   if (typeof provider === 'function') {
-    const result = await provider()
+    const { tz, lang, langs } = getBrowserGeoHints()
+    const result = await provider({ timezone: tz, language: lang, languages: langs, locale: effectiveLocale(config) })
     // A provider-returned `complianceGroup` is authoritative — it skips the country/region map
     // lookup entirely (see `GeoResult.complianceGroup`'s doc comment, `@consenti/types`, for the
     // server-side mirror of this). Otherwise fall back to resolving from whatever country/region

@@ -15,9 +15,15 @@ import assert from 'node:assert/strict'
 
 const _storage: Record<string, string> = {}
 
+// `navigator` is a getter-only property on Node 21+, so Object.assign would throw — redefine it.
+Object.defineProperty(globalThis, 'navigator', {
+  value: { language: 'de-DE', languages: ['de-DE', 'en'] },
+  configurable: true,
+  writable: true,
+})
+
 Object.assign(globalThis, {
   window: { location: { origin: 'https://example.com' } },
-  navigator: { language: 'de-DE', languages: ['de-DE', 'en'] },
   sessionStorage: {
     getItem:    (k: string)         => _storage[k] ?? null,
     setItem:    (k: string, v: string) => { _storage[k] = v },
@@ -389,6 +395,85 @@ describe('resolveProfile — Scenario 1A', () => {
     const resolved = await resolveProfile(config)
 
     assert.equal(resolved.complianceGroup, 'opt-out')
+  })
+
+  test('a complianceMap that does not list the visitor\'s country still resolves it via the embedded map', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto', complianceMap: { version: 'test', countries: { FR: { complianceGroup: 'opt-out' } } } },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-in') // Berlin/de-DE → DE, unlisted → embedded 'opt-in'
+  })
+
+  test('override: false merges the same way and still applies a listed country', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto', complianceMap: { version: 'test', override: false, countries: { DE: { complianceGroup: 'opt-out' } } } },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-out')
+  })
+
+  test('override: true still applies a listed country', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto', complianceMap: { version: 'test', override: true, countries: { DE: { complianceGroup: 'opt-out' } } } },
+    } as ConsentiConfig
+
+    const resolved = await resolveProfile(config)
+
+    assert.equal(resolved.complianceGroup, 'opt-out')
+  })
+
+  // US has a distinct built-in group (opt-out-strict), so it tells "fall back to the embedded map"
+  // apart from "strictest default" — the Berlin/de-DE stub can't, since DE's built-in group is opt-in too.
+  const usProvider = async () => ({ country: 'US', region: null, confidence: 1 })
+
+  test('provider country not listed in the map: falls back to the embedded mapping when override is omitted', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto', geoDataProvider: usProvider, complianceMap: { version: 'test', countries: { FR: { complianceGroup: 'opt-out' } } } },
+    } as ConsentiConfig
+
+    assert.equal((await resolveProfile(config)).complianceGroup, 'opt-out-strict')
+  })
+
+  test('provider country not listed in the map: falls back to the embedded mapping with override: false', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto', geoDataProvider: usProvider, complianceMap: { version: 'test', override: false, countries: { FR: { complianceGroup: 'opt-out' } } } },
+    } as ConsentiConfig
+
+    assert.equal((await resolveProfile(config)).complianceGroup, 'opt-out-strict')
+  })
+
+  test('provider country not listed in the map: override: true gets the strictest group, not the embedded one', async () => {
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme' },
+      compliance: { type: 'auto', geoDataProvider: usProvider, complianceMap: { version: 'test', override: true, countries: { FR: { complianceGroup: 'opt-out' } } } },
+    } as ConsentiConfig
+
+    assert.equal((await resolveProfile(config)).complianceGroup, 'opt-in')
+  })
+
+  test('a widget geoDataProvider receives the browser hints (timezone, language, languages, locale)', async () => {
+    let received: unknown
+    const config: ConsentiConfig = {
+      core: { tenantId: 'acme', locale: 'de' },
+      compliance: {
+        type: 'auto',
+        geoDataProvider: async hints => { received = hints; return { country: 'DE', region: null, confidence: 1 } },
+      },
+    } as ConsentiConfig
+
+    await resolveProfile(config)
+
+    assert.deepEqual(received, { timezone: 'Europe/Berlin', language: 'de-DE', languages: ['de-DE', 'en'], locale: 'de' })
   })
 
   test('falls back to the embedded map and warns when the complianceMap override fails validation', async () => {

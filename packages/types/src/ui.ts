@@ -506,7 +506,12 @@ export interface ResolvedProfile {
 
 // ─── Widget geo resolver ──────────────────────────────────────────────────────
 
-export type WidgetCountryResolverFn = () => Promise<{
+export type WidgetCountryResolverFn = (hints: {
+  timezone: string
+  language: string
+  languages: string[]
+  locale: string
+}) => Promise<{
   country: string | null
   region: string | null
   confidence: number
@@ -570,8 +575,11 @@ export interface ComplianceWidgetConfig {
    * document from (the browser's own HTTP cache honors whatever `Cache-Control`/`ETag` the
    * response sends — no custom caching here), or an inline operator-supplied `ComplianceMapData`
    * object. Invalid data from either a URL or an object logs a warning and falls back to
-   * `'default'`. Only overrides the country→group mapping — country/region detection itself
-   * always uses the embedded geo data. */
+   * `'default'`. Only overrides the country→group mapping — country/region detection itself always
+   * uses the embedded geo data. A country the map doesn't list falls back to the embedded mapping
+   * unless the document sets `override: true` (then it gets the strictest group, `'opt-in'`).
+   * Unlike the server, an omitted `override` is NOT `true` here: widget maps have always merged
+   * over the embedded mapping, and that stays the default. */
   complianceMap?: 'default' | string | ComplianceMapData
   tcf?: TcfWidgetConfig
   gpp?: GppWidgetConfig

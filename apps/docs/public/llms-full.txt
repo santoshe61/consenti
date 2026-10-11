@@ -609,6 +609,7 @@ auth: {
 | Method | Path | Description |
 |---|---|---|
 | GET | `/consenti/api/v1/profile` | Get active profile for a domain |
+| GET | `/consenti/api/v1/resolve-profile` | Geo-resolve the visitor's compliance group (`compliance.type: 'auto'`); returns `{ path, complianceGroup, locale, found }` |
 | POST | `/consenti/api/v1/consent` | Record a consent decision |
 | GET | `/consenti/api/v1/consent/:visitorId` | Get consent record for visitor |
 | DELETE | `/consenti/api/v1/consent/:visitorId` | GDPR right-to-erasure |
@@ -625,6 +626,33 @@ auth: {
 | GET | `/consenti/api/v1/admin/consents` | List consent records (paginated) |
 | GET | `/consenti/api/v1/admin/audit-logs` | List audit log entries |
 | GET | `/consenti/api/v1/admin/stats` | Dashboard statistics |
+
+---
+
+## Backend API — Auto geo-routing (compliance.type: 'auto')
+
+With `compliance.type: 'auto'` the widget calls `GET /consenti/api/v1/resolve-profile?data=<base64 JSON>` with the browser's hints (`timezone`, `language`, `languages`, `locale`). The server resolves a country, maps it to a compliance group through the jurisdiction map, and answers `{ path, complianceGroup, locale, found }`; the widget then fetches that profile file directly. `found: false` means no active profile exists for the resolved group, or no group could be resolved — the widget shows its default banner.
+
+```ts
+createConsenti({
+  compliance: {
+    type: 'auto',
+    geoDataProvider: 'default',   // 'default' | 'hosted-geoip-lite' | 'geoip' | 'maxmind' | custom function
+    complianceMap: 'default',     // 'default' | URL string | inline ComplianceMapData object
+  },
+})
+```
+
+- **Custom `geoDataProvider`** — `async ({ ip, timezone, language, languages, locale }) => ({ country, region, locale, complianceGroup? })`. `language` is the browser's primary tag, `languages` its full preference list, `locale` the locale the widget requested. A returned `complianceGroup` is used directly and skips the country → group map.
+- **`complianceMap`** — by default a supplied map **replaces** the built-in one (only the countries you list resolve). Set `override: false` in the map document to **merge** your countries over the built-in map instead: a listed country replaces its built-in entry wholesale (`default`, `overriddenRegions` included), every other country keeps its built-in group.
+
+  ```ts
+  complianceMap: { version: '2026-10', override: false, countries: { DE: { complianceGroup: 'opt-out' } } }
+  ```
+- **United Kingdom** — geo providers, timezone data and `en-GB` language tags use ISO `GB`; `GB` and `UK` are treated as the same country in both the built-in map and operator maps.
+- The widget (standalone mode) takes the same `complianceMap` document and its own `compliance.geoDataProvider`, which receives `{ timezone, language, languages, locale }`. There, a country the map doesn't list falls back to the built-in mapping by default (widget maps have always merged); `override: true` makes it get the strictest group (`opt-in`) instead. Note the default differs from the server, where an omitted `override` replaces the built-in map.
+
+Docs: https://consenti.dev/guides/backend/geo-routing/ · https://consenti.dev/docs/api/advanced-configuration/ · https://consenti.dev/docs/api/routes/public/
 
 ---
 

@@ -226,7 +226,9 @@ export default function PublicRoutesPage() {
             <td>
               Base64-encoded JSON with keys <code>timezone</code>, <code>languages</code>,{' '}
               <code>language</code>, <code>locale</code>. Sent automatically by the widget via{' '}
-              <code>encodeGeoHints()</code>.
+              <code>encodeGeoHints()</code>. All of it is forwarded to a custom{' '}
+              <code>geoDataProvider</code> as <code>{'{ timezone, language, languages, locale }'}</code>{' '}
+              (at most 20 languages, each tag up to 35 characters; anything else is dropped).
             </td>
           </tr>
           <tr>
@@ -245,7 +247,8 @@ export default function PublicRoutesPage() {
             </td>
             <td>Legacy</td>
             <td>
-              Accept-Language value (e.g. <code>fr-FR,fr;q=0.9</code>).
+              Accept-Language value (e.g. <code>fr-FR,fr;q=0.9</code>). Also split into the{' '}
+              <code>languages</code> list handed to a custom <code>geoDataProvider</code>.
             </td>
           </tr>
           <tr>

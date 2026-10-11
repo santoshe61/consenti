@@ -825,7 +825,17 @@ export const EMBEDDED_COMPLIANCE_MAP: ComplianceMap = {
   },
 }
 
-export const COMPLIANCE_REGULATION_IDS: string[] = [...Object.values(EMBEDDED_COMPLIANCE_MAP.countries).reduce((acc, country) => {
+/** Geo providers, the timezone table and BCP 47 tags all use ISO `GB`; the map has always keyed the
+ * United Kingdom as `UK`. Bridged at lookup time (rather than by duplicating the entry) so the
+ * country still appears once in listings, and operator-supplied `complianceMap`s keyed either way work. */
+const COUNTRY_CODE_ALIASES: Readonly<Record<string, string>> = { GB: 'UK', UK: 'GB' }
+
+export function findCountryEntry<T>(countries: Readonly<Record<string, T>>, code: string): T | undefined {
+  const alias = COUNTRY_CODE_ALIASES[code]
+  return countries[code] ?? (alias !== undefined ? countries[alias] : undefined)
+}
+
+export const COMPLIANCE_REGULATION_IDS: string[] =[...Object.values(EMBEDDED_COMPLIANCE_MAP.countries).reduce((acc, country) => {
   country.compliance.forEach((c: string) => {
     acc.add(c)
   })
@@ -868,6 +878,10 @@ export interface ComplianceMapCountryEntry {
 
 export interface ComplianceMapData {
   version: string
+  /** `true` (default): this map replaces the embedded one entirely, so only the countries listed here
+   * resolve (server side). `false`: `countries` is merged over the embedded map — a listed country
+   * replaces its embedded entry wholesale, every unlisted country keeps its built-in mapping. */
+  override?: boolean
   countries: Record<string, ComplianceMapCountryEntry>
 }
 
@@ -882,6 +896,7 @@ function isComplianceMapData(data: unknown): data is ComplianceMapData {
   if (!data || typeof data !== 'object') return false
   const d = data as Record<string, unknown>
   if (typeof d['version'] !== 'string') return false
+  if (d['override'] !== undefined && typeof d['override'] !== 'boolean') return false
   const countries = d['countries']
   if (!countries || typeof countries !== 'object') return false
   return Object.values(countries as Record<string, unknown>).every((entry) =>
@@ -894,7 +909,8 @@ function isComplianceMapData(data: unknown): data is ComplianceMapData {
  *
  * `'default'`/`undefined` → the embedded map, no network access. A `string` is treated as a
  * URL and fetched as-is (no custom `cache` mode — the platform's own fetch/HTTP-cache semantics
- * apply). A plain object is used directly. Any failure (network error, bad JSON, failed
+ * apply). A plain object is used directly. Either replaces the embedded map, or is merged over it
+ * when the document sets `override: false` (see `ComplianceMapData.override`). Any failure (network error, bad JSON, failed
  * structural validation) reports via `onWarn` and falls back to the embedded map — this never
  * throws. Also warns when a country defines `overriddenRegions` but no explicit `default`,
  * since the effective fallback (`complianceGroup`) may under-comply for regions not listed.
@@ -940,7 +956,22 @@ export async function resolveComplianceMapOverride(
     }
   }
 
-  const result: ComplianceMapResolution = { map: candidate }
+  const result: ComplianceMapResolution = { map: candidate.override === false ? mergeOverEmbedded(candidate) : candidate }
   if (response) result.response = response
   return result
+}
+
+/** Country-level merge: an operator entry replaces the embedded entry for that country wholesale
+ * (never deep-merged — `default`, `overriddenRegions` and `requiresSensitiveOptIn` are one legal unit,
+ * so inheriting embedded state carve-outs the operator didn't write would be a silent surprise).
+ * `GB`/`UK` are one country: an operator entry under either key displaces the embedded entry
+ * stored under the other, unless the operator defined both. */
+function mergeOverEmbedded(candidate: ComplianceMapData): ComplianceMapData {
+  const countries: Record<string, ComplianceMapCountryEntry> = { ...EMBEDDED_COMPLIANCE_MAP.countries }
+  for (const code of Object.keys(candidate.countries)) {
+    const alias = COUNTRY_CODE_ALIASES[code]
+    if (alias !== undefined && !(alias in candidate.countries)) delete countries[alias]
+  }
+  Object.assign(countries, candidate.countries)
+  return { version: candidate.version, countries }
 }

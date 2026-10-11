@@ -61,6 +61,9 @@ const widget = new ConsentiSetup({
 })
 ```
 
+### Auto geo-routing (backend)
+With `compliance.type: 'auto'` the server resolves the visitor's country and serves the active profile for that country's compliance group (`GET /resolve-profile` → `{ path, complianceGroup, locale, found }`). `compliance.geoDataProvider` chooses the detection source — a custom function receives `{ ip, timezone, language, languages, locale }`. `compliance.complianceMap` changes the country → group mapping: the supplied map replaces the built-in one by default; `override: false` in the map document merges only your countries over it. `GB` and `UK` both resolve to the United Kingdom. Docs: https://consenti.dev/guides/backend/geo-routing/
+
 ### Check consent in your code
 ```ts
 widget.onReady((consent) => {
@@ -161,6 +164,9 @@ All events are CustomEvents on `document`:
 - [Backend API Overview](https://consenti.dev/docs/api/)
 - [Backend Installation](https://consenti.dev/docs/api/installation/)
 - [Backend Configuration Reference](https://consenti.dev/docs/api/configuration/)
+- [Backend Advanced Configuration (geoDataProvider, complianceMap)](https://consenti.dev/docs/api/advanced-configuration/)
+- [Geo-Routing & Auto-Detection Guide](https://consenti.dev/guides/backend/geo-routing/)
+- [UI Advanced Configuration](https://consenti.dev/docs/ui/advanced-configuration/)
 - [REST API Routes](https://consenti.dev/docs/api/routes/)
 - [Admin Dashboard](https://consenti.dev/docs/api/dashboard/)
 - [GDPR Guide](https://consenti.dev/docs/compliance/gdpr/)

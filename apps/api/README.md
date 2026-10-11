@@ -80,7 +80,7 @@ On Node 20/21, choose between `node-sqlite3-wasm` (pure WASM, no compilation) or
 
 Consenti ships with four geo resolver options. The default requires zero installation; the others are opt-in.
 
-**Bonus:** You can also supply a custom resolver function via `compliance.geoDataProvider` — it receives `{ ip, timezone, language }` and must return `{ country: string | null, region: string | null, locale: string | null }`, plus an optional `complianceGroup?: string` — when set, that group is used directly, skipping the country/region jurisdiction-map lookup entirely (for a provider that already carries legal-grade jurisdiction data and needs to route into an operator-defined custom group).
+**Bonus:** You can also supply a custom resolver function via `compliance.geoDataProvider` — it receives `{ ip, timezone, language, languages, locale }` (`language` is the browser's primary language tag, `languages` its full preference list, `locale` the locale the widget requested) and must return `{ country: string | null, region: string | null, locale: string | null }`, plus an optional `complianceGroup?: string` — when set, that group is used directly, skipping the country/region jurisdiction-map lookup entirely (for a provider that already carries legal-grade jurisdiction data and needs to route into an operator-defined custom group).
 
 > **Note:** The default (`'default'`) and `'hosted-geoip-lite'` resolvers are suitable for development and lower-traffic deployments. For high-accuracy production use, choose `'geoip'` or `'maxmind'`.
 
@@ -198,7 +198,7 @@ const consenti = createConsenti({
     // Geo-based auto routing (recommended)
     type: 'auto',                // 'auto' = geo-resolve per visitor | ComplianceGroupId = one fixed group globally
     geoDataProvider: 'default',  // 'default' (timezone+language heuristic, zero-dep) | 'hosted-geoip-lite' (no install, calls ipinfo.io) | 'geoip' (optional peer dep) | 'maxmind' (optional peer dep) | CountryResolverFn
-    complianceMap: 'default',    // 'default' = embedded 240-country map | a URL string (fetched, refreshed per Cache-Control/Expires, 24h fallback) | an operator-supplied ComplianceMapData object
+    complianceMap: 'default',    // 'default' = embedded 240-country map | a URL string (fetched, refreshed per Cache-Control/Expires, 24h fallback) | an operator-supplied ComplianceMapData object. The supplied map replaces the embedded one (only the countries you list resolve); set `override: false` in the document to merge your countries over the embedded map instead (unlisted ones keep their built-in group)
     // complianceMap: 'https://consenti.dev/data/v1/compliance-map.json',
     // A region under overriddenRegions can set requiresSensitiveOptIn: true — a per-region carve-out
     // (not a different group) denying cpraCategory:'sensitive' cookies by default for that region only.

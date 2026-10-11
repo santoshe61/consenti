@@ -93,8 +93,15 @@ export type GeoResult = {
 
 export type CountryResolverFn = (ctx: {
   ip: string
+  /** The widget's `navigator.language` (single tag), or — for requests without the widget's hints —
+   * the raw `Accept-Language` header value. */
   language: string
+  /** Every language the visitor's browser prefers, most preferred first (the widget's
+   * `navigator.languages`; parsed from `Accept-Language` otherwise). Empty when unknown. */
+  languages: string[]
   timezone: string
+  /** The locale the widget asked for (`core.locale`); `''` when the request carried none. */
+  locale: string
 }) => Promise<GeoResult>
 
 export interface S3ApiConfig {
@@ -178,6 +185,10 @@ export interface OptInStats {
 
 export interface ComplianceMapData {
   version: string
+  /** `true` (default): this map replaces the embedded one entirely, so only the countries listed here
+   * resolve (server side). `false`: `countries` is merged over the embedded map — a listed country
+   * replaces its embedded entry wholesale, every unlisted country keeps its built-in mapping. */
+  override?: boolean
   countries: Record<string, CountryComplianceEntry>
 }
 
@@ -238,8 +249,11 @@ export interface ComplianceConfig {
   geoDataProvider?: 'default' | 'maxmind' | 'geoip' | 'hosted-geoip-lite' | CountryResolverFn
   /** `'default'` (embedded map, the default), a URL to fetch a JSON `ComplianceMapData` document
    * from (refreshed in the background per the response's `Cache-Control`/`Expires` header, 24h
-   * fallback if absent), or an inline operator-supplied `ComplianceMapData` object. Invalid data
-   * from either a URL or an object logs an error and falls back to `'default'`. */
+   * fallback if absent), or an inline operator-supplied `ComplianceMapData` object. By default the
+   * supplied map replaces the embedded one; set `override: false` on the document to merge its
+   * `countries` over the embedded map instead (listed countries replace their embedded entry, the
+   * rest keep the built-in mapping). Invalid data from either a URL or an object logs an error and
+   * falls back to `'default'`. */
   complianceMap?: 'default' | string | ComplianceMapData
   tcf?: TcfConfig
   gpp?: GppConfig

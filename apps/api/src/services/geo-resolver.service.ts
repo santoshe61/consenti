@@ -1,5 +1,5 @@
 import type { CountryResolverFn, ComplianceConfig, GeoResult } from '@consenti/types'
-import { EMBEDDED_COMPLIANCE_MAP, type ComplianceMapData } from '@consenti/utils'
+import { EMBEDDED_COMPLIANCE_MAP, findCountryEntry, type ComplianceMapData } from '@consenti/utils'
 import { TIMEZONE_TO_COUNTRY } from '../data/timezone-country'
 
 export type JurisdictionMap = typeof EMBEDDED_COMPLIANCE_MAP | ComplianceMapData
@@ -7,7 +7,9 @@ export type JurisdictionMap = typeof EMBEDDED_COMPLIANCE_MAP | ComplianceMapData
 export interface GeoContext {
   ip: string
   language: string
+  languages: string[]
   timezone: string
+  locale: string
 }
 
 export interface ResolvedGeo {
@@ -110,7 +112,7 @@ export class GeoResolverService {
       default?: string
       overriddenRegions?: Record<string, { complianceGroup: string; requiresSensitiveOptIn?: boolean }>
     }>
-    return countries[country]
+    return findCountryEntry(countries, country)
   }
 
   private resolveGroup(country: string, region?: string): string {

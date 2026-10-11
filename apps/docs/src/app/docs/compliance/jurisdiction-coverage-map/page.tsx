@@ -308,7 +308,11 @@ export default function JurisdictionCoverageMapPage() {
       <hr />
 
       <h2>Jurisdiction Coverage Map</h2>
-      <p>Click a column header to sort.</p>
+      <p>
+        Click a column header to sort. The United Kingdom is listed as <code>UK</code>; geo
+        providers and browser locales report it as ISO <code>GB</code>, and Consenti treats the two
+        as the same country (in this map and in any <code>complianceMap</code> you supply).
+      </p>
       <SortableTable columns={COUNTRY_TABLE_COLUMNS} rows={countryRows} defaultSortKey="country" />
 
       <h3>Regional overrides</h3>

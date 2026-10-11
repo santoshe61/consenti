@@ -15,6 +15,10 @@ import assert from 'node:assert/strict'
 import { GeoResolverService } from '../services/geo-resolver.service.js'
 import { EMBEDDED_COMPLIANCE_MAP } from '@consenti/utils'
 
+function hints(language: string, timezone: string) {
+  return { ip: '', language, languages: language ? [language] : [], timezone, locale: '' }
+}
+
 function serviceFor(country: string | null, region: string | null): GeoResolverService {
   return new GeoResolverService(
     async () => ({ country, region, locale: null }),
@@ -38,6 +42,9 @@ describe('GeoResolverService — golden cases', () => {
     { label: 'Japan (APPI) → general-privacy-consent', country: 'JP', region: null, complianceGroup: 'general-privacy-consent' },
     { label: 'South Africa (POPIA) → general-privacy-consent', country: 'ZA', region: null, complianceGroup: 'general-privacy-consent' },
     { label: 'Thailand (PDPA-TH) → opt-in', country: 'TH', region: null, complianceGroup: 'opt-in' },
+    // Geo providers emit ISO `GB`; the map keys the UK as `UK` — both must resolve.
+    { label: 'United Kingdom, ISO GB (UK GDPR) → opt-in', country: 'GB', region: null, complianceGroup: 'opt-in' },
+    { label: 'United Kingdom, map key UK (UK GDPR) → opt-in', country: 'UK', region: null, complianceGroup: 'opt-in' },
 
     // ── Canada: country-level default vs. Quebec's Law 25 override ────────
     { label: 'Canada, no region → general-privacy-consent (PIPEDA)', country: 'CA', region: null, complianceGroup: 'general-privacy-consent' },
@@ -65,7 +72,7 @@ describe('GeoResolverService — golden cases', () => {
 
   for (const c of cases) {
     test(c.label, async () => {
-      const geo = await serviceFor(c.country, c.region).resolve({ ip: '', language: '', timezone: '' })
+      const geo = await serviceFor(c.country, c.region).resolve(hints('', ''))
       assert.equal(geo.complianceGroup, c.complianceGroup)
       assert.equal(geo.requiresSensitiveOptIn ?? false, c.requiresSensitiveOptIn ?? false)
     })
@@ -80,7 +87,7 @@ describe('GeoResolverService — provider-returned complianceGroup override', ()
       async () => ({ country: 'FR', region: null, locale: null, complianceGroup: 'my-custom-group' }),
       EMBEDDED_COMPLIANCE_MAP,
     )
-    const geo = await service.resolve({ ip: '', language: '', timezone: '' })
+    const geo = await service.resolve(hints('', ''))
     assert.equal(geo.complianceGroup, 'my-custom-group')
     assert.equal(geo.country, 'FR')
   })
@@ -90,13 +97,27 @@ describe('GeoResolverService — provider-returned complianceGroup override', ()
       async () => ({ country: 'US', region: 'CO', locale: null, complianceGroup: 'my-custom-group' }),
       EMBEDDED_COMPLIANCE_MAP,
     )
-    const geo = await service.resolve({ ip: '', language: '', timezone: '' })
+    const geo = await service.resolve(hints('', ''))
     assert.equal(geo.complianceGroup, 'my-custom-group')
     assert.equal(geo.requiresSensitiveOptIn, true)
   })
 
   test('omitting complianceGroup from the provider result preserves normal country/region resolution', async () => {
-    const geo = await serviceFor('DE', null).resolve({ ip: '', language: '', timezone: '' })
+    const geo = await serviceFor('DE', null).resolve(hints('', ''))
+    assert.equal(geo.complianceGroup, 'opt-in')
+  })
+})
+
+describe('GeoResolverService — default timezone/language heuristic', () => {
+  const heuristic = new GeoResolverService('default', EMBEDDED_COMPLIANCE_MAP)
+
+  test('Europe/London timezone resolves to the UK group', async () => {
+    const geo = await heuristic.resolve(hints('en', 'Europe/London'))
+    assert.equal(geo.complianceGroup, 'opt-in')
+  })
+
+  test('en-GB language (unknown timezone) resolves to the UK group', async () => {
+    const geo = await heuristic.resolve(hints('en-GB', ''))
     assert.equal(geo.complianceGroup, 'opt-in')
   })
 })

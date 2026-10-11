@@ -1155,7 +1155,11 @@ rateLimit: { enabled: false }`}
               <code>&apos;geoip&apos;</code> — local lookup via optional <code>geoip-lite</code>{' '}
               peer dep. <code>&apos;maxmind&apos;</code> — official MaxMind SDK, most accurate,
               requires <code>.mmdb</code> file. Pass a <code>CountryResolverFn</code> to use any
-              custom source — must return{' '}
+              custom source. It receives{' '}
+              <code>{'{ ip, timezone, language, languages, locale }'}</code> — the same hints the
+              widget sends to <code>/resolve-profile</code> (<code>language</code> is the
+              browser&apos;s primary tag, <code>languages</code> its full preference list,{' '}
+              <code>locale</code> the locale the widget requested) — and must return{' '}
               <code>
                 {'{ country: string | null, region: string | null, locale: string | null }'}
               </code>
@@ -1204,7 +1208,8 @@ compliance: {
 // Custom geo resolver — integrate your own GeoIP SaaS
 compliance: {
   type: 'auto',
-  geoDataProvider: async ({ ip, timezone, language }) => {
+  // ctx: { ip, timezone, language, languages, locale } — languages/locale come from the widget
+  geoDataProvider: async ({ ip, timezone, language, languages, locale }) => {
     const res = await fetch(\`https://api.mygeoip.com/\${ip}\`)
     const data = await res.json()
     return { country: data.country_code, region: data.region, locale: data.locale ?? null }
@@ -1216,7 +1221,10 @@ compliance: {
   type: 'auto',
   complianceMap: 'default', // 'default' (embedded map) | a URL string | an inline object
   // complianceMap: 'https://your-host.com/compliance-map.json',
-  // complianceMap: { version: '2026-01', countries: { US: { complianceGroup: 'opt-out' } } },
+  // Replaces the embedded map (default) — only the listed countries resolve:
+  // complianceMap: { version: '2026-01', countries: { DE: { complianceGroup: 'opt-in' } } },
+  // Merge over the embedded map — only DE changes, every other country keeps its built-in group:
+  // complianceMap: { version: '2026-01', override: false, countries: { DE: { complianceGroup: 'opt-out' } } },
 }
 
 // Custom geo resolver that already knows the compliance group — skips the
@@ -1243,9 +1251,15 @@ compliance: {
         (the embedded map, unchanged), a URL string (fetched and used as the map — refreshed in
         the background per the response's <code>Cache-Control</code>/<code>Expires</code> header,
         24h fallback if absent), or an inline object matching{' '}
-        <code>ComplianceMapData</code> (<code>{'{ version, countries: { [code]: { complianceGroup, default?, description?, overriddenRegions? } } }'}</code>
+        <code>ComplianceMapData</code> (<code>{'{ version, override?, countries: { [code]: { complianceGroup, default?, description?, overriddenRegions? } } }'}</code>
         {' '}— <code>default</code> falls back to <code>complianceGroup</code> when omitted).
-        Invalid data from either a URL or an object logs an error and falls back to{' '}
+        By default the supplied map <strong>replaces</strong> the embedded one, so only the
+        countries you list resolve (<code>override: true</code>, the default). Set{' '}
+        <code>override: false</code> in the document to <strong>merge</strong> your{' '}
+        <code>countries</code> over the embedded map instead: a listed country replaces its
+        embedded entry wholesale (including its <code>overriddenRegions</code> — nothing is
+        deep-merged), and every unlisted country keeps its built-in group. <code>GB</code> and{' '}
+        <code>UK</code> are treated as the same country. Invalid data from either a URL or an object logs an error and falls back to{' '}
         <code>'default'</code> — this never crashes the server. See the{' '}
         <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a> for the
         full embedded country list, and <code>customComplianceGroup</code> (documented on that

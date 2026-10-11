@@ -147,6 +147,8 @@ new ConsentiSetup({})
 new ConsentiSetup({ compliance: { type: 'opt-in' } })
 ```
 
+**Customising auto-detection (backend):** with `@consenti/api`, `compliance.type: 'auto'` resolves each visitor's country server-side and serves the active profile for that country's compliance group. `compliance.geoDataProvider` picks the detection source (a custom function receives `{ ip, timezone, language, languages, locale }` — the full browser hints the widget sends), and `compliance.complianceMap` changes the country → group mapping: by default your map replaces the built-in one, and `override: false` in the map document merges just your countries over it. `GB` and `UK` both resolve to the United Kingdom. See the [geo-routing guide](https://consenti.dev/guides/backend/geo-routing/) and the [API advanced configuration](https://consenti.dev/docs/api/advanced-configuration/).
+
 **8 built-in compliance groups**, routing regulations across every tier in [ECOSYSTEM.md](./ECOSYSTEM.md) (see the "Multi-regulation" line above for what's Maintained vs. Partial vs. routing-only) ([what each group actually satisfies](https://consenti.dev/docs/compliance/compliance-groups/)): `'opt-in'` (GDPR, UK-GDPR, KVKK, PDPA-TH, ...) · `'opt-out'` (CCPA, VCDPA, ...) · `'opt-out-strict'` (CPRA) · `'opt-in-dpdpa'` (India DPDPA) · `'opt-in-china'` (PIPL) · `'opt-in-brazil'` (LGPD) · `'general-privacy-consent'` (PIPEDA, POPIA, APPI, ...) · `'notice-only'`
 
 ---

@@ -207,7 +207,9 @@ const widget = new ConsentiSetup({
               <code>undefined</code>
             </td>
             <td>
-              Custom async function returning{' '}
+              Custom async function. It receives the browser hints{' '}
+              <code>{'{ timezone, language, languages, locale }'}</code> (the same ones the widget
+              sends to the API) and returns{' '}
               <code>
                 {'{ country: string | null, region: string | null, confidence: number }'}
               </code>
@@ -238,7 +240,12 @@ const widget = new ConsentiSetup({
               <code>&apos;default&apos;</code> keeps the embedded map; a URL string is fetched and
               used as the map (the browser&apos;s own HTTP cache honors whatever{' '}
               <code>Cache-Control</code>/<code>ETag</code> the response sends); an inline object
-              overrides specific countries directly. Invalid data from either source logs a warning
+              overrides specific countries directly. A country the map does not list falls back to
+              the embedded mapping; set <code>override: true</code> in the document to opt out of
+              that, so an unlisted country gets the strictest group (<code>&apos;opt-in&apos;</code>)
+              instead. Unlike the server, an omitted <code>override</code> is not{' '}
+              <code>true</code> here — widget maps have always merged over the embedded mapping,
+              and that stays the default. Invalid data from either source logs a warning
               and falls back to <code>&apos;default&apos;</code>. Does not affect country/region
               detection itself — only the final group lookup.
             </td>
@@ -402,7 +409,7 @@ const widget = new ConsentiSetup({
 
 // geoDataProvider only runs for compliance.type: 'auto' — a fixed type (e.g. 'opt-in')
 // never calls it, since there's no group to detect.
-const geoResolver: WidgetCountryResolverFn = async () => {
+const geoResolver: WidgetCountryResolverFn = async ({ timezone, language, languages, locale }) => {
   const res = await fetch('/api/geo')
   const data = await res.json()
   return { country: data.country, region: data.region ?? null, confidence: data.confidence ?? 1 }

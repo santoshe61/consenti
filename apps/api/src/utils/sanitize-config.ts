@@ -61,7 +61,7 @@ export function sanitizeConfigForDisplay(config: ConsentiServerConfig): Record<s
         } : {}),
         ...(compliance.complianceMap !== undefined ? {
           complianceMap: typeof compliance.complianceMap === 'object'
-            ? `<custom map, ${Object.keys(compliance.complianceMap.countries).length} countries>`
+            ? `<custom map, ${Object.keys(compliance.complianceMap.countries).length} countries, ${compliance.complianceMap.override === false ? 'merged over' : 'replaces'} the embedded map>`
             : compliance.complianceMap,
         } : {}),
         ...(compliance.tcf ? { tcf: compliance.tcf } : {}),

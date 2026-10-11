@@ -1,6 +1,7 @@
 import type { ProfileService } from '../../services/profile.service'
 import type { GeoResolverService } from '../../services/geo-resolver.service'
 import { json } from '../../utils/http'
+import { parseAcceptLanguage, sanitizeLanguages, sanitizeLocale } from '../../utils/geo-hints'
 import { errorResponse, withErrorHandler } from '../../middleware/error.middleware'
 import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -83,22 +84,25 @@ export function buildProfileRoutes(
         let timezone = url.searchParams.get('tz') ?? ''
         let language = url.searchParams.get('lang') ?? request.headers.get('accept-language') ?? ''
         let requestedLocale = url.searchParams.get('locale') ?? ''
+        let languages = parseAcceptLanguage(url.searchParams.get('lang') ?? request.headers.get('accept-language') ?? '')
 
         const dataParam = url.searchParams.get('data')
         if (dataParam) {
           try {
             const decoded = JSON.parse(Buffer.from(dataParam, 'base64').toString('utf8')) as {
-              timezone?: string; language?: string; languages?: string[]; locale?: string
+              timezone?: string; language?: string; languages?: unknown; locale?: string
             }
             if (decoded.timezone) timezone = decoded.timezone
             if (decoded.language) language = decoded.language
             if (decoded.locale) requestedLocale = decoded.locale
+            const decodedLanguages = sanitizeLanguages(decoded.languages)
+            if (decodedLanguages.length > 0) languages = decodedLanguages
           } catch {
             // ignore malformed data param — fall back to legacy params
           }
         }
 
-        const geo = await geoResolver.resolve({ ip, language, timezone })
+        const geo = await geoResolver.resolve({ ip, language, languages, timezone, locale: sanitizeLocale(requestedLocale) })
         const sensitiveOptIn = geo.requiresSensitiveOptIn ? { requiresSensitiveOptIn: true } : {}
 
         if (!geo.complianceGroup) {
@@ -180,7 +184,7 @@ export function buildProfileRoutes(
           request.headers.get('x-real-ip') ?? ''
         const timezone = url.searchParams.get('tz') ?? ''
         const language = request.headers.get('accept-language') ?? url.searchParams.get('lang') ?? ''
-        const geo = await geoResolver.resolve({ ip, language, timezone })
+        const geo = await geoResolver.resolve({ ip, language, languages: parseAcceptLanguage(language), timezone, locale })
         if (!geo.complianceGroup) return errorResponse(404, 'Could not resolve compliance group for this location')
         const profile = await profiles.findActiveByComplianceGroup(geo.complianceGroup)
         if (!profile) return errorResponse(404, `No active profile found for compliance group: ${geo.complianceGroup}`)

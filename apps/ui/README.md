@@ -183,14 +183,17 @@ const widget = new ConsentiSetup({
 
     // Client-side geo resolver (used only when api.enabled = false)
     // 'default' → browser timezone + navigator.language heuristic (built-in, zero deps)
-    // WidgetCountryResolverFn → custom async function: () => Promise<{ country, region, confidence }>
+    // WidgetCountryResolverFn → custom async function: ({ timezone, language, languages, locale }) => Promise<{ country, region, confidence }>
     geoDataProvider: 'default',
 
     // Only meaningful when api.enabled = false (ignored, with a warning, otherwise — the server
     // resolves the group in that mode). Only overrides country→group mapping; country/region
     // detection above always uses the embedded geo data.
     // 'default' → embedded map (default) | a URL string (fetched; the browser's own HTTP cache
-    // honors whatever Cache-Control/ETag the response sends) | an inline ComplianceMapData object
+    // honors whatever Cache-Control/ETag the response sends) | an inline ComplianceMapData object.
+    // A country the map doesn't list falls back to the embedded mapping, unless the document sets
+    // `override: true` — then it gets the strictest group ('opt-in'). Unlike the server, an omitted
+    // `override` is NOT true here: widget maps have always merged over the embedded mapping.
     complianceMap: 'default',
 
     // TCF (IAB Transparency & Consent Framework) client stub (optional) — see "TCF" section below
