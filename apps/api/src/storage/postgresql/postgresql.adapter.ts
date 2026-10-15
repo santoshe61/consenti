@@ -272,7 +272,16 @@ export class PostgreSQLAdapter implements StorageAdapter {
           throw err
         }
       } else if (version < 2) {
-        await this.migrateToV2(client)
+        try {
+          await this.migrateToV2(client)
+        } catch (err) {
+          throw new Error(
+            `Upgrading the database schema to v2 failed: ${err instanceof Error ? err.message : String(err)}. ` +
+            `The database user must own the tables (or be a superuser). Nothing was changed — the upgrade runs ` +
+            `in one transaction and was rolled back; fix the cause and start again.`,
+            { cause: err },
+          )
+        }
       }
     } finally {
       client.release()

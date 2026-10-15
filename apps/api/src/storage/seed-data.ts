@@ -467,29 +467,30 @@ function toMySQL(tables: readonly TableDef[]): string {
 
 // ── v1 → v2 upgrade (SQLite) ──────────────────────────────────────────────────
 // SQLite can't drop a foreign key in place, so the two tables are rebuilt from the current
-// TableDefs (copying every pre-existing column) — the standard 12-step procedure. Run with
-// foreign_keys=OFF, inside one transaction; the caller restores foreign_keys=ON afterwards.
+// TableDefs — the standard 12-step procedure, driven by `migrate-v2.ts`, which checks the old
+// table's real columns and the copied row counts before anything is dropped.
 
-const V2_NEW_COLUMNS = new Set(['profile_version'])
+/** Tables whose foreign key on profile_id is removed in v2 (rebuilt on SQLite). */
+export const V2_REBUILT_TABLES = ['consent_records', 'notice_shown'] as const
 
-function sqliteRebuildSQL(t: TableDef): string {
-  const kept = t.cols.map(c => c.n).filter(n => !V2_NEW_COLUMNS.has(n)).join(', ')
-  return [
-    buildTableSQLite({ ...t, name: `${t.name}_v2` }),
-    `INSERT INTO ${t.name}_v2 (${kept}) SELECT ${kept} FROM ${t.name};`,
-    `DROP TABLE ${t.name};`,
-    `ALTER TABLE ${t.name}_v2 RENAME TO ${t.name};`,
-    buildIndexesSQLite(t),
-  ].filter(Boolean).join('\n')
+/** Column names the current schema defines for `table`. */
+export function currentColumns(table: string): string[] {
+  const def = ALL_TABLES_SQLITE.find(t => t.name === table)
+  if (!def) throw new Error(`Unknown table ${table}`)
+  return def.cols.map(c => c.n)
 }
 
-/** Body of the SQLite v1 → v2 upgrade — wrapped in BEGIN/COMMIT by the adapters. */
-export const SQLITE_MIGRATE_V2_SQL = [
-  sqliteRebuildSQL(consentRecords),
-  sqliteRebuildSQL(noticeShown),
-  'ALTER TABLE consent_history ADD COLUMN profile_version INTEGER;',
-  'PRAGMA user_version = 2;',
-].join('\n')
+/** SQL for rebuilding `table` from its current definition, copying only `copyCols`. */
+export function sqliteRebuildStatements(table: string, copyCols: string[]): { create: string; copy: string; swap: string } {
+  const def = ALL_TABLES_SQLITE.find(t => t.name === table)
+  if (!def) throw new Error(`Unknown table ${table}`)
+  const cols = copyCols.join(', ')
+  return {
+    create: buildTableSQLite({ ...def, name: `${table}_v2` }),
+    copy: `INSERT INTO ${table}_v2 (${cols}) SELECT ${cols} FROM ${table};`,
+    swap: [`DROP TABLE ${table};`, `ALTER TABLE ${table}_v2 RENAME TO ${table};`, buildIndexesSQLite(def)].filter(Boolean).join('\n'),
+  }
+}
 
 // ── Index list for document stores ────────────────────────────────────────────
 // MongoDB is schemaless, so it can't consume CREATE INDEX SQL — it consumes this list directly.

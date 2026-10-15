@@ -3,7 +3,8 @@ import type { Database as DB, Statement } from 'better-sqlite3'
 const MAX_PAGE_SIZE = 500
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { resolveStoragePaths } from '../../utils/storage-path'
-import { SEED_SQL, SCHEMA_SQL_SQLITE, SCHEMA_VERSION, SQLITE_MIGRATE_V2_SQL } from '../seed-data'
+import { SEED_SQL, SCHEMA_SQL_SQLITE, SCHEMA_VERSION } from '../seed-data'
+import { migrateSqliteToV2 } from './migrate-v2'
 import { likePrefix } from '../../utils/sql-search'
 import type {
   StorageAdapter,
@@ -143,6 +144,8 @@ export class BetterSqlite3Adapter implements StorageAdapter {
   private db!: DB
   private cache = new Map<string, Stmt>()
 
+  private dbPath = ''
+
   constructor(private config: StorageConfig) {}
 
   private stmt(sql: string): Stmt {
@@ -158,6 +161,7 @@ export class BetterSqlite3Adapter implements StorageAdapter {
       throw new Error("driver 'better-sqlite3' requires: npm install better-sqlite3")
     }) as { default: new(path: string) => DB }
     const { dbPath } = resolveStoragePaths(this.config.path ?? './consenti-data', 'better-sqlite3')
+    this.dbPath = dbPath
     this.db = new mod.default(dbPath)
     this.db.exec('PRAGMA journal_mode=WAL')
     this.db.exec('PRAGMA foreign_keys=ON')
@@ -195,15 +199,7 @@ export class BetterSqlite3Adapter implements StorageAdapter {
   }
 
   private migrateToV2(): void {
-    this.db.exec('PRAGMA foreign_keys=OFF')
-    try {
-      this.db.exec(`BEGIN;\n${SQLITE_MIGRATE_V2_SQL}\nCOMMIT;`)
-    } catch (err) {
-      try { this.db.exec('ROLLBACK') } catch { /* no transaction was opened */ }
-      throw err
-    } finally {
-      this.db.exec('PRAGMA foreign_keys=ON')
-    }
+    migrateSqliteToV2({ exec: sql => this.db.exec(sql), all: (sql: string) => this.db.prepare(sql).all() as Record<string, unknown>[] }, this.dbPath)
   }
 
   // ── Profiles ──────────────────────────────────────────────────────────────

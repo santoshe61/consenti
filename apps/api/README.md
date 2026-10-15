@@ -71,7 +71,14 @@ SQL drivers (SQLite, PostgreSQL, MySQL/MariaDB) track a schema version (`schema_
 |---|---|
 | 2 | `consent_records.profile_id` / `notice_shown.profile_id` no longer reference `profiles` (a consent record is evidence and survives deleting its profile); `profile_version` added to `consent_records` and `consent_history` — with `profile_id` it pins the exact on-disk snapshot a visitor was shown. |
 
-Take a backup before upgrading production databases. SQLite upgrades rebuild the two affected tables inside one transaction; PostgreSQL's run in one transaction; MySQL/MariaDB DDL cannot be rolled back, so each step is idempotent and an interrupted upgrade resumes on the next start.
+The upgrade changes table structure only — it never edits, drops or re-creates your rows — and is built to fail safe:
+
+- **Permissions.** The database user needs to alter tables: `ALTER` on MySQL/MariaDB, table ownership on PostgreSQL, a writable file on SQLite. Without it the API refuses to start with an explanatory error and nothing is changed.
+- **SQLite** first saves a copy of the database next to it (`consenti.db.pre-v2-<timestamp>.bak`; delete it once you are happy), then rebuilds the two affected tables inside one transaction, checking that each copy has exactly the original row count before the old table is dropped. A table with a column this version doesn't know is never rebuilt (it would delete that column) — the upgrade stops and changes nothing. Allow roughly double the database size in free disk space; a very large database takes a moment longer to start once.
+- **PostgreSQL** runs the whole upgrade in one transaction (all or nothing).
+- **MySQL/MariaDB** DDL cannot be rolled back, so each step checks first and is safe to repeat; an interrupted upgrade resumes on the next start.
+- For MySQL/MariaDB and PostgreSQL, still take your usual database backup first — Consenti cannot make one for you.
+- Starting an older Consenti version against an upgraded database keeps working.
 
 ### Which SQLite driver should I use?
 

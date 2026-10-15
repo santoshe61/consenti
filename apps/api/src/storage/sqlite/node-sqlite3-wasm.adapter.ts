@@ -3,7 +3,8 @@ import type { Database as DB, Statement } from 'node-sqlite3-wasm'
 const MAX_PAGE_SIZE = 500
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { resolveStoragePaths } from '../../utils/storage-path'
-import { SEED_SQL, SCHEMA_SQL_SQLITE, SCHEMA_VERSION, SQLITE_MIGRATE_V2_SQL } from '../seed-data'
+import { SEED_SQL, SCHEMA_SQL_SQLITE, SCHEMA_VERSION } from '../seed-data'
+import { migrateSqliteToV2 } from './migrate-v2'
 import { likePrefix } from '../../utils/sql-search'
 import type {
   StorageAdapter,
@@ -145,6 +146,8 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   private db!: DB
   private cache = new Map<string, Statement>()
 
+  private dbPath = ''
+
   constructor(private config: StorageConfig) { }
 
   private stmt(sql: string): Statement {
@@ -160,6 +163,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
       throw new Error("driver 'node-sqlite3-wasm' requires: npm install node-sqlite3-wasm")
     }) as { default: { Database: new (path: string) => DB } }
     const { dbPath } = resolveStoragePaths(this.config.path ?? './consenti-data', 'node-sqlite3-wasm')
+    this.dbPath = dbPath
     this.db = new mod.default.Database(dbPath)
     this.db.exec('PRAGMA journal_mode=WAL')
     this.db.exec('PRAGMA foreign_keys=ON')
@@ -206,15 +210,13 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   }
 
   private migrateToV2(): void {
-    this.db.exec('PRAGMA foreign_keys=OFF')
-    try {
-      this.db.exec(`BEGIN;\n${SQLITE_MIGRATE_V2_SQL}\nCOMMIT;`)
-    } catch (err) {
-      try { this.db.exec('ROLLBACK') } catch { /* no transaction was opened */ }
-      throw err
-    } finally {
-      this.db.exec('PRAGMA foreign_keys=ON')
-    }
+    migrateSqliteToV2({
+      exec: sql => this.db.exec(sql),
+      all: sql => {
+        const stmt = this.db.prepare(sql)
+        try { return stmt.all() as Record<string, unknown>[] } finally { stmt.finalize() }
+      },
+    }, this.dbPath)
   }
 
   // ── Profiles ──────────────────────────────────────────────────────────────

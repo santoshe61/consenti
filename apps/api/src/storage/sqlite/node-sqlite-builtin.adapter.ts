@@ -3,7 +3,8 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite'
 const MAX_PAGE_SIZE = 500
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { resolveStoragePaths } from '../../utils/storage-path'
-import { SEED_SQL, SCHEMA_SQL_SQLITE, SCHEMA_VERSION, SQLITE_MIGRATE_V2_SQL } from '../seed-data'
+import { SEED_SQL, SCHEMA_SQL_SQLITE, SCHEMA_VERSION } from '../seed-data'
+import { migrateSqliteToV2 } from './migrate-v2'
 import { likePrefix } from '../../utils/sql-search'
 import type {
   StorageAdapter,
@@ -143,6 +144,8 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
   private db!: DatabaseSync
   private cache = new Map<string, Stmt>()
 
+  private dbPath = ''
+
   constructor(private config: StorageConfig) {}
 
   private stmt(sql: string): Stmt {
@@ -158,6 +161,7 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
       throw new Error(`driver 'node:sqlite' requires Node.js >= 22.5.0 (current: ${process.version})`)
     }) as { DatabaseSync: new(path: string) => DatabaseSync }
     const { dbPath } = resolveStoragePaths(this.config.path ?? './consenti-data', 'node:sqlite')
+    this.dbPath = dbPath
     this.db = new Db(dbPath)
     this.db.exec('PRAGMA journal_mode=WAL')
     this.db.exec('PRAGMA foreign_keys=ON')
@@ -195,15 +199,7 @@ export class NodeSqliteBuiltinAdapter implements StorageAdapter {
   }
 
   private migrateToV2(): void {
-    this.db.exec('PRAGMA foreign_keys=OFF')
-    try {
-      this.db.exec(`BEGIN;\n${SQLITE_MIGRATE_V2_SQL}\nCOMMIT;`)
-    } catch (err) {
-      try { this.db.exec('ROLLBACK') } catch { /* no transaction was opened */ }
-      throw err
-    } finally {
-      this.db.exec('PRAGMA foreign_keys=ON')
-    }
+    migrateSqliteToV2({ exec: sql => this.db.exec(sql), all: (sql: string) => this.db.prepare(sql).all() as Record<string, unknown>[] }, this.dbPath)
   }
 
   // ── Profiles ──────────────────────────────────────────────────────────────

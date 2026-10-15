@@ -120,10 +120,17 @@ groups and normal locales are unaffected.
 Automatic. The first start on 0.6.0 upgrades an existing database to schema v2 — drops the two
 `profile_id` foreign keys and adds `profile_version` — on MariaDB, PostgreSQL and SQLite; MySQL (Oracle)
 only gains the column, MongoDB and the JSON store need nothing. Take a backup first for production
-databases. PostgreSQL runs in one transaction; SQLite rebuilds the two affected tables in one
-transaction; MySQL/MariaDB DDL cannot be rolled back, so each step is idempotent and an interrupted
-upgrade resumes on the next start. Verified end to end against MariaDB 10.5 and 10.11, MySQL 8.4,
-PostgreSQL 16, SQLite (`node:sqlite`, `node-sqlite3-wasm`) and MongoDB 7. To change only some countries, add `override: false` to your `complianceMap` document. A profile
+databases. The upgrade changes table structure only and never edits rows. The database user needs the
+`ALTER` privilege (MySQL/MariaDB) or must own the tables (PostgreSQL) — otherwise the API refuses to start
+with an explanatory error and nothing is changed. PostgreSQL runs in one transaction. SQLite first saves a
+`consenti.db.pre-v2-<timestamp>.bak` copy (delete it when satisfied; allow ~2× the database size in free
+disk), rebuilds the two affected tables in one transaction, verifies row counts before dropping anything,
+and refuses to rebuild a table that has a column this version doesn't know. MySQL/MariaDB DDL cannot be
+rolled back, so each step is idempotent and an interrupted upgrade resumes on the next start. Starting 0.5.0
+against an upgraded database still works. Verified with full before/after dumps (18,837 rows across 17
+tables, awkward values included) on MariaDB 10.5 and 10.11, MySQL 8.4, PostgreSQL 16, and SQLite
+(`node:sqlite`, `node-sqlite3-wasm`; 5,000 consents plus every other table), plus restricted-account and
+mid-upgrade-failure cases; MongoDB 7 and the JSON store gain only an optional field. To change only some countries, add `override: false` to your `complianceMap` document. A profile
 whose activation failed earlier on Windows is repaired by saving it again; on Windows with `json`
 storage, delete the stray `db\consenti-data.json\` directory if one exists.
 

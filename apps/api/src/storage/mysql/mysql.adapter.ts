@@ -267,7 +267,18 @@ export class MySQLAdapter implements StorageAdapter {
         await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (?)', [SCHEMA_VERSION])
       } else {
         const [rows] = await conn.query<RowDataPacket[]>('SELECT MAX(version) AS version FROM schema_version')
-        if ((rows[0]?.['version'] ?? 0) < 2) await this.migrateToV2(conn)
+        if ((rows[0]?.['version'] ?? 0) < 2) {
+          try {
+            await this.migrateToV2(conn)
+          } catch (err) {
+            throw new Error(
+              `Upgrading the database schema to v2 failed: ${err instanceof Error ? err.message : String(err)}. ` +
+              `The database user needs the ALTER privilege. This step only changes table structure, never rows, ` +
+              `and is safe to re-run: fix the cause and start again.`,
+              { cause: err },
+            )
+          }
+        }
       }
     } finally {
       conn.release()
