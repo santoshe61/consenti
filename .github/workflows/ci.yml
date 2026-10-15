@@ -16,11 +16,19 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22+: the API test suite uses Node's built-in node:sqlite (Node 22.5+); the docs say Node 22+.
+          node-version: '22'
           cache: 'npm'
 
+      # The committed lockfile must install on every OS/CPU (it used to be deleted here because it only
+      # recorded macOS native packages). Resolving from scratch (`rm -f package-lock.json && npm install`)
+      # now crashes npm on Linux with "Cannot read properties of null (reading 'edgesOut')", so install
+      # exactly what is locked instead.
+      - name: Check lockfile installs on Windows, Linux and macOS
+        run: npm run check:lockfile
+
       - name: Install dependencies
-        run: rm -f package-lock.json && npm install
+        run: npm ci
 
       - name: Get Playwright version
         id: playwright-version
