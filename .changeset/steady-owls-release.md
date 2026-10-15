@@ -3,6 +3,8 @@
 '@consenti/ui': minor
 ---
 
+**ACTION REQUIRED — MANUAL DATA MIGRATION for PostgreSQL, MySQL/MariaDB and MongoDB: 0.6.0 renames every table/collection to `consenti_*` and does NOT migrate existing data automatically. Back up, stop the app, then run `node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs` (dry run) and `… --apply` (rename) before starting 0.6.0. Until then the app refuses to start; nothing is lost. SQLite and the JSON store are not affected. See CHANGELOG 0.6.0 → Migration.**
+
 Minor release: automatic database schema upgrade (v2), new per-consent `profileVersion`, and stricter profile-name validation, alongside the geo-routing and Windows fixes below.
 
 Fix UK visitors never matching a compliance group in `compliance.type: 'auto'` — geo providers, the timezone table and `en-GB` language tags all produce ISO `GB`, but the embedded compliance map keys the United Kingdom as `UK`, so `/resolve-profile` returned `found: false` and the widget showed the default layout. `GB` and `UK` now both resolve (also for operator-supplied `complianceMap`s keyed either way).

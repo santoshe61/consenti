@@ -10,6 +10,20 @@ release time.
 <!-- Changelpg entries here -->
 ## [0.6.0] - 2026-10-15
 
+> ## ⚠️ **ACTION REQUIRED — MANUAL DATA MIGRATION for PostgreSQL, MySQL/MariaDB and MongoDB**
+>
+> **0.6.0 renames every table / collection to `consenti_*` (`users` → `consenti_users`, `profiles` →
+> `consenti_profiles`, …). Your existing data is NOT migrated automatically. Before starting 0.6.0, back up the
+> database, stop the app and run the one-off rename script — see [Migration](#migration) below:**
+>
+> ```bash
+> node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs           # dry run — changes nothing
+> node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs --apply   # rename
+> ```
+>
+> **Until you do, the app refuses to start with a message saying so; nothing is changed or lost. The script only
+> renames (no rows are read, copied or deleted). SQLite and the JSON file store are not affected.**
+
 ### Summary
 A minor release — it upgrades existing databases automatically (schema v2), adds a per-consent
 `profileVersion` and a `complianceMap` `override` key, and validates profile names more strictly — on top
@@ -126,6 +140,10 @@ dashboard (consents, visitors, audit log) works on PostgreSQL and MySQL/MariaDB 
 - `@consenti/api`: **MySQL/MariaDB** — `createTenant` / `updateTenant` failed with `Incorrect datetime value:
   '2026-…T…Z'` (strict mode rejects an ISO-8601 timestamp for a `DATETIME` column); `purgeExpiredConsents`
   compares with the same format.
+- Docs: the server `compliance` reference now covers every option (`gpc`, `gpp`, `tcf.publisherCC`,
+  `parentalConsentTokenTtlDays`, `complianceMap`, …) and a new `gpp` section; `handleCache`'s second argument
+  is documented as the profile id (a string — it was shown as a version number); the widget `compliance.tcf`
+  row lists `publisherCC`, `vendorListVersion` and `gvlVersion`.
 - `@consenti/api`: **MariaDB 10.5+, PostgreSQL, SQLite** — `DELETE /profiles/:id` no longer fails with a
   foreign-key error for a profile that has consent or notice records (see Changed).
 - `@consenti/api`: saving an active profile that has no compliance group no longer points the "live
