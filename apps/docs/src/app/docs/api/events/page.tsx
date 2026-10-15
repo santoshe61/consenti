@@ -39,7 +39,7 @@ export default function APIEventsPage() {
         Consenti does not ship built-in webhook configuration in the dashboard for self-hosted
         installs. Instead, you register your own webhook by listening on <code>eventBus</code> and
         making the HTTP call yourself — see the{' '}
-        <a href="/guides/backend/webhooks/">Webhooks guide</a> for a detailed walkthrough.
+        <a href="/guides/backend/webhooks">Webhooks guide</a> for a detailed walkthrough.
       </Callout>
 
       <CodeBlock

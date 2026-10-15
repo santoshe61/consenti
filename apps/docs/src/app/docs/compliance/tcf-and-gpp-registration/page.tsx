@@ -36,7 +36,7 @@ export default function TcfAndGppRegistrationPage() {
         consent mode, any vendor in the IAB Global Vendor List). If you&apos;re only collecting consent
         for first-party analytics, marketing, or functional cookies, Consenti is fully compliant across
         every maintained jurisdiction (GDPR, UK-GDPR, CCPA/CPRA, LGPD, and more) with zero external
-        registration — skip straight to the rest of the <a href="/docs/compliance/">compliance docs</a>.
+        registration — skip straight to the rest of the <a href="/docs/compliance/compliance-groups">compliance docs</a>.
       </Callout>
 
       <Callout type="warning">
@@ -504,7 +504,7 @@ compliance: {
         registration/CMP-ID concept in Consenti — the current <code>opt-in-dpdpa</code> compliance
         group (data fiduciary name, grievance officer, age gate) already covers the consent-flow
         requirements. See the{' '}
-        <a href="/docs/compliance/dpdpa/">DPDPA compliance guide</a> for what&apos;s implemented
+        <a href="/docs/compliance/dpdpa">DPDPA compliance guide</a> for what&apos;s implemented
         today. This section will be filled in if/when a registration-governance step is added for
         it.
       </Callout>

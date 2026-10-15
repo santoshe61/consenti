@@ -293,17 +293,17 @@ document.querySelector('#cookie-settings')
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/frameworks/',
+            href: '/docs/ui/frameworks',
             label: 'Framework Guides',
             desc: 'Reference-level detail for React, Vue, Angular, Next.js, Nuxt',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'destroy, showModal, and every other widget instance method',
           },
           {
-            href: '/docs/ui/configuration/',
+            href: '/docs/ui/configuration',
             label: 'Configuration',
             desc: 'core.locale, compliance.type, and other options used above',
           },

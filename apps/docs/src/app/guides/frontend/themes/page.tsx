@@ -203,17 +203,17 @@ widget.setDarkMode(false)   // force light`}
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/themes/',
+            href: '/docs/ui/themes',
             label: 'Themes & CSS',
             desc: 'The complete CSS custom property reference',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'widget.setTheme() and widget.setDarkMode() in detail',
           },
           {
-            href: '/docs/ui/configuration/',
+            href: '/docs/ui/configuration',
             label: 'Configuration',
             desc: 'core.theme and darkMode as top-level setup options',
           },

@@ -67,7 +67,7 @@ const widget = new ConsentiSetup({})
             <td>auto-detected</td>
             <td>
               Pin one of the 8 built-in compliance groups instead of geo-detecting — see the{' '}
-              <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a>{' '}
+              <a href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</a>{' '}
               for every country and its assigned group.
             </td>
           </tr>
@@ -140,7 +140,7 @@ const widget = new ConsentiSetup({})
       <p>
         Setting a key to <code>null</code> instead of a value deletes it from the merged result
         (removing a single category or parameter from a keyed map, for example) — see{' '}
-        <a href="/docs/ui/advanced-configuration/#profileoverride">
+        <a href="/docs/ui/advanced-configuration#profileoverride">
           profileOverride in the Advanced Configuration reference
         </a>{' '}
         for the full deep-merge and delete semantics. To <em>replace</em> a whole <code>buttons</code>{' '}
@@ -151,7 +151,7 @@ const widget = new ConsentiSetup({})
       <Callout type="info">
         This page covers the common cases. For every field — <code>core</code>, <code>api</code>,{' '}
         <code>utils.gtm</code>, <code>plugins</code>, theming tokens, TCF, age gate, and more — see
-        the <a href="/docs/ui/advanced-configuration/">Advanced Configuration reference</a>.
+        the <a href="/docs/ui/advanced-configuration">Advanced Configuration reference</a>.
       </Callout>
     </div>
   )

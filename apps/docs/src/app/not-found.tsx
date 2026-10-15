@@ -97,7 +97,7 @@ export default function NotFound() {
           Back to Home
         </Link>
         <Link
-          href="/docs/getting-started/"
+          href="/docs/getting-started"
           className="inline-flex items-center gap-2 border-2 border-white/30 text-white font-semibold px-6 py-3 rounded-xl no-underline hover:border-white hover:bg-white/10 transition-colors text-sm"
         >
           <BookOpen size={16} />

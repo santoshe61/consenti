@@ -36,6 +36,7 @@ import {
   SiGoogletagmanager,
 } from 'react-icons/si'
 import { QuickStartTabs } from '@/components/QuickStartTabs'
+import { CodeBlock } from '@/components/CodeBlock'
 import { SeeMore } from '@/components/SeeMore'
 
 export const metadata: Metadata = {
@@ -321,7 +322,7 @@ const compliance = [
     flag: '🇪🇺',
     status: 'Full',
     note: 'Opt-in consent, legitimate interest, erasure, admin export',
-    href: '/docs/compliance/gdpr/',
+    href: '/docs/compliance/gdpr',
   },
   {
     law: 'UK GDPR',
@@ -329,7 +330,7 @@ const compliance = [
     flag: '🇬🇧',
     status: 'Full',
     note: 'Post-Brexit equivalent of EU GDPR; ICO-enforced; same opt-in model',
-    href: '/docs/compliance/uk-gdpr/',
+    href: '/docs/compliance/uk-gdpr',
   },
   // Americas
   {
@@ -338,7 +339,7 @@ const compliance = [
     flag: '🇺🇸',
     status: 'Full',
     note: '"Do Not Sell" link, GPC auto-honour, CPRA corrections, opt-out records',
-    href: '/docs/compliance/ccpa/',
+    href: '/docs/compliance/ccpa',
   },
   {
     law: 'VCDPA',
@@ -346,7 +347,7 @@ const compliance = [
     flag: '🇺🇸',
     status: 'Full',
     note: 'Opt-out rights, consent records, appeal mechanism, data access',
-    href: '/docs/compliance/ccpa/',
+    href: '/docs/compliance/ccpa',
   },
   {
     law: 'CPA',
@@ -354,7 +355,7 @@ const compliance = [
     flag: '🇺🇸',
     status: 'Full',
     note: 'Universal opt-out via GPC, consent audit log, revocation support',
-    href: '/docs/compliance/ccpa/',
+    href: '/docs/compliance/ccpa',
   },
   {
     law: 'CTDPA',
@@ -362,7 +363,7 @@ const compliance = [
     flag: '🇺🇸',
     status: 'Full',
     note: 'Opt-out UI, signed consent cookies, audit trail, controller config',
-    href: '/docs/compliance/ccpa/',
+    href: '/docs/compliance/ccpa',
   },
   {
     law: 'LGPD',
@@ -370,7 +371,7 @@ const compliance = [
     flag: '🇧🇷',
     status: 'Full',
     note: 'Opt-in, 10 lawful bases, ANPD-enforced, under-12 parental consent gate',
-    href: '/docs/compliance/lgpd/',
+    href: '/docs/compliance/lgpd',
   },
   {
     law: 'POPIA',
@@ -378,7 +379,7 @@ const compliance = [
     flag: '🇿🇦',
     status: 'Full',
     note: 'Opt-in, 8 lawful processing conditions, Information Regulator-enforced',
-    href: '/docs/compliance/popia/',
+    href: '/docs/compliance/popia',
   },
   {
     law: 'PIPEDA / Law 25',
@@ -386,7 +387,7 @@ const compliance = [
     flag: '🇨🇦',
     status: 'Full',
     note: 'Federal PIPEDA + Quebec Law 25 (stricter, GDPR-aligned); explicit opt-in',
-    href: '/docs/compliance/pipeda/',
+    href: '/docs/compliance/pipeda',
   },
   {
     law: 'GPC',
@@ -402,7 +403,7 @@ const compliance = [
     flag: '🌐',
     status: 'Partial',
     note: 'Only relevant if you monetize via programmatic/RTB ads — self-registration with IAB Europe/MSPA fully supported. Real binary encoding available via optional peer dependencies; simplified format otherwise',
-    href: '/docs/compliance/tcf-and-gpp-registration/',
+    href: '/docs/compliance/tcf-and-gpp-registration',
   },
   {
     law: 'COPPA',
@@ -410,7 +411,7 @@ const compliance = [
     flag: '🇺🇸',
     status: 'Partial',
     note: 'Age gate widget included; parental verification requires your backend',
-    href: '/docs/compliance/coppa/',
+    href: '/docs/compliance/coppa',
   },
   {
     law: 'DPDPA',
@@ -418,7 +419,7 @@ const compliance = [
     flag: '🇮🇳',
     status: 'Partial',
     note: 'Opt-in, fiduciary disclosure, grievance officer in notice, Inline with India\'s phased 2025–2027 rules/compliance rollout',
-    href: '/docs/compliance/dpdpa/',
+    href: '/docs/compliance/dpdpa',
   },
   {
     law: 'PDPA',
@@ -426,7 +427,7 @@ const compliance = [
     flag: '🇹🇭',
     status: 'Partial',
     note: 'Consent & legitimate interest bases; cross-border transfer rules apply',
-    href: '/docs/compliance/pdpa-th/',
+    href: '/docs/compliance/pdpa-th',
   },
   {
     law: 'APPI',
@@ -434,7 +435,7 @@ const compliance = [
     flag: '🇯🇵',
     status: 'Partial',
     note: 'Opt-in for sensitive data and foreign transfers; opt-out for general third-party sharing',
-    href: '/docs/compliance/appi/',
+    href: '/docs/compliance/appi',
   },
   {
     law: 'KVKK',
@@ -442,7 +443,7 @@ const compliance = [
     flag: '🇹🇷',
     status: 'Partial',
     note: 'GDPR-inspired opt-in; explicit consent for sensitive data; KVK Board enforces',
-    href: '/docs/compliance/kvkk/',
+    href: '/docs/compliance/kvkk',
   },
 ]
 
@@ -510,7 +511,7 @@ export default function LandingPage() {
               Live Demo →
             </Link>
             <Link
-              href="/docs/compliance/jurisdiction-coverage-map/"
+              href="/docs/compliance/jurisdiction-coverage-map"
               className="inline-flex items-center gap-2 bg-transparent border border-white/20 text-white/80 font-medium px-6 py-3 rounded-lg no-underline hover:border-white/40 hover:text-white transition-colors text-sm"
             >
               See Compliance Coverage
@@ -591,7 +592,7 @@ export default function LandingPage() {
             })}
           </div>
           <Link
-            href="/guides/frontend-only-mode/"
+            href="/guides/frontend-only-mode"
             className="inline-flex items-center gap-2 bg-white text-brand-700 font-semibold px-6 py-3 rounded-lg no-underline hover:bg-blue-50 transition-colors text-sm"
           >
             See the full frontend-only guide →
@@ -640,29 +641,171 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Google Consent Mode v2 */}
-      <section className="px-6 py-20 bg-slate-100/90 dark:bg-[#060e1c]">
-        <div className="max-w-7xl mx-auto rounded-2xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-8 md:p-12 flex flex-col md:flex-row items-center gap-10">
-          <div className="shrink-0 w-16 h-16 rounded-xl bg-blue-50 dark:bg-blue-900/20 flex items-center justify-center">
-            <SiGoogletagmanager size={32} className="text-blue-600 dark:text-blue-400" />
+      {/* Google Consent Mode v2 — light mint in light mode, deep green in dark mode. Text colors are
+          explicit hex values (+ dark: variants) because globals.css remaps text-slate-* / bg-white
+          under .dark for the site's neutral surfaces, which would fight this tinted one. */}
+      <section className="relative overflow-hidden px-6 py-24 bg-gradient-to-br from-[#e9faf3] via-[#d2f5e6] to-[#b6eddb] dark:from-[#04261d] dark:via-[#063a2b] dark:to-[#0a4d38] text-[#0f172a] dark:text-[#f1f5f9]">
+        <div className="absolute inset-0 pointer-events-none" aria-hidden="true">
+          <div className="absolute -top-24 -left-24 w-[420px] h-[420px] rounded-full bg-white/70 dark:bg-brand-500/10 blur-3xl" />
+          <div className="absolute -bottom-32 right-0 w-[520px] h-[360px] rounded-full bg-brand-500/20 blur-3xl" />
+          <div
+            className="absolute inset-0 opacity-[0.06] dark:hidden"
+            style={{
+              backgroundImage:
+                'linear-gradient(#1a3460 1px, transparent 1px), linear-gradient(90deg, #1a3460 1px, transparent 1px)',
+              backgroundSize: '44px 44px',
+            }}
+          />
+          <div
+            className="absolute inset-0 opacity-[0.07] hidden dark:block"
+            style={{
+              backgroundImage:
+                'linear-gradient(#ffffff 1px, transparent 1px), linear-gradient(90deg, #ffffff 1px, transparent 1px)',
+              backgroundSize: '44px 44px',
+            }}
+          />
+        </div>
+        <div className="relative max-w-6xl mx-auto">
+          <div className="grid lg:grid-cols-[1.05fr_1fr] gap-12 lg:gap-16 items-center">
+            <div>
+              <span className="inline-flex items-center gap-2.5 rounded-full bg-white/70 dark:bg-white/10 border border-brand-500/30 dark:border-brand-500/50 pl-1.5 pr-4 py-1.5 text-lg font-semibold tracking-wide text-brand-700 dark:text-[#a7f3d0] mb-6">
+                <span className="w-7 h-7 rounded-full bg-[#ffffff] shadow-sm flex items-center justify-center">
+                  <SiGoogletagmanager size={15} className="text-blue-600" />
+                </span>
+                Google Consent Mode v2
+              </span>
+              <h2 className="text-3xl sm:text-4xl font-bold mb-5 tracking-tight leading-[1.1] text-[#0f172a] dark:text-[#f1f5f9]">
+                Auto-wired — not just a mapping helper
+              </h2>
+              <p className="text-[#334155] dark:text-[#cbd5e1] text-[15px] leading-relaxed mb-4">
+                Consenti fires{' '}
+                <code className="whitespace-nowrap text-[13px] bg-white/70 dark:bg-white/10 text-brand-700 dark:text-[#a7f3d0] rounded px-1.5 py-0.5">gtag(&apos;consent&apos;, &apos;default&apos;, …)</code>{' '}
+                before any tag loads and{' '}
+                <code className="whitespace-nowrap text-[13px] bg-white/70 dark:bg-white/10 text-brand-700 dark:text-[#a7f3d0] rounded px-1.5 py-0.5">gtag(&apos;consent&apos;, &apos;update&apos;, …)</code>{' '}
+                on every consent change — correct GCM keys, configurable{' '}
+                <code className="whitespace-nowrap text-[13px] bg-white/70 dark:bg-white/10 text-brand-700 dark:text-[#a7f3d0] rounded px-1.5 py-0.5">dataLayer</code> name, no manual wiring.
+              </p>
+              <p className="text-[#475569] dark:text-[#94a3b8] text-sm leading-relaxed mb-8">
+                Required for Google Ads/Analytics tags to keep working under GDPR once Consent Mode v2
+                is in effect.
+              </p>
+              <Link
+                href="/guides/hot-topics/google-consent-mode-v2-explained"
+                className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white dark:bg-brand-500 dark:hover:bg-[#17ab75] dark:text-[#04111f] font-semibold px-6 py-3 rounded-lg no-underline transition-colors text-sm shadow-lg shadow-brand-600/20 dark:shadow-black/30"
+              >
+                How Consenti implements Consent Mode v2 →
+              </Link>
+            </div>
+
+            {/* Consent lifecycle: what the page tells Google, and when */}
+            <div className="relative" aria-label="Example: consent signals before and after the visitor chooses">
+              <div className="absolute left-[19px] top-10 bottom-10 w-px bg-gradient-to-b from-brand-500/70 via-brand-500/30 to-brand-500/70" aria-hidden="true" />
+              {[
+                {
+                  step: '1',
+                  when: 'Page loads — before any tag fires',
+                  call: "gtag('consent', 'default', …)",
+                  signals: [
+                    ['ad_storage', false],
+                    ['analytics_storage', false],
+                    ['ad_user_data', false],
+                    ['ad_personalization', false],
+                  ],
+                },
+                {
+                  step: '2',
+                  when: 'Visitor chooses (example: analytics only)',
+                  call: "gtag('consent', 'update', …)",
+                  signals: [
+                    ['ad_storage', false],
+                    ['analytics_storage', true],
+                    ['ad_user_data', false],
+                    ['ad_personalization', false],
+                  ],
+                },
+              ].map(({ step, when, call, signals }) => (
+                <div key={step} className="relative flex gap-4 mb-5 last:mb-0">
+                  <div className="relative z-10 shrink-0 w-10 h-10 rounded-full bg-brand-600 text-white dark:bg-brand-500 dark:text-[#04111f] font-bold text-sm flex items-center justify-center shadow-lg shadow-brand-600/25 dark:shadow-black/30">
+                    {step}
+                  </div>
+                  <div className="flex-1 min-w-0 rounded-xl bg-white/75 dark:bg-black/30 border border-white dark:border-white/10 shadow-lg shadow-emerald-900/10 dark:shadow-black/30 backdrop-blur-sm p-4 sm:p-5">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-[#475569] dark:text-[#94a3b8] mb-1">{when}</p>
+                    <p className="font-mono text-[13px] text-[#0f172a] dark:text-[#f1f5f9] mb-3.5 truncate">{call as string}</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {(signals as [string, boolean][]).map(([name, granted]) => (
+                        <div
+                          key={name}
+                          className={`flex flex-col gap-1 rounded-lg px-3 py-2 text-xs font-mono border ${granted
+                            ? 'bg-brand-500/20 dark:bg-brand-500/25 border-brand-500/50 dark:border-brand-500/60 text-emerald-900 dark:text-[#a7f3d0]'
+                            : 'bg-slate-900/[0.04] dark:bg-white/5 border-slate-900/10 dark:border-white/10 text-[#475569] dark:text-[#94a3b8]'
+                            }`}
+                        >
+                          <span className="break-all">{name}</span>
+                          <span className="flex items-center gap-1 font-semibold">
+                            {granted ? (
+                              <Check size={13} aria-hidden="true" />
+                            ) : (
+                              <X size={13} aria-hidden="true" />
+                            )}
+                            {granted ? 'granted' : 'denied'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              <p className="text-[11px] leading-relaxed text-[#475569] dark:text-[#94a3b8] pl-14 mt-3">
+                By default{' '}
+                <code className="font-mono whitespace-nowrap">functionality_storage</code> and{' '}
+                <code className="font-mono whitespace-nowrap">security_storage</code> are granted and{' '}
+                <code className="font-mono whitespace-nowrap">personalization_storage</code> is denied.
+              </p>
+            </div>
           </div>
-          <div className="flex-1">
-            <h2 className="text-2xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">
-              Google Consent Mode v2, auto-wired — not just a mapping helper
-            </h2>
-            <p className="text-slate-500 dark:text-gray-400 text-[15px] leading-relaxed mb-4">
-              Consenti fires <code className="text-[13px]">gtag(&apos;consent&apos;, &apos;default&apos;, …)</code>{' '}
-              before any tag loads and <code className="text-[13px]">gtag(&apos;consent&apos;, &apos;update&apos;, …)</code>{' '}
-              on every consent change — correct GCM keys, configurable{' '}
-              <code className="text-[13px]">dataLayer</code> name, no manual wiring. Required for
-              Google Ads/Analytics tags to keep working under GDPR once Consent Mode v2 is in effect.
-            </p>
-            <Link
-              href="/guides/hot-topics/google-consent-mode-v2-explained/"
-              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700 no-underline"
-            >
-              How Consenti implements Consent Mode v2 →
-            </Link>
+
+          {/* Gate your own scripts and SDKs on the same consent */}
+          <div className="mt-14 rounded-2xl bg-white/80 dark:bg-black/30 border border-white dark:border-white/10 shadow-xl shadow-emerald-900/10 dark:shadow-black/30 backdrop-blur-sm p-6 md:p-8 grid lg:grid-cols-[0.85fr_1.15fr] gap-8 items-center">
+            <div>
+              <h3 className="text-xl font-bold text-[#0f172a] dark:text-[#f1f5f9] mb-3 tracking-tight">
+                Gate your own scripts and SDKs the same way
+              </h3>
+              <p className="text-[#475569] dark:text-[#cbd5e1] text-sm leading-relaxed mb-4">
+                <code className="text-[13px] bg-slate-900/5 dark:bg-white/10 text-brand-700 dark:text-[#a7f3d0] rounded px-1.5 py-0.5">ConsentScript</code>{' '}
+                loads a script only while a parameter is granted and removes it on revoke.{' '}
+                <code className="text-[13px] bg-slate-900/5 dark:bg-white/10 text-brand-700 dark:text-[#a7f3d0] rounded px-1.5 py-0.5">ConsentAction</code>{' '}
+                calls an SDK&apos;s own opt-in / opt-out. Both check consent immediately and re-check
+                on every change.
+              </p>
+              <Link
+                href="/docs/ui/events"
+                className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700 dark:text-[#6ee7b7] dark:hover:text-[#a7f3d0] no-underline"
+              >
+                ConsentScript, ConsentAction and the other gating helpers →
+              </Link>
+            </div>
+            <div className="min-w-0">
+              <CodeBlock
+                lang="ts"
+                filename="gating.ts"
+                code={`import { ConsentScript, ConsentAction } from '@consenti/ui'
+
+// Load a script only while analytics_storage is granted
+new ConsentScript({
+  cookieId: 'analytics_storage',
+  widget,
+  src: 'https://cdn.example.com/analytics.js',
+})
+
+// Or call an SDK's own opt-in / opt-out
+new ConsentAction({
+  id: 'analytics_storage',
+  widget,
+  onGrant: () => analyticsSdk.optIn(),
+  onDeny: () => analyticsSdk.optOut(),
+})`}
+              />
+            </div>
           </div>
         </div>
       </section>
@@ -691,7 +834,7 @@ export default function LandingPage() {
               instead.
             </p>
             <Link
-              href="/guides/hot-topics/what-is-consenti/"
+              href="/guides/what-is-consenti"
               className="inline-flex items-center gap-1.5 mt-4 text-sm font-semibold text-green-600 dark:text-green-400 hover:text-green-700 no-underline"
             >
               What is Consenti, and why is it built this way? →
@@ -813,7 +956,7 @@ export default function LandingPage() {
               spec coverage. Cookiebot, OneTrust, Cassie, Klaro, orestbida/cookie-consent, and
               ConsentStack are trademarks of their respective owners. Consenti is not affiliated
               with, endorsed by, or sponsored by any of them; see{' '}
-              <Link href="/terms/" className="underline">
+              <Link href="/terms" className="underline">
                 Terms of Use
               </Link>
               .
@@ -836,7 +979,7 @@ export default function LandingPage() {
             Compliance Coverage
           </h2>
           <p className="text-slate-500 dark:text-gray-400 max-w-3xl mx-auto text-[15px]">
-            <Link href="/docs/compliance/compliance-groups/" className="underline decoration-dotted hover:text-brand-600">
+            <Link href="/docs/compliance/compliance-groups" className="underline decoration-dotted hover:text-brand-600">
               Compliance groups
             </Link>{' '}
             routed automatically — see what's actively maintained vs. still evolving below.
@@ -924,7 +1067,7 @@ export default function LandingPage() {
         </p>
         <div className="text-center mt-8">
           <Link
-            href="/docs/compliance/jurisdiction-coverage-map/"
+            href="/docs/compliance/jurisdiction-coverage-map"
             className="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 hover:text-brand-700 no-underline"
           >
             This is a sample — see the full Jurisdiction Coverage Map (190+ countries/territories mapped) →
@@ -963,6 +1106,61 @@ export default function LandingPage() {
                 </span>
               </div>
             ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Scanner */}
+      <section className="px-6 py-20 bg-slate-100/90 dark:bg-[#060e1c]">
+        <div className="max-w-7xl mx-auto rounded-2xl border border-slate-200 dark:border-gray-800 bg-white dark:bg-gray-900 p-8 md:p-12 grid lg:grid-cols-2 gap-10 lg:gap-14 items-center">
+          <div>
+            <span className="inline-flex items-center gap-2 font-mono text-xs text-brand-600 dark:text-brand-300 mb-4">
+              <span className="w-5 h-px bg-brand-300 dark:bg-brand-600 inline-block" aria-hidden="true" />
+              @consenti/scanner
+            </span>
+            <h2 className="text-2xl font-bold text-slate-900 dark:text-gray-100 mb-3 tracking-tight">
+              Find what your site actually fires — not just what you declared
+            </h2>
+            <p className="text-slate-500 dark:text-gray-400 text-[15px] leading-relaxed mb-5">
+              Profiles declare trackers; real sites drift — tag managers, forgotten pixels, new
+              third-party scripts. The scanner is a local, offline CLI that crawls your site in a
+              real browser and reports every cookie, request and script it saw, and in which consent
+              state it fired.
+            </p>
+            <ul className="space-y-2.5 mb-7">
+              {[
+                'Three passes per page: no consent, reject-all and accept-all',
+                'Flags anything that fires before consent, and trackers missing from your profile',
+                'Exits non-zero on findings, so it works as a CI/CD gate',
+                'No account, no hosted service — everything runs on your machine',
+              ].map(point => (
+                <li key={point} className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-gray-300">
+                  <Check size={16} className="text-green-600 dark:text-green-400 mt-0.5 shrink-0" aria-hidden="true" />
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+            <Link
+              href="/guides/ecosystem/scanner"
+              className="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold px-6 py-3 rounded-lg no-underline transition-colors text-sm"
+            >
+              Explore the scanner →
+            </Link>
+          </div>
+
+          <div className="min-w-0">
+            <CodeBlock
+              lang="bash"
+              filename="scan"
+              code={`# crawl under no-consent, reject-all and accept-all
+node apps/scanner/dist/cli.js \\
+scan https://example.com --depth 2 --output-dir ./scan-results
+
+# writes, per scan:
+#   ./scan-results/<scan-id>/scan-results.json
+#   ./scan-results/<scan-id>/scan-results.html
+#   ./scan-results/<scan-id>/screenshots/<page>/{state}.png`}
+            />
           </div>
         </div>
       </section>

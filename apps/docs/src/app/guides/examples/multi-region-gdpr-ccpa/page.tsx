@@ -119,14 +119,14 @@ export function ConsentSetup() {
         Trusting a proxy&apos;s IP header (Cloudflare, an ALB) requires{' '}
         <code>trustedProxies</code> to be configured — otherwise geo-resolution falls back to
         timezone/locale only. See <code>trustedProxies</code> in{' '}
-        <a href="/docs/api/advanced-configuration/">API Advanced Configuration</a>.
+        <a href="/docs/api/advanced-configuration">API Advanced Configuration</a>.
       </Callout>
 
       <RelatedDocs
         items={[
-          { href: '/guides/backend/geo-routing/', label: 'Geo-Routing & Auto-Detection', desc: 'All four geoDataProvider resolvers compared' },
-          { href: '/docs/compliance/gdpr/', label: 'GDPR (EU / EEA)', desc: 'What the opt-in group requires' },
-          { href: '/docs/compliance/ccpa/', label: 'CCPA / US States', desc: 'What the opt-out group requires' },
+          { href: '/guides/backend/geo-routing', label: 'Geo-Routing & Auto-Detection', desc: 'All four geoDataProvider resolvers compared' },
+          { href: '/docs/compliance/gdpr', label: 'GDPR (EU / EEA)', desc: 'What the opt-in group requires' },
+          { href: '/docs/compliance/ccpa', label: 'CCPA / US States', desc: 'What the opt-out group requires' },
         ]}
       />
 

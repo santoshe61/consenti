@@ -109,55 +109,55 @@ export default function RightToErasureGuidePage() {
           <tr>
             <td>GDPR (EU)</td>
             <td>Article 17 — Right to erasure</td>
-            <td><Link href="/docs/compliance/gdpr/">GDPR guide</Link></td>
+            <td><Link href="/docs/compliance/gdpr">GDPR guide</Link></td>
           </tr>
           <tr>
             <td>UK GDPR</td>
             <td>Art. 17, applies identically to EU GDPR</td>
-            <td><Link href="/docs/compliance/uk-gdpr/">UK GDPR guide</Link></td>
+            <td><Link href="/docs/compliance/uk-gdpr">UK GDPR guide</Link></td>
           </tr>
           <tr>
             <td>CCPA / CPRA (California)</td>
             <td>Right to delete</td>
             <td>
-              <Link href="/docs/compliance/ccpa/">CCPA guide</Link> ·{' '}
-              <Link href="/docs/compliance/cpra/">CPRA guide</Link>
+              <Link href="/docs/compliance/ccpa">CCPA guide</Link> ·{' '}
+              <Link href="/docs/compliance/cpra">CPRA guide</Link>
             </td>
           </tr>
           <tr>
             <td>LGPD (Brazil)</td>
             <td>Art. 18 — Right to erasure</td>
-            <td><Link href="/docs/compliance/lgpd/">LGPD guide</Link></td>
+            <td><Link href="/docs/compliance/lgpd">LGPD guide</Link></td>
           </tr>
           <tr>
             <td>DPDPA (India)</td>
             <td>Section 12 — Erasure (Section 6 covers withdrawal)</td>
-            <td><Link href="/docs/compliance/dpdpa/">DPDPA guide</Link></td>
+            <td><Link href="/docs/compliance/dpdpa">DPDPA guide</Link></td>
           </tr>
           <tr>
             <td>KVKK (Turkey)</td>
             <td>Article 7 — Right to request deletion</td>
-            <td><Link href="/docs/compliance/kvkk/">KVKK guide</Link></td>
+            <td><Link href="/docs/compliance/kvkk">KVKK guide</Link></td>
           </tr>
           <tr>
             <td>PIPEDA / Law 25 (Canada)</td>
             <td>Right to access and erasure</td>
-            <td><Link href="/docs/compliance/pipeda/">PIPEDA guide</Link></td>
+            <td><Link href="/docs/compliance/pipeda">PIPEDA guide</Link></td>
           </tr>
           <tr>
             <td>PDPA (Thailand)</td>
             <td>Erasure</td>
-            <td><Link href="/docs/compliance/pdpa-th/">PDPA Thailand guide</Link></td>
+            <td><Link href="/docs/compliance/pdpa-th">PDPA Thailand guide</Link></td>
           </tr>
           <tr>
             <td>APPI (Japan)</td>
             <td>Erasure</td>
-            <td><Link href="/docs/compliance/appi/">APPI guide</Link></td>
+            <td><Link href="/docs/compliance/appi">APPI guide</Link></td>
           </tr>
           <tr>
             <td>POPIA (South Africa)</td>
             <td>Section 24 — Erasure and access</td>
-            <td><Link href="/docs/compliance/popia/">POPIA guide</Link></td>
+            <td><Link href="/docs/compliance/popia">POPIA guide</Link></td>
           </tr>
         </tbody>
       </table>
@@ -340,37 +340,37 @@ widget.on('forgotten', (data: ConsentEvent) => {
       <RelatedDocs
         items={[
           {
-            href: '/docs/compliance/gdpr/',
+            href: '/docs/compliance/gdpr',
             label: 'GDPR Compliance Guide',
             desc: 'Article 17 in full context, alongside opt-in mode and legitimate interest',
           },
           {
-            href: '/docs/api/routes/public/',
+            href: '/docs/api/routes/public',
             label: 'Public API Routes',
             desc: 'Full reference for the DELETE /consent/:visitorId endpoint',
           },
           {
-            href: '/docs/api/events/',
+            href: '/docs/api/events',
             label: 'Server Events',
             desc: 'Every eventBus event, including consent:erased',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Widget Events',
             desc: 'Every consenti:* event, including forgetMeRequested/forgotten',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'Widget API Methods',
             desc: 'deleteConsent(), reConsent(), forgetMe(), and the rest of the public API',
           },
           {
-            href: '/docs/ui/advanced-profiles/',
+            href: '/docs/ui/advanced-profiles',
             label: 'Advanced Profile Reference',
             desc: 'The full PreferenceModal field list, including showForgetMe/forgetMeLabel',
           },
           {
-            href: '/guides/backend/consent-flow/',
+            href: '/guides/backend/consent-flow',
             label: 'Consent Flow (Backend)',
             desc: 'Trace a consent record from POST through storage to erasure',
           },

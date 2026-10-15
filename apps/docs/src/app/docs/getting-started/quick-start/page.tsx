@@ -42,7 +42,7 @@ function PathContent({
           {activePath === 'frontend' ? 'Frontend Only' : 'Frontend + Backend'}
         </span>
         <Link
-          href="/docs/getting-started/quick-start/"
+          href="/docs/getting-started/quick-start"
           className="ml-auto text-xs text-brand-600 hover:text-brand-700 font-medium no-underline"
         >
           Change →
@@ -101,7 +101,7 @@ function PathChooser() {
             </li>
             <li className="flex items-center gap-2">
               <span className="text-green-500">✓</span> GDPR, CCPA &amp;{' '}
-              <Link href="/docs/compliance/compliance-groups/" className="underline decoration-dotted">
+              <Link href="/docs/compliance/compliance-groups" className="underline decoration-dotted">
                 8 compliance groups
               </Link>
             </li>
@@ -248,28 +248,28 @@ export function ConsentSetup() {
       <h2>What to read next</h2>
       <ul>
         <li>
-          <a href="/docs/ui/advanced-configuration/">UI Configuration</a> — every{' '}
+          <a href="/docs/ui/advanced-configuration">UI Configuration</a> — every{' '}
           <code>ConsentiSetup</code> option
         </li>
         <li>
-          <a href="/docs/ui/profiles/">Profiles</a> — customize the banner copy, buttons, and cookie
+          <a href="/docs/ui/profiles">Profiles</a> — customize the banner copy, buttons, and cookie
           categories
         </li>
         <li>
-          <a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt
+          <a href="/docs/ui/frameworks">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt
           integration
         </li>
         <li>
-          <a href="/docs/ui/events/">Events</a> — all <code>consenti:</code> events and payloads
+          <a href="/docs/ui/events">Events</a> — all <code>consenti:</code> events and payloads
         </li>
         <li>
-          <a href="/docs/ui/methods/">API Methods</a> — every widget method with examples
+          <a href="/docs/ui/methods">API Methods</a> — every widget method with examples
         </li>
         <li>
-          <a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires
+          <a href="/docs/compliance/gdpr">Compliance guides</a> — what each group requires
         </li>
         <li>
-          <a href="/docs/getting-started/quick-start/?path=both">Switch to Frontend + Backend →</a>
+          <a href="/docs/getting-started/quick-start?path=both">Switch to Frontend + Backend →</a>
         </li>
       </ul>
     </>
@@ -320,7 +320,7 @@ http.createServer(consenti.handler).listen(3001)
         The default <code>json</code> driver works with zero installation. Switch to{' '}
         <code>node:sqlite</code> (Node 22.5+) or <code>postgresql</code> / <code>mysql</code> /{' '}
         <code>mongodb</code> before going to production. See{' '}
-        <a href="/docs/api/advanced-configuration/#storage">API Advanced Configuration</a> for all
+        <a href="/docs/api/advanced-configuration#storage">API Advanced Configuration</a> for all
         storage options.
       </Callout>
 
@@ -377,24 +377,24 @@ widget.onReady(() => {
       <h2>What to read next</h2>
       <ul>
         <li>
-          <a href="/docs/api/advanced-configuration/">API Configuration</a> — storage drivers, auth
+          <a href="/docs/api/advanced-configuration">API Configuration</a> — storage drivers, auth
           modes, all options
         </li>
         <li>
-          <a href="/docs/ui/advanced-configuration/">UI Configuration</a> — every{' '}
+          <a href="/docs/ui/advanced-configuration">UI Configuration</a> — every{' '}
           <code>ConsentiSetup</code> option
         </li>
         <li>
-          <a href="/docs/ui/profiles/">Profiles</a> — customize banner, modal, and cookie categories
+          <a href="/docs/ui/profiles">Profiles</a> — customize banner, modal, and cookie categories
         </li>
         <li>
-          <a href="/docs/ui/frameworks/">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt
+          <a href="/docs/ui/frameworks">Frameworks</a> — React, Vue, Angular, Next.js, Nuxt
         </li>
         <li>
-          <a href="/docs/compliance/gdpr/">Compliance guides</a> — what each group requires
+          <a href="/docs/compliance/gdpr">Compliance guides</a> — what each group requires
         </li>
         <li>
-          <a href="/docs/getting-started/quick-start/?path=frontend">Switch to Frontend Only →</a>
+          <a href="/docs/getting-started/quick-start?path=frontend">Switch to Frontend Only →</a>
         </li>
       </ul>
     </>

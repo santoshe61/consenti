@@ -118,9 +118,9 @@ export function ConsentSetup() {
 
       <RelatedDocs
         items={[
-          { href: '/guides/backend/auth/', label: 'Auth Modes', desc: 'Local, JWT, OIDC, SAML, and custom auth' },
-          { href: '/guides/backend/storage/', label: 'Choosing a Storage Driver', desc: 'json vs node:sqlite vs Postgres/MySQL/Mongo' },
-          { href: '/docs/api/dashboard/', label: 'Admin Dashboard', desc: 'Every dashboard section and who can access it' },
+          { href: '/guides/backend/auth', label: 'Auth Modes', desc: 'Local, JWT, OIDC, SAML, and custom auth' },
+          { href: '/guides/backend/storage', label: 'Choosing a Storage Driver', desc: 'json vs node:sqlite vs Postgres/MySQL/Mongo' },
+          { href: '/docs/api/dashboard', label: 'Admin Dashboard', desc: 'Every dashboard section and who can access it' },
         ]}
       />
 

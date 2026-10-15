@@ -217,12 +217,12 @@ curl https://your-domain.com/consenti/admin/v1/profiles \\
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/advanced-configuration/',
+            href: '/docs/api/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'Full auth option reference — local, jwt, oidc, saml, and custom',
           },
           {
-            href: '/docs/api/routes/admin/',
+            href: '/docs/api/routes/admin',
             label: 'Admin Routes',
             desc: 'RBAC roles, permissions, and every protected endpoint',
           },

@@ -62,7 +62,7 @@ export default function FrontendOnlyModePage() {
         Everything on this page works with <code>@consenti/ui</code> alone — no{' '}
         <code>@consenti/api</code>, no server, no account. Add the backend later, any time, without
         changing your widget config, if you want server-side consent records or a dashboard. See{' '}
-        <Link href="/guides/what-is-consenti/">Consenti, What-Why-How?</Link> for how the two
+        <Link href="/guides/what-is-consenti">Consenti, What-Why-How?</Link> for how the two
         packages relate.
       </Callout>
 
@@ -94,43 +94,43 @@ export default function FrontendOnlyModePage() {
 
       <h2>Get started</h2>
       <ul>
-        <li><Link href="/docs/ui/installation/">Installation</Link> — package install, ESM/UMD/subpath exports</li>
-        <li><Link href="/guides/frontend/minimal-setup/">Minimal Setup</Link> — smallest possible working config</li>
-        <li><Link href="/guides/frontend/consent-flow/">How Consent Flow Works</Link></li>
-        <li><Link href="/guides/frontend/auto-detection/">How Auto-Detection Works</Link> — jurisdiction resolved client-side, no network call</li>
+        <li><Link href="/docs/ui/installation">Installation</Link> — package install, ESM/UMD/subpath exports</li>
+        <li><Link href="/guides/frontend/minimal-setup">Minimal Setup</Link> — smallest possible working config</li>
+        <li><Link href="/guides/frontend/consent-flow">How Consent Flow Works</Link></li>
+        <li><Link href="/guides/frontend/auto-detection">How Auto-Detection Works</Link> — jurisdiction resolved client-side, no network call</li>
       </ul>
 
       <h2>API surface</h2>
       <ul>
-        <li><Link href="/docs/ui/methods/">API Methods</Link> — all 31 methods: state (<code>getConsent</code>, <code>hasConsent</code>, <code>isCategoryGranted</code>...), UI control (<code>showModal</code>, <code>hideBanner</code>...), lifecycle (<code>reConsent</code>, <code>forgetMe</code>, <code>destroy</code>...)</li>
-        <li><Link href="/docs/ui/events/">DOM Events</Link> — all 8 events, plus <code>ConsentScript</code>/<code>CategoryScript</code>/<code>ConsentAction</code>/<code>BannerTrigger</code> helpers and declarative <code>data-consenti-*</code> attribute-based script gating, no hand-written JS required</li>
-        <li><Link href="/docs/ui/plugins/">Plugin API</Link> — <code>ConsentiWidgetAPI</code> reference, lifecycle hooks, example plugins</li>
+        <li><Link href="/docs/ui/methods">API Methods</Link> — all 31 methods: state (<code>getConsent</code>, <code>hasConsent</code>, <code>isCategoryGranted</code>...), UI control (<code>showModal</code>, <code>hideBanner</code>...), lifecycle (<code>reConsent</code>, <code>forgetMe</code>, <code>destroy</code>...)</li>
+        <li><Link href="/docs/ui/events">DOM Events</Link> — all 8 events, plus <code>ConsentScript</code>/<code>CategoryScript</code>/<code>ConsentAction</code>/<code>BannerTrigger</code> helpers and declarative <code>data-consenti-*</code> attribute-based script gating, no hand-written JS required</li>
+        <li><Link href="/docs/ui/plugins">Plugin API</Link> — <code>ConsentiWidgetAPI</code> reference, lifecycle hooks, example plugins</li>
       </ul>
 
       <h2>Framework integrations</h2>
       <ul>
-        <li><Link href="/docs/ui/frameworks/">Framework Guides</Link> — React, Vue, Angular, Next.js, Nuxt</li>
-        <li><Link href="/guides/frontend/frameworks/">Framework Integrations guide</Link> — hooks, composables, services in context</li>
+        <li><Link href="/docs/ui/frameworks">Framework Guides</Link> — React, Vue, Angular, Next.js, Nuxt</li>
+        <li><Link href="/guides/frontend/frameworks">Framework Integrations guide</Link> — hooks, composables, services in context</li>
       </ul>
 
       <h2>Analytics &amp; tag-manager integrations</h2>
       <p>Typed consent mappers ship in <code>@consenti/ui</code> for each of these — no hand-rolled mapping code:</p>
       <ul>
-        <li><Link href="/guides/frontend/gtm/">GTM &amp; Google Consent Mode v2</Link></li>
-        <li><Link href="/guides/frontend/adobe/">Adobe Analytics &amp; Experience Platform</Link></li>
-        <li><Link href="/guides/frontend/meta/">Meta Pixel &amp; Conversions API</Link></li>
-        <li><Link href="/guides/frontend/clarity/">Microsoft Clarity</Link></li>
-        <li><Link href="/guides/frontend/segment/">Twilio Segment</Link></li>
-        <li><Link href="/guides/frontend/hotjar/">Hotjar &amp; Others</Link></li>
+        <li><Link href="/guides/frontend/gtm">GTM &amp; Google Consent Mode v2</Link></li>
+        <li><Link href="/guides/frontend/adobe">Adobe Analytics &amp; Experience Platform</Link></li>
+        <li><Link href="/guides/frontend/meta">Meta Pixel &amp; Conversions API</Link></li>
+        <li><Link href="/guides/frontend/clarity">Microsoft Clarity</Link></li>
+        <li><Link href="/guides/frontend/segment">Twilio Segment</Link></li>
+        <li><Link href="/guides/frontend/hotjar">Hotjar &amp; Others</Link></li>
       </ul>
 
       <h2>Theming &amp; configuration</h2>
       <ul>
-        <li><Link href="/guides/frontend/themes/">Custom Themes &amp; Dark Mode</Link> — CSS custom properties, no Shadow DOM</li>
-        <li><Link href="/docs/ui/themes/">Themes reference</Link></li>
-        <li><Link href="/docs/ui/configuration/">Configuration Reference</Link></li>
-        <li><Link href="/docs/ui/advanced-configuration/">Advanced Configuration</Link></li>
-        <li><Link href="/docs/ui/profiles/">Profiles (Appearance &amp; Text)</Link> and <Link href="/docs/ui/advanced-profiles/">Advanced Profiles</Link></li>
+        <li><Link href="/guides/frontend/themes">Custom Themes &amp; Dark Mode</Link> — CSS custom properties, no Shadow DOM</li>
+        <li><Link href="/docs/ui/themes">Themes reference</Link></li>
+        <li><Link href="/docs/ui/configuration">Configuration Reference</Link></li>
+        <li><Link href="/docs/ui/advanced-configuration">Advanced Configuration</Link></li>
+        <li><Link href="/docs/ui/profiles">Profiles (Appearance &amp; Text)</Link> and <Link href="/docs/ui/advanced-profiles">Advanced Profiles</Link></li>
       </ul>
 
       <h2>Cookie discovery</h2>
@@ -160,7 +160,7 @@ export default function FrontendOnlyModePage() {
               <p className="m-0">
                 Yes — set <code>api.enabled: true</code> and point it at your deployed backend; the
                 widget config you already wrote keeps working. See{' '}
-                <Link href="/guides/backend/minimal-setup/">Backend Minimal Setup</Link>.
+                <Link href="/guides/backend/minimal-setup">Backend Minimal Setup</Link>.
               </p>
             ),
           },
@@ -179,17 +179,17 @@ export default function FrontendOnlyModePage() {
       <RelatedDocs
         items={[
           {
-            href: '/guides/what-is-consenti/',
+            href: '/guides/what-is-consenti',
             label: 'Consenti, What-Why-How?',
             desc: 'How the frontend-only and backend-attached modes relate',
           },
           {
-            href: '/guides/hot-topics/open-source-alternatives-to-cookiebot/',
+            href: '/guides/hot-topics/open-source-alternatives-to-cookiebot',
             label: 'Open-source alternatives to Cookiebot',
             desc: 'The full feature comparison, including backend and TCF/GPP rows out of scope here',
           },
           {
-            href: '/guides/hot-topics/self-hosting-a-cmp/',
+            href: '/guides/hot-topics/self-hosting-a-cmp',
             label: 'Self-hosting a CMP',
             desc: 'The four pieces a self-hosted stack needs',
           },

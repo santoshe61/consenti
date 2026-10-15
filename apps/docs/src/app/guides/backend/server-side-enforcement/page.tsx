@@ -146,12 +146,12 @@ export default async function handler(req: Request): Promise<Response> {
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/routes/public/',
+            href: '/docs/api/routes/public',
             label: 'Public Routes',
             desc: 'The verify endpoint and every other unauthenticated route',
           },
           {
-            href: '/docs/api/routes/admin/',
+            href: '/docs/api/routes/admin',
             label: 'Admin Routes',
             desc: 'The admin-auth alternative for callers with no visitor cookie',
           },

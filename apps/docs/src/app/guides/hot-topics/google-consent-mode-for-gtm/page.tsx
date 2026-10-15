@@ -115,9 +115,9 @@ gtag('consent', 'default', {
         If you&apos;re using a library that already owns the default/update calls — Consenti&apos;s{' '}
         <code>utils.gtm</code> config does this on the JS side — the GTM-console work is mostly
         steps 3 and 5: adding consent checks per tag and verifying them in Preview. See the{' '}
-        <Link href="/guides/frontend/gtm/">GTM & Google Consent Mode v2</Link> guide for the config
+        <Link href="/guides/frontend/gtm">GTM & Google Consent Mode v2</Link> guide for the config
         API, or{' '}
-        <Link href="/guides/hot-topics/google-consent-mode-v2-explained/">
+        <Link href="/guides/hot-topics/google-consent-mode-v2-explained">
           Google Consent Mode v2 Explained
         </Link>{' '}
         for the concepts behind basic vs. advanced mode.
@@ -126,17 +126,17 @@ gtag('consent', 'default', {
       <RelatedDocs
         items={[
           {
-            href: '/guides/frontend/gtm/',
+            href: '/guides/frontend/gtm',
             label: 'GTM & Google Consent Mode v2',
             desc: 'The JS-side Consenti config — containerId, verbose mode, dataLayer output',
           },
           {
-            href: '/guides/hot-topics/google-consent-mode-v2-explained/',
+            href: '/guides/hot-topics/google-consent-mode-v2-explained',
             label: 'Google Consent Mode v2 Explained',
             desc: 'What the seven signals mean and basic vs. advanced mode',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'consenti:* events you can also route into GTM triggers',
           },

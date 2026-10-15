@@ -270,19 +270,19 @@ export class SlackPlugin extends ConsentiServerPlugin {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 not-prose mt-4">
         {[
           {
-            href: '/docs/api/plugins/bigquery/',
+            href: '/docs/api/plugins/bigquery',
             name: 'BigQuery',
             desc: 'Stream consent records to Google BigQuery for analytics',
             pkg: '@consenti-plugin-bigquery',
           },
           {
-            href: '/docs/api/plugins/segment/',
+            href: '/docs/api/plugins/segment',
             name: 'Segment',
             desc: 'Fire Consent Given events to Segment / Twilio Engage',
             pkg: '@consenti-plugin-segment',
           },
           {
-            href: '/docs/api/plugins/snowflake/',
+            href: '/docs/api/plugins/snowflake',
             name: 'Snowflake',
             desc: 'Load consent records into Snowflake data warehouse',
             pkg: '@consenti-plugin-snowflake',

@@ -64,7 +64,7 @@ export default function ScannerGuidePage() {
       <Callout type="info">
         No account, no server, no hosted service. Everything runs on your machine; the only
         network traffic is the crawl itself. This is the same tool referenced in{' '}
-        <Link href="/guides/frontend-only-mode/">Frontend-Only Mode</Link> as the way to discover
+        <Link href="/guides/frontend-only-mode">Frontend-Only Mode</Link> as the way to discover
         cookies without hand-declaring them.
       </Callout>
 
@@ -171,7 +171,7 @@ npm run install-browsers --workspace=@consenti/scanner   # one-time: installs Pl
       <p>
         A scan&apos;s findings are grouped by purpose (necessary/functional/preferences/analytics/
         marketing) into one of Consenti&apos;s 8 built-in{' '}
-        <Link href="/docs/compliance/compliance-groups/">compliance groups</Link>, chosen
+        <Link href="/docs/compliance/compliance-groups">compliance groups</Link>, chosen
         heuristically from what was found — opt-in (GDPR/ePrivacy-style) whenever any non-essential
         tracker turns up, since it&apos;s the safe universal default: it satisfies opt-in
         jurisdictions outright and is a strict superset of what opt-out jurisdictions require.
@@ -196,7 +196,7 @@ npm run install-browsers --workspace=@consenti/scanner   # one-time: installs Pl
       </p>
       <p>
         <code>--enable-gpc</code> simulates a visitor with{' '}
-        <Link href="/docs/compliance/jurisdiction-coverage-map/">Global Privacy Control</Link>{' '}
+        <Link href="/docs/compliance/jurisdiction-coverage-map">Global Privacy Control</Link>{' '}
         turned on — sets <code>navigator.globalPrivacyControl = true</code> and sends{' '}
         <code>Sec-GPC: 1</code> on every request. Run a scan with and without it to see whether a
         site&apos;s tracking behavior actually changes in response: several US state privacy laws
@@ -287,7 +287,7 @@ if (hasBlockingFindings(report)) process.exitCode = 1`}
               <p className="m-0">
                 For now, it&apos;s a local, on-demand/CI tool, not a continuously-scheduled hosted
                 crawler with a managed vendor database — see{' '}
-                <Link href="/guides/hot-topics/open-source-alternatives-to-onetrust/">
+                <Link href="/guides/hot-topics/open-source-alternatives-to-onetrust">
                   Open-source alternatives to OneTrust
                 </Link>{' '}
                 for the full comparison.
@@ -300,17 +300,17 @@ if (hasBlockingFindings(report)) process.exitCode = 1`}
       <RelatedDocs
         items={[
           {
-            href: '/guides/frontend-only-mode/',
+            href: '/guides/frontend-only-mode',
             label: 'Frontend-Only Mode',
             desc: 'How the scanner fits into a no-backend Consenti setup',
           },
           {
-            href: '/guides/what-is-consenti/',
+            href: '/guides/what-is-consenti',
             label: 'Consenti, What-Why-How?',
             desc: 'How scanning, profiles, and templates relate',
           },
           {
-            href: '/docs/compliance/compliance-groups/',
+            href: '/docs/compliance/compliance-groups',
             label: 'Compliance Groups',
             desc: 'The 8 built-in groups the scanner picks a suggestion from',
           },

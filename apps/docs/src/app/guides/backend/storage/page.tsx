@@ -236,9 +236,9 @@ createConsenti({
         <code>consenti_users</code>, <code>consenti_profiles</code>, …), so Consenti can&apos;t clash
         with another app&apos;s tables. Upgrading an existing PostgreSQL / MySQL / MongoDB install
         from before 0.6.0 needs a{' '}
-        <a href="/docs/api/advanced-configuration/#upgrading-0-6-0">one-off rename</a>. On shared
+        <a href="/docs/api/advanced-configuration#upgrading-0-6-0">one-off rename</a>. On shared
         hosting with a restricted database user, see{' '}
-        <a href="/docs/api/advanced-configuration/#shared-hosting">what it needs</a> — the connection
+        <a href="/docs/api/advanced-configuration#shared-hosting">what it needs</a> — the connection
         pool defaults to 5 (<code>storage.poolMax</code>) for exactly that case.
       </Callout>
 
@@ -278,12 +278,12 @@ CONSENTI_DB_DATABASE=consenti`}
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/advanced-configuration/',
+            href: '/docs/api/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'Full storage options reference, including s3Api for profile file syncing',
           },
           {
-            href: '/docs/api/installation/',
+            href: '/docs/api/installation',
             label: 'Installation',
             desc: 'Per-framework setup requirements',
           },

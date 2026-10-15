@@ -150,9 +150,9 @@ async function getStats() {
 
       <RelatedDocs
         items={[
-          { href: '/docs/api/installation/', label: 'Backend Installation', desc: 'Every framework adapter, including Express, Fastify, Hono' },
-          { href: '/guides/frontend/frameworks/', label: 'Framework Integrations', desc: 'React, Vue, Angular, and Vanilla JS equivalents' },
-          { href: '/docs/api/routes/public/', label: 'Public Routes', desc: 'Every /consenti/api/v1 endpoint the widget and your own code can call' },
+          { href: '/docs/api/installation', label: 'Backend Installation', desc: 'Every framework adapter, including Express, Fastify, Hono' },
+          { href: '/guides/frontend/frameworks', label: 'Framework Integrations', desc: 'React, Vue, Angular, and Vanilla JS equivalents' },
+          { href: '/docs/api/routes/public', label: 'Public Routes', desc: 'Every /consenti/api/v1 endpoint the widget and your own code can call' },
         ]}
       />
 

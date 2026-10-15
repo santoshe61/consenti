@@ -51,7 +51,7 @@ export default function BackendMinimalSetupGuide() {
         When you&apos;re ready for production, install one of the optional storage drivers:{' '}
         <code>node:sqlite</code> (built into Node 22+, no install needed),{' '}
         <code>better-sqlite3</code>, <code>pg</code>, <code>mysql2</code>, or <code>mongodb</code>.
-        See the <a href="/guides/backend/storage/">Storage Driver guide</a> for a comparison.
+        See the <a href="/guides/backend/storage">Storage Driver guide</a> for a comparison.
       </Callout>
 
       <h2>Step 2 — Pick your framework</h2>
@@ -204,22 +204,22 @@ export {
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/installation/',
+            href: '/docs/api/installation',
             label: 'Installation',
             desc: 'Setup with Express, Fastify, Hono, or raw Node HTTP',
           },
           {
-            href: '/docs/api/configuration/',
+            href: '/docs/api/configuration',
             label: 'Configuration',
             desc: 'The options most deployments need',
           },
           {
-            href: '/docs/api/advanced-configuration/',
+            href: '/docs/api/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'Full createConsenti() options — basePath, auth, storage, and more',
           },
           {
-            href: '/docs/api/dashboard/',
+            href: '/docs/api/dashboard',
             label: 'Admin Dashboard',
             desc: 'What the built-in dashboard at /consenti/ can do',
           },
@@ -278,7 +278,7 @@ export {
                 JSON storage is great for development and very small deployments. For production,
                 use SQLite (<code>node:sqlite</code> on Node 22+), PostgreSQL, MySQL, or MongoDB
                 depending on your scale. See the{' '}
-                <a href="/guides/backend/storage/">Storage Driver guide</a> for a full comparison.
+                <a href="/guides/backend/storage">Storage Driver guide</a> for a full comparison.
               </p>
             ),
           },

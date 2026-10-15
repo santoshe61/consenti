@@ -26,12 +26,12 @@ export const metadata: Metadata = {
 
 const LEARN_GUIDES = [
   {
-    href: '/guides/what-is-consenti/',
+    href: '/guides/what-is-consenti',
     title: 'Consenti, What-Why-How?',
     desc: 'What it is, why it detects jurisdiction in the browser, and how it plans to stay compliant.',
   },
   {
-    href: '/guides/frontend-only-mode/',
+    href: '/guides/frontend-only-mode',
     title: 'Frontend-Only Mode',
     desc: '31 widget methods, 8 events, native framework hooks, six analytics integrations — no backend required.',
   },
@@ -39,57 +39,57 @@ const LEARN_GUIDES = [
 
 const FRONTEND_GUIDES = [
   {
-    href: '/guides/frontend/minimal-setup/',
+    href: '/guides/frontend/minimal-setup',
     title: 'Minimal Setup',
     desc: 'Get a consent banner on screen in under 5 minutes — no backend required.',
   },
   {
-    href: '/guides/frontend/consent-flow/',
+    href: '/guides/frontend/consent-flow',
     title: 'How Consent Flow Works',
     desc: 'Follow a consent decision from first visit all the way to cookie and event.',
   },
   {
-    href: '/guides/frontend/auto-detection/',
+    href: '/guides/frontend/auto-detection',
     title: 'How Auto-Detection Works',
     desc: 'Understand the three scenarios Consenti uses to resolve the right compliance group.',
   },
   {
-    href: '/guides/frontend/frameworks/',
+    href: '/guides/frontend/frameworks',
     title: 'Framework Integrations',
     desc: 'Complete working snippets for React, Next.js, Vue 3, Angular, and Vanilla JS.',
   },
   {
-    href: '/guides/frontend/gtm/',
+    href: '/guides/frontend/gtm',
     title: 'GTM & Google Consent Mode v2',
     desc: 'Wire Consenti to GTM and push consent signals to your dataLayer automatically.',
   },
   {
-    href: '/guides/frontend/adobe/',
+    href: '/guides/frontend/adobe',
     title: 'Adobe Analytics & Experience Platform',
     desc: 'Read Adobe-shaped consent and wire it to Launch, AppMeasurement, or the Web SDK.',
   },
   {
-    href: '/guides/frontend/meta/',
+    href: '/guides/frontend/meta',
     title: 'Meta Pixel & Conversions API',
     desc: 'Sync the fbq consent flag and gate what you forward to the server-side CAPI.',
   },
   {
-    href: '/guides/frontend/clarity/',
+    href: '/guides/frontend/clarity',
     title: 'Microsoft Clarity',
     desc: 'Gate session recordings and heatmaps behind analytics consent.',
   },
   {
-    href: '/guides/frontend/segment/',
+    href: '/guides/frontend/segment',
     title: 'Twilio Segment',
     desc: 'Gate identify, page, and track calls independently instead of an all-or-nothing switch.',
   },
   {
-    href: '/guides/frontend/hotjar/',
+    href: '/guides/frontend/hotjar',
     title: 'Hotjar & Others',
     desc: 'Tools with no dedicated vendor format — pick the right getConsent() call and gate the script.',
   },
   {
-    href: '/guides/frontend/themes/',
+    href: '/guides/frontend/themes',
     title: 'Custom Themes & Dark Mode',
     desc: 'Override CSS tokens, swap themes at runtime, and toggle dark mode.',
   },
@@ -97,42 +97,42 @@ const FRONTEND_GUIDES = [
 
 const BACKEND_GUIDES = [
   {
-    href: '/guides/backend/minimal-setup/',
+    href: '/guides/backend/minimal-setup',
     title: 'Minimal Setup',
     desc: 'Mount the Consenti API on any Node.js framework in minutes.',
   },
   {
-    href: '/guides/backend/consent-flow/',
+    href: '/guides/backend/consent-flow',
     title: 'How Consent Flow Works',
     desc: 'Trace a consent record from HTTP POST through storage to GDPR erasure.',
   },
   {
-    href: '/guides/backend/geo-routing/',
+    href: '/guides/backend/geo-routing',
     title: 'Geo-Routing & Auto-Detection',
     desc: "How Consenti maps a visitor's IP and timezone to the right compliance group.",
   },
   {
-    href: '/guides/backend/storage/',
+    href: '/guides/backend/storage',
     title: 'Choosing a Storage Driver',
     desc: 'Compare JSON, SQLite, PostgreSQL, MySQL, and MongoDB — and when to use each.',
   },
   {
-    href: '/guides/backend/auth/',
+    href: '/guides/backend/auth',
     title: 'Auth Modes',
     desc: 'Local passwords for dev, JWT for API consumers, OIDC/SAML for enterprise SSO.',
   },
   {
-    href: '/guides/backend/server-side-enforcement/',
+    href: '/guides/backend/server-side-enforcement',
     title: 'Server-Side Enforcement',
     desc: 'Gate a tag, pixel, or backend event pipeline on real consent — including an edge-worker example.',
   },
   {
-    href: '/guides/backend/webhooks/',
+    href: '/guides/backend/webhooks',
     title: 'Webhook Integration',
     desc: 'POST consent decisions to your own webhook URL using the existing eventBus — no new package.',
   },
   {
-    href: '/guides/backend/policy-engine-mapping/',
+    href: '/guides/backend/policy-engine-mapping',
     title: 'Policy & Rules Engine Mapping',
     desc: 'How compliance groups, geo-resolution, and multi-tenancy map onto "policy by regulation/region/site" language.',
   },
@@ -140,47 +140,47 @@ const BACKEND_GUIDES = [
 
 const HOT_TOPICS = [
   {
-    href: '/guides/hot-topics/google-consent-mode-v2-explained/',
+    href: '/guides/hot-topics/google-consent-mode-v2-explained',
     title: 'Google Consent Mode v2 Explained',
     desc: 'What the seven consent signals mean, and basic vs. advanced mode.',
   },
   {
-    href: '/guides/hot-topics/gdpr-vs-dpdpa/',
+    href: '/guides/hot-topics/gdpr-vs-dpdpa',
     title: 'GDPR vs DPDPA',
     desc: 'Where the EU and India opt-in laws agree — and where they don’t.',
   },
   {
-    href: '/guides/hot-topics/dpdpa-cookie-compliance-guide/',
+    href: '/guides/hot-topics/dpdpa-cookie-compliance-guide',
     title: 'DPDPA Cookie Compliance Guide',
     desc: 'A practical checklist for an India-compliant opt-in banner.',
   },
   {
-    href: '/guides/hot-topics/cpra-implementation-guide/',
+    href: '/guides/hot-topics/cpra-implementation-guide',
     title: 'CPRA Implementation Guide',
     desc: 'Do Not Sell/Share, GPC auto-honour, and sensitive data opt-in.',
   },
   {
-    href: '/guides/hot-topics/right-to-erasure/',
+    href: '/guides/hot-topics/right-to-erasure',
     title: 'Right to Erasure ("Right to Be Forgotten")',
     desc: 'The erasure endpoint, the preference modal\'s "Forget me" button, and what events fire.',
   },
   {
-    href: '/guides/hot-topics/google-consent-mode-for-gtm/',
+    href: '/guides/hot-topics/google-consent-mode-for-gtm',
     title: 'Google Consent Mode for GTM',
     desc: 'Configuring consent checks and triggers inside the GTM console.',
   },
   {
-    href: '/guides/hot-topics/self-hosting-a-cmp/',
+    href: '/guides/hot-topics/self-hosting-a-cmp',
     title: 'Self-hosting a CMP',
     desc: 'The four pieces a self-hosted consent stack actually needs.',
   },
   {
-    href: '/guides/hot-topics/open-source-alternatives-to-onetrust/',
+    href: '/guides/hot-topics/open-source-alternatives-to-onetrust',
     title: 'Open-source alternatives to OneTrust',
     desc: 'Scoped to the cookie consent module, not the full GRC suite.',
   },
   {
-    href: '/guides/hot-topics/open-source-alternatives-to-cookiebot/',
+    href: '/guides/hot-topics/open-source-alternatives-to-cookiebot',
     title: 'Open-source alternatives to Cookiebot',
     desc: 'Self-hosted options compared feature-for-feature.',
   },
@@ -188,7 +188,7 @@ const HOT_TOPICS = [
 
 const ECOSYSTEM_GUIDES = [
   {
-    href: '/guides/ecosystem/scanner/',
+    href: '/guides/ecosystem/scanner',
     title: '@consenti/scanner',
     desc: 'Offline CLI that crawls your site under three consent states and reports undeclared third-party trackers.',
   },
@@ -299,7 +299,7 @@ export default function GuidesPage() {
           Looking for API reference tables, configuration options, and type definitions? Head over
           to the{' '}
           <Link
-            href="/docs/getting-started/"
+            href="/docs/getting-started"
             className="text-brand-600 dark:text-brand-400 font-medium hover:underline"
           >
             Documentation

@@ -36,7 +36,7 @@ export default function APIRoutesPage() {
 
       <div className="not-prose grid grid-cols-1 sm:grid-cols-2 gap-4 my-6">
         <Link
-          href="/docs/api/routes/public/"
+          href="/docs/api/routes/public"
           className="group block rounded-xl border border-slate-200 bg-slate-50 hover:border-emerald-400 hover:bg-emerald-50 p-5 transition-colors no-underline"
         >
           <div className="flex items-center gap-2 mb-2">
@@ -54,7 +54,7 @@ export default function APIRoutesPage() {
         </Link>
 
         <Link
-          href="/docs/api/routes/admin/"
+          href="/docs/api/routes/admin"
           className="group block rounded-xl border border-slate-200 bg-slate-50 hover:border-violet-400 hover:bg-violet-50 p-5 transition-colors no-underline"
         >
           <div className="flex items-center gap-2 mb-2">

@@ -39,27 +39,27 @@ export const metadata: Metadata = {
  * cross-cutting (not tied to any one compliance group), so it's linked from the sidebar's
  * top-level Compliances section instead — see /docs/compliance/tcf-and-gpp-registration/. */
 const REGULATION_DOCS: Record<string, { label: string; href: string }> = {
-  'gdpr': { label: 'GDPR (EU / EEA)', href: '/docs/compliance/gdpr/' },
-  'uk-gdpr': { label: 'UK GDPR', href: '/docs/compliance/uk-gdpr/' },
-  'kvkk': { label: 'KVKK (Turkey)', href: '/docs/compliance/kvkk/' },
-  'pdpa-th': { label: 'PDPA (Thailand)', href: '/docs/compliance/pdpa-th/' },
-  'ccpa': { label: 'CCPA / US States', href: '/docs/compliance/ccpa/' },
-  'cpra': { label: 'CPRA (California 2023)', href: '/docs/compliance/cpra/' },
-  'dpdpa': { label: 'DPDPA (India 2023)', href: '/docs/compliance/dpdpa/' },
-  'pipl': { label: 'PIPL (China 2021)', href: '/docs/compliance/pipl/' },
-  'lgpd': { label: 'LGPD (Brazil)', href: '/docs/compliance/lgpd/' },
-  'pipeda': { label: 'PIPEDA / Law 25 (Canada)', href: '/docs/compliance/pipeda/' },
-  'popia': { label: 'POPIA (South Africa)', href: '/docs/compliance/popia/' },
-  'appi': { label: 'APPI (Japan)', href: '/docs/compliance/appi/' },
+  'gdpr': { label: 'GDPR (EU / EEA)', href: '/docs/compliance/gdpr' },
+  'uk-gdpr': { label: 'UK GDPR', href: '/docs/compliance/uk-gdpr' },
+  'kvkk': { label: 'KVKK (Turkey)', href: '/docs/compliance/kvkk' },
+  'pdpa-th': { label: 'PDPA (Thailand)', href: '/docs/compliance/pdpa-th' },
+  'ccpa': { label: 'CCPA / US States', href: '/docs/compliance/ccpa' },
+  'cpra': { label: 'CPRA (California 2023)', href: '/docs/compliance/cpra' },
+  'dpdpa': { label: 'DPDPA (India 2023)', href: '/docs/compliance/dpdpa' },
+  'pipl': { label: 'PIPL (China 2021)', href: '/docs/compliance/pipl' },
+  'lgpd': { label: 'LGPD (Brazil)', href: '/docs/compliance/lgpd' },
+  'pipeda': { label: 'PIPEDA / Law 25 (Canada)', href: '/docs/compliance/pipeda' },
+  'popia': { label: 'POPIA (South Africa)', href: '/docs/compliance/popia' },
+  'appi': { label: 'APPI (Japan)', href: '/docs/compliance/appi' },
 }
 
 /** Extras filed under `general-privacy-consent` editorially — not regulation ids in
  * `COMPLIANCE_GROUPS`, so listed separately rather than merged into `compliances`. */
 const GROUP_EXTRA_DOCS: Partial<Record<string, Array<{ label: string; href: string }>>> = {
   'general-privacy-consent': [
-    { label: 'COPPA', href: '/docs/compliance/coppa/' },
+    { label: 'COPPA', href: '/docs/compliance/coppa' },
   ],
-  'notice-only': [{ label: 'Notice Only', href: '/docs/compliance/notice-only/' }],
+  'notice-only': [{ label: 'Notice Only', href: '/docs/compliance/notice-only' }],
 }
 
 /** A few regulation pages recommend a stricter manual override than the group their country
@@ -94,9 +94,9 @@ export default function ConsentModelsPage() {
         consent compliance rules — how consent must be collected, what &quot;opt-out&quot; needs to look
         like, whether GPC must be auto-honored, and so on. Right now that&apos;s{' '}
         <strong>8 built-in Compliance Groups</strong>, covering every jurisdiction in the{' '}
-        <Link href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</Link> —
+        <Link href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</Link> —
         but it&apos;s not fixed to 8: extend it with your own via a custom Compliance Group (see{' '}
-        <Link href="/docs/ui/advanced-profiles/#compliancegroupsoverride">complianceGroupsOverride</Link>{' '}
+        <Link href="/docs/ui/advanced-profiles#compliancegroupsoverride">complianceGroupsOverride</Link>{' '}
         below).
       </p>
 
@@ -190,7 +190,7 @@ export default function ConsentModelsPage() {
           <strong><code>complianceGroupsOverride</code></strong> — keep the 8 built-in groups (or
           your custom ones), but override text/buttons/cookies per group from a single config
           object instead of authoring a separate profile for each. See the full guide in{' '}
-          <Link href="/docs/ui/advanced-profiles/#compliancegroupsoverride">
+          <Link href="/docs/ui/advanced-profiles#compliancegroupsoverride">
             complianceGroupsOverride — per-group content, one config object
           </Link>.
         </li>
@@ -199,7 +199,7 @@ export default function ConsentModelsPage() {
       <p>
         For the full country → group mapping (which is what actually decides which Compliance Group
         a given visitor gets), see the{' '}
-        <Link href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</Link>.
+        <Link href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</Link>.
       </p>
     </div>
   )

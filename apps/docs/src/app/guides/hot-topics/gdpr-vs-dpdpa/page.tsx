@@ -40,7 +40,7 @@ export default function GdprVsDpdpaPage() {
         GDPR (EU) and DPDPA (India, 2023) are often lumped together because both require opt-in
         consent before non-essential cookies run. That similarity hides some real differences in
         what a banner and backend actually have to do. Here&apos;s the practical, non-legal-jargon
-        version — see the <Link href="/guides/hot-topics/dpdpa-cookie-compliance-guide/">DPDPA Cookie Compliance Guide</Link> for the India-specific implementation checklist.
+        version — see the <Link href="/guides/hot-topics/dpdpa-cookie-compliance-guide">DPDPA Cookie Compliance Guide</Link> for the India-specific implementation checklist.
       </p>
 
       <h2>Where they agree</h2>
@@ -124,22 +124,22 @@ export default function GdprVsDpdpaPage() {
       <RelatedDocs
         items={[
           {
-            href: '/docs/compliance/gdpr/',
+            href: '/docs/compliance/gdpr',
             label: 'GDPR Compliance Guide',
             desc: 'Full legal-basis breakdown, erasure, and audit log details',
           },
           {
-            href: '/docs/compliance/dpdpa/',
+            href: '/docs/compliance/dpdpa',
             label: 'DPDPA Compliance Guide',
             desc: 'Fiduciary disclosure, grievance officer, and age-gate specifics',
           },
           {
-            href: '/guides/hot-topics/dpdpa-cookie-compliance-guide/',
+            href: '/guides/hot-topics/dpdpa-cookie-compliance-guide',
             label: 'DPDPA Cookie Compliance Guide',
             desc: 'Practical, cookie-banner-focused walkthrough for India',
           },
           {
-            href: '/docs/compliance/jurisdiction-coverage-map/',
+            href: '/docs/compliance/jurisdiction-coverage-map',
             label: 'Jurisdiction Coverage Map',
             desc: 'Every country mapped to its compliance group',
           },

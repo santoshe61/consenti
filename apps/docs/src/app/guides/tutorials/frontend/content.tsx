@@ -52,7 +52,7 @@ const widget = new ConsentiSetup({})
       <Callout type="info">
         No config is required to get a working, compliant banner with any of the three options.
         Everything from here on is about customizing it. See{' '}
-        <Link href="/docs/ui/installation/">UI Installation</Link> for CSS options and the full
+        <Link href="/docs/ui/installation">UI Installation</Link> for CSS options and the full
         package structure (<code>dist/index.mjs</code> for ESM, <code>dist/index.umd.js</code> for
         the CDN/UMD bundle, plus <code>dist/react.mjs</code>, <code>dist/vue.mjs</code>, and{' '}
         <code>dist/angular.mjs</code> framework adapters).
@@ -87,8 +87,8 @@ async function Step2Configure() {
       />
       <p>
         <code>profileOverride</code> is enough for most projects — see the{' '}
-        <Link href="/docs/ui/configuration/">Configuration</Link> and{' '}
-        <Link href="/docs/ui/profiles/">Profile</Link> reference pages for every option.
+        <Link href="/docs/ui/configuration">Configuration</Link> and{' '}
+        <Link href="/docs/ui/profiles">Profile</Link> reference pages for every option.
       </p>
 
       <h2>Scenario: more accurate geo-detection</h2>
@@ -127,11 +127,11 @@ async function Step2Configure() {
         Most projects don&apos;t need a fully custom function — built-in{' '}
         <code>&apos;geoip&apos;</code> and <code>&apos;maxmind&apos;</code> resolvers cover most
         cases. See the{' '}
-        <Link href="/guides/tutorials/backend/configure-backend/">
+        <Link href="/guides/tutorials/backend/configure-backend">
           Backend tutorial — Configure Backend
         </Link>{' '}
         step for those, and the full{' '}
-        <Link href="/guides/backend/geo-routing/">Geo-Routing &amp; Auto-Detection</Link> guide for
+        <Link href="/guides/backend/geo-routing">Geo-Routing &amp; Auto-Detection</Link> guide for
         a comparison of every resolver.
       </p>
     </>
@@ -197,7 +197,7 @@ new ConsentiSetup({
       />
       <Callout type="tip">
         This step is optional — skip it if <code>profileOverride</code> already covers what you
-        need. See <Link href="/docs/ui/advanced-profiles/">Advanced Profile</Link> for multi-locale
+        need. See <Link href="/docs/ui/advanced-profiles">Advanced Profile</Link> for multi-locale
         profiles and the full resolution order.
       </Callout>
 
@@ -320,14 +320,14 @@ widget.on('modalVisibility', ({ visible }) => {
 })`}
       />
       <p>
-        See <Link href="/docs/compliance/coppa/">COPPA</Link> for the full age-gate flow this event
+        See <Link href="/docs/compliance/coppa">COPPA</Link> for the full age-gate flow this event
         belongs to.
       </p>
 
       <p>
         Raw <code>window.addEventListener(&apos;consenti:consentSubmitted&apos;, ...)</code> calls
         work too, for every event — see the full{' '}
-        <Link href="/docs/ui/events/">Events reference</Link> for every event name and payload
+        <Link href="/docs/ui/events">Events reference</Link> for every event name and payload
         shape.
       </p>
     </>
@@ -434,7 +434,7 @@ new BannerTrigger({ widget, el: '#footer-cookie-settings', action: 'modal' })`}
 
       <p>
         Full reference, including every payload shape, in the{' '}
-        <Link href="/docs/ui/events/">Events reference</Link>.
+        <Link href="/docs/ui/events">Events reference</Link>.
       </p>
     </>
   )
@@ -473,15 +473,15 @@ export function ConsentSetup() {
 }`}
       />
       <p>
-        See <Link href="/docs/ui/frameworks/">Frameworks</Link> for Vue, Angular, and Nuxt
-        equivalents, and <Link href="/docs/ui/themes/">Themes &amp; CSS</Link> for every custom
+        See <Link href="/docs/ui/frameworks">Frameworks</Link> for Vue, Angular, and Nuxt
+        equivalents, and <Link href="/docs/ui/themes">Themes &amp; CSS</Link> for every custom
         property.
       </p>
 
       <Callout type="tip">
         That&apos;s a complete, GDPR-style frontend-only integration. Need server-side consent
         records, an audit log, or the admin dashboard? Switch to the{' '}
-        <Link href={`/guides/tutorials/backend/${BACKEND_TUTORIAL_STEPS[0]!.slug}/`}>
+        <Link href={`/guides/tutorials/backend/${BACKEND_TUTORIAL_STEPS[0]!.slug}`}>
           Frontend + Backend tutorial
         </Link>
         .
@@ -490,17 +490,17 @@ export function ConsentSetup() {
       <h2>What to read next</h2>
       <ul>
         <li>
-          <Link href="/docs/ui/advanced-configuration/">UI Configuration</Link> — every{' '}
+          <Link href="/docs/ui/advanced-configuration">UI Configuration</Link> — every{' '}
           <code>ConsentiSetup</code> option
         </li>
         <li>
-          <Link href="/docs/ui/methods/">API Methods</Link> — every widget method with examples
+          <Link href="/docs/ui/methods">API Methods</Link> — every widget method with examples
         </li>
         <li>
-          <Link href="/docs/compliance/gdpr/">Compliance guides</Link> — what each group requires
+          <Link href="/docs/compliance/gdpr">Compliance guides</Link> — what each group requires
         </li>
         <li>
-          <Link href="/guides/examples/">Examples</Link> — complete real-life integrations
+          <Link href="/guides/examples">Examples</Link> — complete real-life integrations
         </li>
       </ul>
     </>

@@ -166,17 +166,17 @@ eventBus.on('consent:created', postToWebhook)`}
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/events/',
+            href: '/docs/api/events',
             label: 'Events',
             desc: 'Full eventBus reference — every event name and payload shape',
           },
           {
-            href: '/docs/api/plugins/',
+            href: '/docs/api/plugins',
             label: 'API Plugins',
             desc: 'beforeConsentSave / afterConsentSave hooks as an alternative to eventBus',
           },
           {
-            href: '/docs/api/advanced-configuration/',
+            href: '/docs/api/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'compliance.dataSigningHash and every other createConsenti() option',
           },

@@ -22,6 +22,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page('/', 1.0, 'weekly'),
     page('/docs/getting-started/quick-start', 0.95, 'weekly'),
     page('/docs/getting-started', 0.9, 'monthly'),
+    page('/docs', 0.8, 'monthly'),
 
     // UI widget
     page('/docs/ui', 0.9, 'monthly'),
@@ -53,6 +54,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     page('/docs/api/plugins/snowflake', 0.65, 'monthly'),
 
     // Compliance — high priority for search traffic
+    page('/docs/compliance/compliance-groups', 0.9, 'monthly'),
     page('/docs/compliance/jurisdiction-coverage-map', 0.85, 'monthly'),
     page('/docs/compliance/gdpr', 0.9, 'monthly'),
     page('/docs/compliance/ccpa', 0.9, 'monthly'),
@@ -119,6 +121,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
     // Other
     page('/docs/changelog', 0.6, 'weekly'),
+    page('/docs/upcoming-features', 0.5, 'monthly'),
     page('/demo-playground/frontend', 0.7, 'monthly'),
     page('/support', 0.5, 'monthly'),
     page('/sitemap', 0.3, 'monthly'),

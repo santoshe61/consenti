@@ -33,13 +33,13 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'Opt-in (GDPR model)',
     typeLabel: 'opt-in',
     items: [
-      { href: '/docs/compliance/gdpr/', label: 'GDPR (EU / EEA)' },
-      { href: '/docs/compliance/uk-gdpr/', label: 'UK GDPR' },
-      { href: '/docs/compliance/pipeda/', label: 'PIPEDA / Law 25 (Canada)' },
-      { href: '/docs/compliance/popia/', label: 'POPIA (South Africa)' },
-      { href: '/docs/compliance/pdpa-th/', label: 'PDPA (Thailand)' },
-      { href: '/docs/compliance/appi/', label: 'APPI (Japan)' },
-      { href: '/docs/compliance/kvkk/', label: 'KVKK (Turkey)' },
+      { href: '/docs/compliance/gdpr', label: 'GDPR (EU / EEA)' },
+      { href: '/docs/compliance/uk-gdpr', label: 'UK GDPR' },
+      { href: '/docs/compliance/pipeda', label: 'PIPEDA / Law 25 (Canada)' },
+      { href: '/docs/compliance/popia', label: 'POPIA (South Africa)' },
+      { href: '/docs/compliance/pdpa-th', label: 'PDPA (Thailand)' },
+      { href: '/docs/compliance/appi', label: 'APPI (Japan)' },
+      { href: '/docs/compliance/kvkk', label: 'KVKK (Turkey)' },
     ],
   },
   {
@@ -47,7 +47,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'Opt-out',
     typeLabel: 'opt-out',
     items: [
-      { href: '/docs/compliance/ccpa/', label: 'CCPA / US States' },
+      { href: '/docs/compliance/ccpa', label: 'CCPA / US States' },
     ],
   },
   {
@@ -55,7 +55,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'Opt-out Strict',
     typeLabel: 'opt-out-strict',
     items: [
-      { href: '/docs/compliance/cpra/', label: 'CPRA (California 2023)' },
+      { href: '/docs/compliance/cpra', label: 'CPRA (California 2023)' },
     ],
   },
   {
@@ -63,7 +63,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'Opt-in DPDPA (India)',
     typeLabel: 'opt-in-dpdpa',
     items: [
-      { href: '/docs/compliance/dpdpa/', label: 'DPDPA (India 2023)' },
+      { href: '/docs/compliance/dpdpa', label: 'DPDPA (India 2023)' },
     ],
   },
   {
@@ -71,7 +71,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'Opt-in China (PIPL)',
     typeLabel: 'opt-in-china',
     items: [
-      { href: '/docs/compliance/pipl/', label: 'PIPL (China 2021)' },
+      { href: '/docs/compliance/pipl', label: 'PIPL (China 2021)' },
     ],
   },
   {
@@ -79,7 +79,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'Opt-in Brazil (LGPD)',
     typeLabel: 'opt-in-brazil',
     items: [
-      { href: '/docs/compliance/lgpd/', label: 'LGPD (Brazil)' },
+      { href: '/docs/compliance/lgpd', label: 'LGPD (Brazil)' },
     ],
   },
   {
@@ -87,7 +87,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'General Privacy Consent',
     typeLabel: 'general-privacy-consent',
     items: [
-      { href: '/docs/compliance/coppa/', label: 'COPPA' },
+      { href: '/docs/compliance/coppa', label: 'COPPA' },
     ],
   },
   {
@@ -95,7 +95,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
     label: 'Notice Only',
     typeLabel: 'notice-only',
     items: [
-      { href: '/docs/compliance/notice-only/', label: 'Notice Only' },
+      { href: '/docs/compliance/notice-only', label: 'Notice Only' },
     ],
   },
 ]
@@ -103,7 +103,7 @@ const COMPLIANCE_GROUPS: ComplianceGroup[] = [
 function groupForPath(pathname: string): string | null {
   for (const group of COMPLIANCE_GROUPS) {
     for (const item of group.items) {
-      if (pathname === item.href || pathname === item.href.slice(0, -1)) {
+      if (pathname === item.href) {
         return group.id
       }
     }
@@ -115,36 +115,36 @@ const FRONTEND_NAV: NavSection[] = [
   {
     title: 'Getting Started',
     items: [
-      { href: '/docs/', label: 'Documentation Home' },
-      { href: '/docs/getting-started/', label: 'Introduction' },
-      { href: '/docs/getting-started/quick-start/', label: 'Quick Start' },
+      { href: '/docs', label: 'Documentation Home' },
+      { href: '/docs/getting-started', label: 'Introduction' },
+      { href: '/docs/getting-started/quick-start', label: 'Quick Start' },
     ],
   },
   {
     title: 'UI Widget',
     icon: <Layout size={13} className="text-brand-500" />,
     items: [
-      { href: '/docs/ui/', label: 'Overview' },
-      { href: '/docs/ui/installation/', label: 'Installation' },
-      { href: '/docs/ui/profiles/', label: 'Profile' },
-      { href: '/docs/ui/configuration/', label: 'Configuration' },
-      { href: '/docs/ui/events/', label: 'Events' },
-      { href: '/docs/ui/methods/', label: 'API Methods' },
-      { href: '/docs/ui/themes/', label: 'Themes & CSS' },
-      { href: '/docs/ui/frameworks/', label: 'Frameworks' },
+      { href: '/docs/ui', label: 'Overview' },
+      { href: '/docs/ui/installation', label: 'Installation' },
+      { href: '/docs/ui/profiles', label: 'Profile' },
+      { href: '/docs/ui/configuration', label: 'Configuration' },
+      { href: '/docs/ui/events', label: 'Events' },
+      { href: '/docs/ui/methods', label: 'API Methods' },
+      { href: '/docs/ui/themes', label: 'Themes & CSS' },
+      { href: '/docs/ui/frameworks', label: 'Frameworks' },
     ],
   },
   {
     title: 'Advanced Setup',
     items: [
-      { href: '/docs/ui/advanced-profiles/', label: 'Advanced Profile' },
-      { href: '/docs/ui/advanced-configuration/', label: 'Advanced Configuration' },
+      { href: '/docs/ui/advanced-profiles', label: 'Advanced Profile' },
+      { href: '/docs/ui/advanced-configuration', label: 'Advanced Configuration' },
     ],
   },
   {
     title: 'UI Plugins',
     items: [
-      { href: '/docs/ui/plugins/', label: 'Overview' },
+      { href: '/docs/ui/plugins', label: 'Overview' },
     ],
   },
 ]
@@ -153,32 +153,32 @@ const BACKEND_NAV: NavSection[] = [
   {
     title: 'Getting Started',
     items: [
-      { href: '/docs/getting-started/', label: 'Introduction' },
-      { href: '/docs/getting-started/quick-start/', label: 'Quick Start' },
+      { href: '/docs/getting-started', label: 'Introduction' },
+      { href: '/docs/getting-started/quick-start', label: 'Quick Start' },
     ],
   },
   {
     title: 'Backend API',
     icon: <Server size={13} className="text-emerald-600" />,
     items: [
-      { href: '/docs/api/', label: 'Overview' },
-      { href: '/docs/api/installation/', label: 'Installation' },
-      { href: '/docs/api/configuration/', label: 'Configuration' },
-      { href: '/docs/api/advanced-configuration/', label: 'Advanced Configuration' },
-      { href: '/docs/api/routes/', label: 'API Routes' },
-      { href: '/docs/api/routes/public/', label: 'Public Routes' },
-      { href: '/docs/api/routes/admin/', label: 'Admin Routes' },
-      { href: '/docs/api/events/', label: 'Events' },
-      { href: '/docs/api/dashboard/', label: 'Admin Dashboard' },
+      { href: '/docs/api', label: 'Overview' },
+      { href: '/docs/api/installation', label: 'Installation' },
+      { href: '/docs/api/configuration', label: 'Configuration' },
+      { href: '/docs/api/advanced-configuration', label: 'Advanced Configuration' },
+      { href: '/docs/api/routes', label: 'API Routes' },
+      { href: '/docs/api/routes/public', label: 'Public Routes' },
+      { href: '/docs/api/routes/admin', label: 'Admin Routes' },
+      { href: '/docs/api/events', label: 'Events' },
+      { href: '/docs/api/dashboard', label: 'Admin Dashboard' },
     ],
   },
   {
     title: 'Backend Plugins',
     items: [
-      { href: '/docs/api/plugins/', label: 'Overview' },
-      { href: '/docs/api/plugins/bigquery/', label: 'BigQuery' },
-      { href: '/docs/api/plugins/segment/', label: 'Segment' },
-      { href: '/docs/api/plugins/snowflake/', label: 'Snowflake' },
+      { href: '/docs/api/plugins', label: 'Overview' },
+      { href: '/docs/api/plugins/bigquery', label: 'BigQuery' },
+      { href: '/docs/api/plugins/segment', label: 'Segment' },
+      { href: '/docs/api/plugins/snowflake', label: 'Snowflake' },
     ],
   },
 ]
@@ -186,7 +186,7 @@ const BACKEND_NAV: NavSection[] = [
 function navGroupForPath(nav: NavSection[], pathname: string): string | null {
   for (const section of nav) {
     for (const item of section.items) {
-      if (item.group && (pathname === item.href || pathname === item.href.slice(0, -1))) {
+      if (item.group && (pathname === item.href)) {
         return item.group.id
       }
     }
@@ -296,7 +296,7 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
               {section.title}
             </div>
             {section.items.map((item, idx) => {
-              const active = pathname === item.href || pathname === item.href.slice(0, -1)
+              const active = pathname === item.href
               const prevGroupId = section.items[idx - 1]?.group?.id
               const isGroupStart = item.group && item.group.id !== prevGroupId
               const link = item.group && !expandedNavGroups.has(item.group.id) ? null : (
@@ -339,25 +339,25 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
         <div>
           <div className="nav-section">Compliances</div>
           <Link
-            href="/docs/compliance/compliance-groups/"
+            href="/docs/compliance/compliance-groups"
             {...(onClose ? { onClick: onClose } : {})}
-            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/compliance-groups' || pathname === '/docs/compliance/compliance-groups/' ? 'nav-link-active' : ''}`}
+            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/compliance-groups' ? 'nav-link-active' : ''}`}
           >
             <List size={13} className="text-brand-500 shrink-0" />
             Compliance Groups
           </Link>
           <Link
-            href="/docs/compliance/jurisdiction-coverage-map/"
+            href="/docs/compliance/jurisdiction-coverage-map"
             {...(onClose ? { onClick: onClose } : {})}
-            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/jurisdiction-coverage-map' || pathname === '/docs/compliance/jurisdiction-coverage-map/' ? 'nav-link-active' : ''}`}
+            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/jurisdiction-coverage-map' ? 'nav-link-active' : ''}`}
           >
             <Map size={13} className="text-brand-500 shrink-0" />
             Jurisdiction Coverage Map
           </Link>
           <Link
-            href="/docs/compliance/tcf-and-gpp-registration/"
+            href="/docs/compliance/tcf-and-gpp-registration"
             {...(onClose ? { onClick: onClose } : {})}
-            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/tcf-and-gpp-registration' || pathname === '/docs/compliance/tcf-and-gpp-registration/' ? 'nav-link-active' : ''}`}
+            className={`nav-link mx-2 flex items-center gap-1.5 ${pathname === '/docs/compliance/tcf-and-gpp-registration' ? 'nav-link-active' : ''}`}
           >
             <ShieldCheck size={13} className="text-brand-500 shrink-0" />
             TCF &amp; GPP Registration
@@ -365,7 +365,7 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
           {COMPLIANCE_GROUPS.map((group) => {
             const isExpanded = expandedGroups.has(group.id)
             const hasActiveChild = group.items.some(
-              (item) => pathname === item.href || pathname === item.href.slice(0, -1)
+              (item) => pathname === item.href
             )
             return (
               <div key={group.id}>
@@ -387,7 +387,7 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
                 {isExpanded && (
                   <div className="pl-3">
                     {group.items.map((item) => {
-                      const active = pathname === item.href || pathname === item.href.slice(0, -1)
+                      const active = pathname === item.href
                       return (
                         <Link
                           key={item.href}
@@ -408,21 +408,21 @@ export function Sidebar({ onClose, isOpen }: { onClose?: () => void; isOpen?: bo
 
         <div className="mt-6 mx-3 pt-4 border-t border-slate-100">
           <Link
-            href="/docs/upcoming-features/"
+            href="/docs/upcoming-features"
             {...(onClose ? { onClick: onClose } : {})}
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 transition-colors no-underline"
           >
             <Sparkles size={15} /> Upcoming Features
           </Link>
           <Link
-            href="/docs/changelog/"
+            href="/docs/changelog"
             {...(onClose ? { onClick: onClose } : {})}
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
           >
             <List size={15} /> Changelog
           </Link>
           <Link
-            href="/support/"
+            href="/support"
             {...(onClose ? { onClick: onClose } : {})}
             className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-900 px-1 py-1 mt-1 transition-colors no-underline"
           >

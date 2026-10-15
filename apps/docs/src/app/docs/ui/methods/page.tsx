@@ -497,7 +497,7 @@ widget.switchLocale('de-AT') // switch to Austrian German`}
       />
       <p>
         The profile must have multiple locales configured for the switcher to be useful. See{' '}
-        <a href="/docs/ui/advanced-configuration/">Advanced Configuration</a> → <em>core</em> for
+        <a href="/docs/ui/advanced-configuration">Advanced Configuration</a> → <em>core</em> for
         locale setup details.
       </p>
 
@@ -657,7 +657,7 @@ widget.getConsent('category')
 // — keyed by whatever category IDs you defined in preferenceModal.categories`}
       />
       <p>
-        See <a href="/docs/ui/advanced-profiles/#cookie-type">Advanced Profiles</a> for the full
+        See <a href="/docs/ui/advanced-profiles#cookie-type">Advanced Profiles</a> for the full
         parameter (<code>purpose</code>) vs. category model.
       </p>
 
@@ -682,10 +682,10 @@ widget.getConsent('category')
         For the other vendor formats (<code>&apos;adobe&apos;</code>, <code>&apos;meta&apos;</code>,{' '}
         <code>&apos;microsoft-clarity&apos;</code>, <code>&apos;twilio-segment&apos;</code>), see the
         respective{' '}
-        <a href="/guides/frontend/adobe/">Adobe</a>,{' '}
-        <a href="/guides/frontend/meta/">Meta</a>,{' '}
-        <a href="/guides/frontend/clarity/">Microsoft Clarity</a>, and{' '}
-        <a href="/guides/frontend/segment/">Twilio Segment</a> integration guides.
+        <a href="/guides/frontend/adobe">Adobe</a>,{' '}
+        <a href="/guides/frontend/meta">Meta</a>,{' '}
+        <a href="/guides/frontend/clarity">Microsoft Clarity</a>, and{' '}
+        <a href="/guides/frontend/segment">Twilio Segment</a> integration guides.
       </p>
 
       <h3>submitConsent(consent)</h3>
@@ -746,7 +746,7 @@ widget.getConsent('category')
 })`}
       />
       <p>
-        See the <a href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</a> for the
+        See the <a href="/guides/hot-topics/right-to-erasure">Right to Erasure guide</a> for the
         full picture, including the server-side <code>DELETE /consent/:visitorId</code> endpoint
         and its own <code>consent:erased</code> eventBus event.
       </p>
@@ -989,7 +989,7 @@ widget.getUserId() // 'user_123' | null`}
         just records the ID with no warning and no reconsent. You can also set the initial user ID
         at construction time via <code>core.userId</code>, or drive identity from an existing
         event bus by dispatching a <code>consenti:listener:identify</code> DOM event — see{' '}
-        <a href="/docs/ui/advanced-configuration/">Advanced Configuration</a> → <em>core</em>.
+        <a href="/docs/ui/advanced-configuration">Advanced Configuration</a> → <em>core</em>.
       </p>
 
       <h3>getVisitor()</h3>

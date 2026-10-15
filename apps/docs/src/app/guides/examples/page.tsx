@@ -46,7 +46,7 @@ export default function ExamplesPage() {
         {EXAMPLES.map((ex) => (
           <Link
             key={ex.slug}
-            href={`/guides/examples/${ex.slug}/`}
+            href={`/guides/examples/${ex.slug}`}
             className="block p-5 rounded-xl border border-slate-200 dark:border-gray-700 hover:border-brand-400 dark:hover:border-brand-500 hover:shadow-sm transition-all no-underline group"
           >
             <div className="font-semibold text-slate-900 dark:text-gray-100 text-sm group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
@@ -72,11 +72,11 @@ export default function ExamplesPage() {
       <div className="not-prose mt-10 p-5 rounded-xl bg-slate-50 dark:bg-gray-800/50 border border-slate-200 dark:border-gray-700">
         <p className="text-sm text-slate-600 dark:text-gray-400 m-0">
           New to Consenti? Build one of these from scratch, one step at a time, in the{' '}
-          <Link href="/guides/tutorials/" className="text-brand-600 dark:text-brand-400 font-medium hover:underline">
+          <Link href="/guides/tutorials" className="text-brand-600 dark:text-brand-400 font-medium hover:underline">
             Tutorials
           </Link>{' '}
           section — or start with the narrative{' '}
-          <Link href="/guides/" className="text-brand-600 dark:text-brand-400 font-medium hover:underline">
+          <Link href="/guides" className="text-brand-600 dark:text-brand-400 font-medium hover:underline">
             Guides
           </Link>
           .

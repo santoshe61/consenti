@@ -135,18 +135,18 @@ export default function OpenSourceAlternativesToCookiebotPage() {
         Feature comparison reflects our understanding of public documentation as of Jan 2026.
         Cookiebot, Klaro, and orestbida/cookie-consent are trademarks of their respective owners;
         Consenti is not affiliated with, endorsed by, or sponsored by any of them. See the{' '}
-        <Link href="/terms/">Terms of Use</Link> for our comparisons policy.
+        <Link href="/terms">Terms of Use</Link> for our comparisons policy.
       </p>
 
       <RelatedDocs
         items={[
           {
-            href: '/guides/hot-topics/self-hosting-a-cmp/',
+            href: '/guides/hot-topics/self-hosting-a-cmp',
             label: 'Self-hosting a CMP',
             desc: 'The four pieces a self-hosted stack needs',
           },
           {
-            href: '/docs/compliance/tcf-and-gpp-registration/',
+            href: '/docs/compliance/tcf-and-gpp-registration',
             label: 'TCF & GPP Registration',
             desc: 'IAB Transparency & Consent Framework and GPP support in Consenti',
           },

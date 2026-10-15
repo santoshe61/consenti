@@ -168,7 +168,7 @@ eventBus.on('consent:updated', ({ previous, current }) => {
 
       <Callout type="tip">
         You can also use the <code>afterConsentSave</code> plugin hook to intercept consent saves
-        without coupling to the eventBus directly. See the <a href="/docs/api/plugins/">Plugins</a>{' '}
+        without coupling to the eventBus directly. See the <a href="/docs/api/plugins">Plugins</a>{' '}
         reference.
       </Callout>
 
@@ -227,17 +227,17 @@ eventBus.on('consent:updated', ({ previous, current }) => {
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/routes/public/',
+            href: '/docs/api/routes/public',
             label: 'Public Routes',
             desc: 'Full reference for consent submission, verify, and erasure endpoints',
           },
           {
-            href: '/docs/api/events/',
+            href: '/docs/api/events',
             label: 'Events',
             desc: 'Every eventBus event — consent:created, consent:updated, consent:erased',
           },
           {
-            href: '/docs/api/routes/admin/',
+            href: '/docs/api/routes/admin',
             label: 'Admin Routes',
             desc: 'Consent history and other RBAC-protected endpoints',
           },

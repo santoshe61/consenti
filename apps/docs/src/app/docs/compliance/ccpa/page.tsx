@@ -51,7 +51,7 @@ export default function CCPAPage() {
       </p>
       <Callout type="warning">
         <strong>CCPA was superseded by CPRA on 1 January 2023.</strong> If you operate in
-        California, see the <a href="/docs/compliance/cpra/">CPRA guide</a> for the current
+        California, see the <a href="/docs/compliance/cpra">CPRA guide</a> for the current
         requirements, including the new &quot;Do Not Share&quot; obligation and sensitive data
         categories.
       </Callout>

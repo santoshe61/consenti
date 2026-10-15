@@ -255,7 +255,7 @@ export default function DPDPAPage() {
       <p>This removes all consent records, history, and visitor data for the given visitor ID.</p>
       <p>
         For the widget-side &quot;Forget me&quot; button and the events both sides fire, see the{' '}
-        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+        <Link href="/guides/hot-topics/right-to-erasure">Right to Erasure guide</Link>.
       </p>
     </div>
   )

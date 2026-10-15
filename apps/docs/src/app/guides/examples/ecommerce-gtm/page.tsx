@@ -95,7 +95,7 @@ export function ConsentSetup() {
         Add a <strong>Manage Cookies</strong> link in your footer that calls{' '}
         <code>widget.showModal()</code> so returning shoppers can change their mind without clearing
         cookies. See <code>BannerTrigger</code> in the{' '}
-        <a href="/docs/ui/events/">Events reference</a> for a ready-made footer trigger.
+        <a href="/docs/ui/events">Events reference</a> for a ready-made footer trigger.
       </Callout>
 
       <h2>Gate the product-recommendation pixel</h2>
@@ -117,17 +117,17 @@ new CategoryScript({
       <RelatedDocs
         items={[
           {
-            href: '/guides/frontend/gtm/',
+            href: '/guides/frontend/gtm',
             label: 'GTM & Google Consent Mode v2',
             desc: 'Every utils.gtm option, plus the verbose dataLayer mirror',
           },
           {
-            href: '/docs/compliance/gdpr/',
+            href: '/docs/compliance/gdpr',
             label: 'GDPR (EU / EEA)',
             desc: 'What the opt-in compliance group requires and how Consenti meets it',
           },
           {
-            href: '/docs/ui/profiles/',
+            href: '/docs/ui/profiles',
             label: 'Profile',
             desc: 'profileOverride and the three ways to get a profile',
           },

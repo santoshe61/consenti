@@ -35,7 +35,7 @@ export default function UIOverviewPage() {
         widget handles everything else automatically.
       </p>
       <p>
-        New here? Start with the <a href="/docs/getting-started/quick-start/">Quick Start</a> for
+        New here? Start with the <a href="/docs/getting-started/quick-start">Quick Start</a> for
         working code. This page explains <em>how the widget thinks</em> so the rest of the docs make
         sense.
       </p>
@@ -93,7 +93,7 @@ export default function UIOverviewPage() {
         per-page banner positions or A/B testing copy without touching the base profile.
       </p>
       <p>
-        → <a href="/docs/ui/advanced-profiles/">Full Profile reference</a>
+        → <a href="/docs/ui/advanced-profiles">Full Profile reference</a>
       </p>
 
       <h3>2. Config — how the widget behaves</h3>
@@ -139,7 +139,7 @@ export default function UIOverviewPage() {
         </li>
       </ul>
       <p>
-        → <a href="/docs/ui/advanced-configuration/">Full Configuration reference</a>
+        → <a href="/docs/ui/advanced-configuration">Full Configuration reference</a>
       </p>
 
       <h3>3. Events &amp; methods — how you react</h3>
@@ -157,8 +157,8 @@ export default function UIOverviewPage() {
         </li>
       </ul>
       <p>
-        → <a href="/docs/ui/events/">Events reference</a> &nbsp;·&nbsp;{' '}
-        <a href="/docs/ui/methods/">API Methods reference</a>
+        → <a href="/docs/ui/events">Events reference</a> &nbsp;·&nbsp;{' '}
+        <a href="/docs/ui/methods">API Methods reference</a>
       </p>
 
       <hr />
@@ -234,57 +234,57 @@ export default function UIOverviewPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 not-prose mt-4">
         {[
           {
-            href: '/docs/ui/installation/',
+            href: '/docs/ui/installation',
             title: 'Installation',
             desc: 'npm, CDN UMD, ESM in browser — all install methods and CSS options',
           },
           {
-            href: '/docs/ui/profiles/',
+            href: '/docs/ui/profiles',
             title: 'Profile',
             desc: 'Quick start — pre-built profiles and profileOverride',
           },
           {
-            href: '/docs/ui/configuration/',
+            href: '/docs/ui/configuration',
             title: 'Configuration',
             desc: 'Quick start — the config options most sites need',
           },
           {
-            href: '/docs/ui/advanced-profiles/',
+            href: '/docs/ui/advanced-profiles',
             title: 'Advanced Profile',
             desc: 'ConsentiProfile, multi-locale support, full type reference',
           },
           {
-            href: '/docs/ui/advanced-configuration/',
+            href: '/docs/ui/advanced-configuration',
             title: 'Advanced Configuration',
             desc: 'Every ConsentiConfig field — core, api, gtm, theme',
           },
           {
-            href: '/docs/compliance/jurisdiction-coverage-map/',
+            href: '/docs/compliance/jurisdiction-coverage-map',
             title: 'Jurisdiction Coverage Map',
             desc: 'Every country, its law(s), and its compliance group',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             title: 'Events',
             desc: 'All consenti: DOM events, detail payloads, and GTM dataLayer pushes',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             title: 'API Methods',
             desc: 'Every widget instance method with signatures and examples',
           },
           {
-            href: '/docs/ui/themes/',
+            href: '/docs/ui/themes',
             title: 'Themes & CSS',
             desc: 'CSS custom properties, BEM class names, bring-your-own CSS',
           },
           {
-            href: '/docs/ui/frameworks/',
+            href: '/docs/ui/frameworks',
             title: 'Frameworks',
             desc: 'React, Vue, Angular, Next.js, Nuxt integration guides',
           },
           {
-            href: '/docs/ui/plugins/',
+            href: '/docs/ui/plugins',
             title: 'Plugins',
             desc: 'Extend the widget with custom hooks and third-party forwarding',
           },

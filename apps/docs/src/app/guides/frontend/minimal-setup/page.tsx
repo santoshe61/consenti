@@ -136,28 +136,28 @@ const widget = new ConsentiSetup({})
 
       <p>
         For a full picture of the consent lifecycle — from first visit to cookie expiry — read{' '}
-        <a href="/guides/frontend/consent-flow/">How Consent Flow Works</a>.
+        <a href="/guides/frontend/consent-flow">How Consent Flow Works</a>.
       </p>
 
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/installation/',
+            href: '/docs/ui/installation',
             label: 'Installation',
             desc: 'npm, CDN/UMD, and ESM setup in full detail',
           },
           {
-            href: '/docs/ui/configuration/',
+            href: '/docs/ui/configuration',
             label: 'Configuration',
             desc: 'The options most sites need — compliance, core, callbacks',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'Every consenti:* DOM event the widget fires',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'widget.on, showModal, getConsent, and every other instance method',
           },

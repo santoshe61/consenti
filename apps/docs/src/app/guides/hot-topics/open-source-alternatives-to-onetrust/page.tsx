@@ -133,23 +133,23 @@ export default function OpenSourceAlternativesToOneTrustPage() {
         Feature comparison reflects our understanding of public documentation as of Jan 2026.
         OneTrust, Klaro, orestbida/cookie-consent, and ConsentStack are trademarks of their
         respective owners; Consenti is not affiliated with, endorsed by, or sponsored by any of
-        them. See the <Link href="/terms/">Terms of Use</Link> for our comparisons policy.
+        them. See the <Link href="/terms">Terms of Use</Link> for our comparisons policy.
       </p>
 
       <RelatedDocs
         items={[
           {
-            href: '/guides/hot-topics/self-hosting-a-cmp/',
+            href: '/guides/hot-topics/self-hosting-a-cmp',
             label: 'Self-hosting a CMP',
             desc: 'What running your own consent stack actually involves',
           },
           {
-            href: '/guides/hot-topics/open-source-alternatives-to-cookiebot/',
+            href: '/guides/hot-topics/open-source-alternatives-to-cookiebot',
             label: 'Open-source alternatives to Cookiebot',
             desc: 'The same comparison, scoped against Cookiebot instead',
           },
           {
-            href: '/docs/compliance/jurisdiction-coverage-map/',
+            href: '/docs/compliance/jurisdiction-coverage-map',
             label: 'Jurisdiction Coverage Map',
             desc: 'Every country mapped to a compliance group out of the box',
           },

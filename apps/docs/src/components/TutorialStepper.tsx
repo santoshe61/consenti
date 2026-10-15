@@ -21,8 +21,8 @@ export function TutorialStepper({
   const nextStep = steps[currentStep]
   const otherPath = path === 'frontend' ? 'backend' : 'frontend'
   const otherPathFirstStep = path === 'frontend' ? BACKEND_TUTORIAL_STEPS[0] : FRONTEND_TUTORIAL_STEPS[0]
-  const prevHref = prevStep ? `/guides/tutorials/${path}/${prevStep.slug}/` : '/guides/tutorials/'
-  const nextHref = nextStep ? `/guides/tutorials/${path}/${nextStep.slug}/` : null
+  const prevHref = prevStep ? `/guides/tutorials/${path}/${prevStep.slug}` : '/guides/tutorials'
+  const nextHref = nextStep ? `/guides/tutorials/${path}/${nextStep.slug}` : null
 
   if (!step) return null
 
@@ -35,13 +35,13 @@ export function TutorialStepper({
         </div>
         <div className="flex items-center gap-3 text-xs">
           <Link
-            href="/guides/tutorials/"
+            href="/guides/tutorials"
             className="inline-flex items-center gap-1 text-slate-400 hover:text-slate-700 dark:hover:text-gray-200 no-underline"
           >
             <RotateCcw size={12} /> Restart
           </Link>
           <Link
-            href={otherPathFirstStep ? `/guides/tutorials/${otherPath}/${otherPathFirstStep.slug}/` : '/guides/tutorials/'}
+            href={otherPathFirstStep ? `/guides/tutorials/${otherPath}/${otherPathFirstStep.slug}` : '/guides/tutorials'}
             className="text-slate-400 hover:text-slate-700 dark:hover:text-gray-200 no-underline"
           >
             Switch to {otherPath === 'frontend' ? 'Frontend Only' : 'Frontend + Backend'} →
@@ -60,7 +60,7 @@ export function TutorialStepper({
           return (
             <Link
               key={s.slug}
-              href={`/guides/tutorials/${path}/${s.slug}/`}
+              href={`/guides/tutorials/${path}/${s.slug}`}
               title={s.title}
               className={`w-7 h-7 flex items-center justify-center rounded-full text-xs font-semibold no-underline transition-colors ${
                 isCurrent
@@ -92,7 +92,7 @@ export function TutorialStepper({
           </Link>
         ) : (
           <Link
-            href="/guides/examples/"
+            href="/guides/examples"
             className="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded-lg no-underline transition-colors"
           >
             Finish → See real-life Examples

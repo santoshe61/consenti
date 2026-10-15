@@ -105,7 +105,7 @@ export default function LicensePage() {
           software — that responsibility sits with whoever deploys and configures it. If you find a
           jurisdiction, regulation, or behavior that Consenti gets wrong, the software is open
           source specifically so you (or your legal/engineering team) can fix or extend it. See{' '}
-          <Link href="/terms/">Terms of Use</Link> for the full statement.
+          <Link href="/terms">Terms of Use</Link> for the full statement.
         </p>
 
         <h2>Third-party dependencies</h2>
@@ -119,8 +119,8 @@ export default function LicensePage() {
         </p>
 
         <p>
-          Related: <Link href="/terms/">Terms of Use</Link> ·{' '}
-          <Link href="/privacy/">Privacy Policy</Link>
+          Related: <Link href="/terms">Terms of Use</Link> ·{' '}
+          <Link href="/privacy">Privacy Policy</Link>
         </p>
       </div>
     </main>

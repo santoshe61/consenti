@@ -178,9 +178,9 @@ export { consentiHandler as GET, consentiHandler as POST, consentiHandler as PUT
         <code>CONSENTI_DB_PATH</code> (<code>storage.path</code>) is needed with every driver, not
         just SQLite/JSON: profiles are stored as files there even when the data lives in MySQL,
         PostgreSQL or MongoDB. On a shared host with a restricted database user, see{' '}
-        <a href="/docs/api/advanced-configuration/#shared-hosting">what the database user needs</a>;
+        <a href="/docs/api/advanced-configuration#shared-hosting">what the database user needs</a>;
         upgrading a PostgreSQL / MySQL / MongoDB install from before 0.6.0 needs a{' '}
-        <a href="/docs/api/advanced-configuration/#upgrading-0-6-0">one-off table rename</a>.
+        <a href="/docs/api/advanced-configuration#upgrading-0-6-0">one-off table rename</a>.
       </Callout>
       <CodeBlock
         lang="bash"

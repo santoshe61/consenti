@@ -32,7 +32,7 @@ export default function APIAdvancedConfigurationPage() {
         <code>createConsenti(config)</code> accepts a single configuration object. Every field is
         optional — calling it with an empty object is valid and gives you a running server
         immediately. New here? Start with the{' '}
-        <a href="/docs/api/configuration/">Configuration quick start</a> instead — this page is the
+        <a href="/docs/api/configuration">Configuration quick start</a> instead — this page is the
         complete reference, every field with its default value.
       </p>
 
@@ -1642,7 +1642,7 @@ compliance: {
         deep-merged), and every unlisted country keeps its built-in group. <code>GB</code> and{' '}
         <code>UK</code> are treated as the same country. Invalid data from either a URL or an object logs an error and falls back to{' '}
         <code>'default'</code> — this never crashes the server. See the{' '}
-        <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a> for the
+        <a href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</a> for the
         full embedded country list, and <code>customComplianceGroup</code> (documented on that
         page) for routing a profile outside the 8 built-in groups.
       </Callout>
@@ -1922,7 +1922,7 @@ handleCache: async (paths, _profileId, isPurge) => {
         <code>/resolve-profile</code> (geo-resolution) and <code>/consent</code> (record writes) —
         always hit the Consenti origin server directly; they cannot be served from S3 or cached at
         the edge. Point the widget&apos;s <code>api.baseUrl</code> at your origin, not the CDN
-        domain — see <a href="/docs/ui/advanced-configuration/#api">the UI <code>api</code> config</a>.
+        domain — see <a href="/docs/ui/advanced-configuration#api">the UI <code>api</code> config</a>.
       </Callout>
 
       {/* ── tcf ──────────────────────────────────────────────────────────── */}
@@ -2017,7 +2017,7 @@ handleCache: async (paths, _profileId, isPurge) => {
         Until a dashboard admin confirms the <code>cmpId</code>/<code>cmpVersion</code> registration
         (Dashboard → Vendors), TCF is treated as disabled: no TC string is produced and the widget
         installs no <code>window.__tcfapi</code>. See the{' '}
-        <a href="/docs/compliance/tcf-and-gpp-registration/">TCF &amp; GPP Registration Guide</a>.
+        <a href="/docs/compliance/tcf-and-gpp-registration">TCF &amp; GPP Registration Guide</a>.
       </Callout>
       <Callout type="warning">
         TCF mode requires an IAB-registered CMP ID. Do not use a placeholder CMP ID in production —
@@ -2148,7 +2148,7 @@ handleCache: async (paths, _profileId, isPurge) => {
         </li>
         <li>
           Like TCF, GPP stays disabled until a dashboard admin confirms the registration. See the{' '}
-          <a href="/docs/compliance/tcf-and-gpp-registration/">TCF &amp; GPP Registration Guide</a>.
+          <a href="/docs/compliance/tcf-and-gpp-registration">TCF &amp; GPP Registration Guide</a>.
         </li>
       </ul>
 

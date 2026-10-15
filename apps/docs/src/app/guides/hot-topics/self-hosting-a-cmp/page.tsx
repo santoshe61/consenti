@@ -164,22 +164,22 @@ app.listen(3000)`}
       <RelatedDocs
         items={[
           {
-            href: '/guides/backend/minimal-setup/',
+            href: '/guides/backend/minimal-setup',
             label: 'Minimal Setup (Backend)',
             desc: 'Mount the Consenti API on Express, Fastify, Hono, or raw Node HTTP',
           },
           {
-            href: '/guides/backend/storage/',
+            href: '/guides/backend/storage',
             label: 'Choosing a Storage Driver',
             desc: 'JSON, SQLite, PostgreSQL, MySQL, MongoDB — when to use each',
           },
           {
-            href: '/guides/backend/auth/',
+            href: '/guides/backend/auth',
             label: 'Auth Modes',
             desc: 'Local passwords, JWT, OIDC/SAML for the admin dashboard',
           },
           {
-            href: '/guides/hot-topics/open-source-alternatives-to-cookiebot/',
+            href: '/guides/hot-topics/open-source-alternatives-to-cookiebot',
             label: 'Open-source alternatives to Cookiebot',
             desc: 'Comparing self-hosted options against a hosted CMP',
           },

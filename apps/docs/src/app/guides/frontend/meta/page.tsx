@@ -53,7 +53,7 @@ export default function FrontendMetaGuide() {
         <code>pixel</code> and <code>api</code> both roll up from the same <code>marketing</code>{' '}
         purpose — Meta doesn&apos;t distinguish client vs. server tracking consent, so treat them as
         one signal unless you&apos;ve split them into separate cookie parameters. See{' '}
-        <a href="/docs/ui/methods/#getconsent-type">API Methods</a> for the full{' '}
+        <a href="/docs/ui/methods#getconsent-type">API Methods</a> for the full{' '}
         <code>getConsent(type)</code> reference.
       </Callout>
 
@@ -83,7 +83,7 @@ fbq('track', 'PageView');   // safe to call even while revoked; fbq queues but w
       <h2>Step 2 — Sync the consent flag from Consenti</h2>
       <p>
         <code>CategoryAction</code>&apos;s <code>id</code> is your own authored category ID (see{' '}
-        <a href="/docs/ui/advanced-profiles/#category-type">Category type</a>) — use whichever one
+        <a href="/docs/ui/advanced-profiles#category-type">Category type</a>) — use whichever one
         covers marketing/advertising consent in your profile; <code>&apos;marketing&apos;</code>{' '}
         below is just the common convention:
       </p>
@@ -158,17 +158,17 @@ if (metaConsent?.api === 'granted') {
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'getConsent(type) and other instance methods',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'CategoryAction, CategoryScript, and consenti:consentSubmitted',
           },
           {
-            href: '/guides/frontend/gtm/',
+            href: '/guides/frontend/gtm',
             label: 'GTM & Google Consent Mode v2',
             desc: 'If you fire the Pixel through a GTM tag instead of the snippet directly',
           },

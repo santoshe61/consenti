@@ -37,7 +37,7 @@ export default function CpraImplementationGuidePage() {
         cookie banner needs to do — it&apos;s stricter about sensitive data and it made GPC
         (Global Privacy Control) a signal you can&apos;t ignore. Here&apos;s the implementation
         order, not the statute walkthrough. For the legal detail behind each requirement, see the{' '}
-        <Link href="/docs/compliance/cpra/">CPRA Compliance Guide</Link>.
+        <Link href="/docs/compliance/cpra">CPRA Compliance Guide</Link>.
       </p>
 
       <h2>The build order</h2>
@@ -65,7 +65,7 @@ export default function CpraImplementationGuidePage() {
           in <code>&lt;head&gt;</code>, use <code>buildSyncGpcSnippet()</code> (from{' '}
           <code>@consenti/ui</code>) to freeze Google Consent Mode v2 to denied synchronously,
           ahead of everything else — see{' '}
-          <a href="/docs/ui/advanced-configuration/#gpc">the GPC config reference</a> for the
+          <a href="/docs/ui/advanced-configuration#gpc">the GPC config reference</a> for the
           full snippet and <code>&lt;head&gt;</code> ordering.
         </li>
         <li>
@@ -75,7 +75,7 @@ export default function CpraImplementationGuidePage() {
           control, opt-in in spirit even though the base model is opt-out. Colorado&apos;s CPA has the
           same expectation for its own <code>opt-out</code> states — Consenti models that as a
           per-region <code>requiresSensitiveOptIn</code> carve-out rather than a separate compliance
-          group; see <a href="/docs/compliance/ccpa/#colorados-sensitive-data-carve-out">the CCPA/CPRA
+          group; see <a href="/docs/compliance/ccpa#colorados-sensitive-data-carve-out">the CCPA/CPRA
           guide</a> for how it's wired.
         </li>
         <li>
@@ -120,17 +120,17 @@ new ConsentiSetup({
       <RelatedDocs
         items={[
           {
-            href: '/docs/compliance/cpra/',
+            href: '/docs/compliance/cpra',
             label: 'CPRA Compliance Guide',
             desc: 'Full legal reference — CPPA enforcement, SPI categories, statute detail',
           },
           {
-            href: '/docs/compliance/ccpa/',
+            href: '/docs/compliance/ccpa',
             label: 'CCPA / US States',
             desc: 'The baseline opt-out model CPRA extends',
           },
           {
-            href: '/guides/examples/multi-region-gdpr-ccpa/',
+            href: '/guides/examples/multi-region-gdpr-ccpa',
             label: 'Multi-Region Site — GDPR + CCPA Geo-Routing',
             desc: 'Serving both opt-in and opt-out models from one codebase',
           },

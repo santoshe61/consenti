@@ -33,7 +33,7 @@ export default function UIAdvancedProfilesPage() {
         purposes it manages, the banner and modal layout, all button labels and actions, and the
         text copy for every supported locale. It is the single source of truth for the UI — not the
         widget config itself. New here? Start with the{' '}
-        <a href="/docs/ui/profiles/">Profile quick start</a> instead — this page is the complete
+        <a href="/docs/ui/profiles">Profile quick start</a> instead — this page is the complete
         reference: resolution order, every <code>ConsentiProfile</code> field, multi-locale, GPC
         banner, and more.
       </p>
@@ -516,7 +516,7 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
             <td>No</td>
             <td>
               Required when using the <code>opt-in-dpdpa</code> compliance group. See the{' '}
-              <a href="/docs/compliance/dpdpa/">DPDPA guide</a>.
+              <a href="/docs/compliance/dpdpa">DPDPA guide</a>.
             </td>
           </tr>
           <tr>
@@ -1094,7 +1094,7 @@ new ConsentiSetup({ compliance: { type: 'auto' } }) // or { type: 'opt-in' } —
               have a stored consent decision — the widget-side entry point for GDPR Art. 17 /
               CCPA-CPRA / LGPD Art. 18 and equivalent erasure rights. Authored on the linked UI
               Template&apos;s Preference Modal step. See the{' '}
-              <a href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</a>.
+              <a href="/guides/hot-topics/right-to-erasure">Right to Erasure guide</a>.
             </td>
           </tr>
           <tr>
@@ -1655,7 +1655,7 @@ new ConsentiSetup({
       <p>
         Without <code>complianceGroupsOverride</code>, giving every jurisdiction its own text,
         buttons, or cookie set means authoring a separate profile per{' '}
-        <a href="/docs/compliance/compliance-groups/">Compliance Group</a> — one for each of the 8
+        <a href="/docs/compliance/compliance-groups">Compliance Group</a> — one for each of the 8
         built-in groups plus one per custom group you add — and wiring{' '}
         <code>compliance.type</code> to pick the right one. That gets tedious fast: 8 built-in +
         5 custom groups is 13 profiles to create and keep in sync.

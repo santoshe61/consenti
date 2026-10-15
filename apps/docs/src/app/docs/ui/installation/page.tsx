@@ -104,7 +104,7 @@ export default function UIInstallationPage() {
         If you use <code>disableCssTemplate: true</code>, you own 100% of the styling. All elements
         use BEM class names like <code>.consenti-banner</code>,
         <code>.consenti-banner__heading</code>, <code>.consenti-btn--primary</code>. See the{' '}
-        <a href="/docs/ui/themes/">Themes guide</a> for the full class reference.
+        <a href="/docs/ui/themes">Themes guide</a> for the full class reference.
       </Callout>
 
       <h2>TypeScript</h2>

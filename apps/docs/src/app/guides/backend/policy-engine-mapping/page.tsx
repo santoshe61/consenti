@@ -136,12 +136,12 @@ export default function BackendPolicyEngineMappingGuide() {
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/advanced-configuration/',
+            href: '/docs/api/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'multiTenant, compliance.type, and every other createConsenti() option',
           },
           {
-            href: '/docs/api/routes/admin/',
+            href: '/docs/api/routes/admin',
             label: 'Admin Routes',
             desc: 'The audit log endpoint and other RBAC-protected routes',
           },

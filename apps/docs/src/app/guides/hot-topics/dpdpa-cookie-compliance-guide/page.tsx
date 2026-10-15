@@ -41,7 +41,7 @@ export default function DpdpaCookieComplianceGuidePage() {
         India&apos;s Digital Personal Data Protection Act (DPDPA), 2023 requires opt-in consent
         before non-essential cookies run for Indian visitors — but it also asks for a few things
         GDPR banners typically skip, as covered in{' '}
-        <Link href="/guides/hot-topics/gdpr-vs-dpdpa/">GDPR vs DPDPA</Link>. This is the
+        <Link href="/guides/hot-topics/gdpr-vs-dpdpa">GDPR vs DPDPA</Link>. This is the
         implementation checklist, not the statute text.
       </p>
 
@@ -128,17 +128,17 @@ const consenti = createConsenti({
       <RelatedDocs
         items={[
           {
-            href: '/docs/compliance/dpdpa/',
+            href: '/docs/compliance/dpdpa',
             label: 'DPDPA Compliance Guide',
             desc: 'Full legal reference — official Act links, enforcement body, statute details',
           },
           {
-            href: '/guides/hot-topics/gdpr-vs-dpdpa/',
+            href: '/guides/hot-topics/gdpr-vs-dpdpa',
             label: 'GDPR vs DPDPA',
             desc: 'Side-by-side comparison if you also serve EU traffic',
           },
           {
-            href: '/guides/backend/geo-routing/',
+            href: '/guides/backend/geo-routing',
             label: 'Geo-Routing & Auto-Detection',
             desc: 'How to route visitors to the right compliance profile automatically',
           },

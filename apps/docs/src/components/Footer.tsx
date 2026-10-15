@@ -15,54 +15,54 @@ declare global {
 }
 
 const DOCS_LINKS = [
-  { href: '/docs/getting-started/', label: 'Introduction' },
-  { href: '/docs/getting-started/quick-start/', label: 'Quick Start' },
-  { href: '/guides/', label: 'Guides' },
-  { href: '/guides/tutorials/', label: 'Tutorials' },
-  { href: '/guides/examples/', label: 'Examples' },
-  { href: '/docs/changelog/', label: 'Changelog' },
+  { href: '/docs/getting-started', label: 'Introduction' },
+  { href: '/docs/getting-started/quick-start', label: 'Quick Start' },
+  { href: '/guides', label: 'Guides' },
+  { href: '/guides/tutorials', label: 'Tutorials' },
+  { href: '/guides/examples', label: 'Examples' },
+  { href: '/docs/changelog', label: 'Changelog' },
   { href: '/demo-playground/frontend', label: 'UI Playground' },
   { href: '/demo-playground/backend', label: 'Admin Demo' },
-  { href: '/support/', label: 'Support Consenti' },
-  { href: '/sitemap/', label: 'Sitemap' },
+  { href: '/support', label: 'Support Consenti' },
+  { href: '/sitemap', label: 'Sitemap' },
 ]
 
 const UI_LINKS = [
-  { href: '/docs/ui/', label: 'Overview' },
-  { href: '/docs/ui/installation/', label: 'Installation' },
-  { href: '/docs/ui/profiles/', label: 'Consent Profiles' },
-  { href: '/docs/ui/configuration/', label: 'Configuration' },
-  { href: '/docs/ui/advanced-configuration/', label: 'Advanced Configuration' },
-  { href: '/docs/ui/events/', label: 'Events' },
-  { href: '/docs/ui/methods/', label: 'API Methods' },
-  { href: '/docs/ui/themes/', label: 'Themes & CSS' },
-  { href: '/docs/ui/frameworks/', label: 'Framework Guides' },
-  { href: '/docs/ui/plugins/', label: 'UI Plugins' },
+  { href: '/docs/ui', label: 'Overview' },
+  { href: '/docs/ui/installation', label: 'Installation' },
+  { href: '/docs/ui/profiles', label: 'Consent Profiles' },
+  { href: '/docs/ui/configuration', label: 'Configuration' },
+  { href: '/docs/ui/advanced-configuration', label: 'Advanced Configuration' },
+  { href: '/docs/ui/events', label: 'Events' },
+  { href: '/docs/ui/methods', label: 'API Methods' },
+  { href: '/docs/ui/themes', label: 'Themes & CSS' },
+  { href: '/docs/ui/frameworks', label: 'Framework Guides' },
+  { href: '/docs/ui/plugins', label: 'UI Plugins' },
 ]
 
 const API_LINKS = [
-  { href: '/docs/api/', label: 'Overview' },
-  { href: '/docs/api/installation/', label: 'Installation' },
-  { href: '/docs/api/configuration/', label: 'Configuration' },
-  { href: '/docs/api/advanced-configuration/', label: 'Advanced Configuration' },
-  { href: '/docs/api/routes/public/', label: 'Public Routes' },
-  { href: '/docs/api/routes/admin/', label: 'Admin Routes' },
-  { href: '/docs/api/events/', label: 'Events' },
-  { href: '/docs/api/dashboard/', label: 'Admin Dashboard' },
-  { href: '/docs/api/plugins/', label: 'API Plugins' },
+  { href: '/docs/api', label: 'Overview' },
+  { href: '/docs/api/installation', label: 'Installation' },
+  { href: '/docs/api/configuration', label: 'Configuration' },
+  { href: '/docs/api/advanced-configuration', label: 'Advanced Configuration' },
+  { href: '/docs/api/routes/public', label: 'Public Routes' },
+  { href: '/docs/api/routes/admin', label: 'Admin Routes' },
+  { href: '/docs/api/events', label: 'Events' },
+  { href: '/docs/api/dashboard', label: 'Admin Dashboard' },
+  { href: '/docs/api/plugins', label: 'API Plugins' },
 ]
 
 const COMPLIANCE_LINKS = [
-  { href: '/docs/compliance/jurisdiction-coverage-map/', label: 'Jurisdiction Coverage Map' },
-  { href: '/docs/compliance/gdpr/', label: 'GDPR (EU / EEA)' },
-  { href: '/docs/compliance/uk-gdpr/', label: 'UK GDPR' },
-  { href: '/docs/compliance/ccpa/', label: 'CCPA / US States' },
-  { href: '/docs/compliance/pipl/', label: 'PIPL (China)' },
-  { href: '/docs/compliance/lgpd/', label: 'LGPD (Brazil)' },
-  { href: '/docs/compliance/pdpa-th/', label: 'PDPA (Thailand)' },
-  { href: '/docs/compliance/appi/', label: 'APPI (Japan)' },
-  { href: '/docs/compliance/dpdpa/', label: 'DPDPA (India)' },
-  { href: '/docs/compliance/notice-only/', label: 'Notice Only' },
+  { href: '/docs/compliance/jurisdiction-coverage-map', label: 'Jurisdiction Coverage Map' },
+  { href: '/docs/compliance/gdpr', label: 'GDPR (EU / EEA)' },
+  { href: '/docs/compliance/uk-gdpr', label: 'UK GDPR' },
+  { href: '/docs/compliance/ccpa', label: 'CCPA / US States' },
+  { href: '/docs/compliance/pipl', label: 'PIPL (China)' },
+  { href: '/docs/compliance/lgpd', label: 'LGPD (Brazil)' },
+  { href: '/docs/compliance/pdpa-th', label: 'PDPA (Thailand)' },
+  { href: '/docs/compliance/appi', label: 'APPI (Japan)' },
+  { href: '/docs/compliance/dpdpa', label: 'DPDPA (India)' },
+  { href: '/docs/compliance/notice-only', label: 'Notice Only' },
 ]
 
 function FooterColumn({ title, links }: { title: string; links: { href: string; label: string }[] }) {
@@ -181,13 +181,13 @@ export function Footer() {
               Santosh Ojha
             </a>
             {' '}·{' '}
-            <Link href="/license/" className="hover:text-slate-400 no-underline transition-colors">
+            <Link href="/license" className="hover:text-slate-400 no-underline transition-colors">
               Apache 2.0 License
             </Link>
           </span>
           <span className="flex flex-wrap gap-x-4">
-            <Link href="/privacy/" className="hover:text-slate-400 no-underline transition-colors">Privacy Policy</Link>
-            <Link href="/terms/" className="hover:text-slate-400 no-underline transition-colors">Terms of Use</Link>
+            <Link href="/privacy" className="hover:text-slate-400 no-underline transition-colors">Privacy Policy</Link>
+            <Link href="/terms" className="hover:text-slate-400 no-underline transition-colors">Terms of Use</Link>
             <Link href="/llms-full.txt" className="hover:text-slate-400 no-underline transition-colors">LLM Context</Link>
             <button className="hover:text-slate-400 no-underline transition-colors" type='button' onClick={openConsentiModal}>Manage Preferences</button>
             {

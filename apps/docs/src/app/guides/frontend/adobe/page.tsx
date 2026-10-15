@@ -58,7 +58,7 @@ export default function FrontendAdobeGuide() {
       <Callout type="info">
         There&apos;s no fixed <code>adobe_analytics</code> cookie ID baked into the widget — this
         rolls up whichever parameters carry that <code>purpose</code> in your profile. See{' '}
-        <a href="/docs/ui/methods/#getconsent-type">API Methods</a> for the full{' '}
+        <a href="/docs/ui/methods#getconsent-type">API Methods</a> for the full{' '}
         <code>getConsent(type)</code> reference.
       </Callout>
 
@@ -68,7 +68,7 @@ export default function FrontendAdobeGuide() {
         script) until the relevant category is granted. Use <code>CategoryScript</code> so the
         library is only fetched — and any beacons it fires only happen — once consent exists. The{' '}
         <code>categoryId</code> here is your own authored category ID (see{' '}
-        <a href="/docs/ui/advanced-profiles/#category-type">Category type</a>) — use whichever id
+        <a href="/docs/ui/advanced-profiles#category-type">Category type</a>) — use whichever id
         actually covers analytics/marketing in your profile:
       </p>
 
@@ -165,17 +165,17 @@ new CategoryAction({
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'getConsent(type) and other instance methods',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'ConsentScript, ConsentAction, CategoryAction, and CategoryScript',
           },
           {
-            href: '/guides/frontend/gtm/',
+            href: '/guides/frontend/gtm',
             label: 'GTM & Google Consent Mode v2',
             desc: 'The one vendor Consenti does wire up automatically, for comparison',
           },

@@ -235,17 +235,17 @@ const date = widget.getConsentDate()  // Date | false`}
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'Full reference for every consenti:* event in the lifecycle',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'getConsent, isCookieGranted, reConsent, getConsentDate, and more',
           },
           {
-            href: '/docs/ui/advanced-configuration/',
+            href: '/docs/ui/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'cookieSigningKey, cookieName, cookieDomains, expiryDays, and every other option',
           },

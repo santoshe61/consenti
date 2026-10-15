@@ -49,7 +49,7 @@ export default function GDPRPage() {
         PDPA-TH (Thailand), and KVKK (Turkey) by default. PIPEDA (Canada), POPIA (South Africa),
         and APPI (Japan) auto-resolve to the more permissive <code>general-privacy-consent</code>{' '}
         group instead — see the{' '}
-        <Link href="/docs/compliance/compliance-groups/">Compliance Groups</Link> page for why —
+        <Link href="/docs/compliance/compliance-groups">Compliance Groups</Link> page for why —
         but their own regulation pages recommend opting into <code>opt-in</code> for stronger
         alignment. Use <code>compliance: {"{ type: 'opt-in' }"}</code> in your{' '}
         <code>ConsentiSetup</code> config to activate the opt-in Compliance Group explicitly.
@@ -170,7 +170,7 @@ export default function GDPRPage() {
       <p>
         For how to give visitors a self-service &quot;Forget me&quot; button in the widget itself,
         the events both sides fire, and how this fits together as one flow, see the{' '}
-        <Link href="/guides/hot-topics/right-to-erasure/">Right to Erasure guide</Link>.
+        <Link href="/guides/hot-topics/right-to-erasure">Right to Erasure guide</Link>.
       </p>
 
       <h2>Data minimisation (Article 5(1)(c))</h2>

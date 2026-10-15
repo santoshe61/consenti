@@ -14,35 +14,35 @@ import { DocSearch } from './DocSearch'
 type MenuItem = { label: string; href: string; indent?: boolean } | { label: string; header: true }
 
 const DOCS_MENU_ITEMS: MenuItem[] = [
-  { label: 'Getting Started', href: '/docs/getting-started/' },
-  { label: 'Compliance Groups', href: '/docs/compliance/compliance-groups/' },
-  { label: 'Jurisdiction Coverage Map', href: '/docs/compliance/jurisdiction-coverage-map/' },
+  { label: 'Getting Started', href: '/docs/getting-started' },
+  { label: 'Compliance Groups', href: '/docs/compliance/compliance-groups' },
+  { label: 'Jurisdiction Coverage Map', href: '/docs/compliance/jurisdiction-coverage-map' },
   { label: 'UI Widget', header: true },
-  { label: 'Overview', href: '/docs/ui/', indent: true },
-  { label: 'Profile', href: '/docs/ui/profiles/', indent: true },
-  { label: 'Configuration', href: '/docs/ui/configuration/', indent: true },
-  { label: 'Events', href: '/docs/ui/events/', indent: true },
-  { label: 'Themes & CSS', href: '/docs/ui/themes/', indent: true },
-  { label: 'Frameworks', href: '/docs/ui/frameworks/', indent: true },
-  { label: 'Plugins', href: '/docs/ui/plugins/', indent: true },
+  { label: 'Overview', href: '/docs/ui', indent: true },
+  { label: 'Profile', href: '/docs/ui/profiles', indent: true },
+  { label: 'Configuration', href: '/docs/ui/configuration', indent: true },
+  { label: 'Events', href: '/docs/ui/events', indent: true },
+  { label: 'Themes & CSS', href: '/docs/ui/themes', indent: true },
+  { label: 'Frameworks', href: '/docs/ui/frameworks', indent: true },
+  { label: 'Plugins', href: '/docs/ui/plugins', indent: true },
   { label: 'API / Backend Reference', header: true },
-  { label: 'Overview', href: '/docs/api/', indent: true },
-  { label: 'Configuration', href: '/docs/api/configuration/', indent: true },
-  { label: 'API Routes', href: '/docs/api/routes/', indent: true },
-  { label: 'Events', href: '/docs/api/events/', indent: true },
-  { label: 'Admin Dashboard', href: '/docs/api/dashboard/', indent: true },
-  { label: 'Plugins', href: '/docs/api/plugins/', indent: true },
-  { label: 'Changelog', href: '/docs/changelog/' },
+  { label: 'Overview', href: '/docs/api', indent: true },
+  { label: 'Configuration', href: '/docs/api/configuration', indent: true },
+  { label: 'API Routes', href: '/docs/api/routes', indent: true },
+  { label: 'Events', href: '/docs/api/events', indent: true },
+  { label: 'Admin Dashboard', href: '/docs/api/dashboard', indent: true },
+  { label: 'Plugins', href: '/docs/api/plugins', indent: true },
+  { label: 'Changelog', href: '/docs/changelog' },
 ]
 
 const GUIDES_MENU_ITEMS: MenuItem[] = [
-  { label: 'Consenti, What-Why-How ?', href: '/guides/what-is-consenti/' },
-  { label: 'Frontend-Only Mode', href: '/guides/frontend-only-mode/' },
-  { label: 'Usage Guides', href: '/guides/' },
-  { label: 'Tutorials', href: '/guides/tutorials/' },
-  { label: 'Examples', href: '/guides/examples/' },
+  { label: 'Consenti, What-Why-How ?', href: '/guides/what-is-consenti' },
+  { label: 'Frontend-Only Mode', href: '/guides/frontend-only-mode' },
+  { label: 'Usage Guides', href: '/guides' },
+  { label: 'Tutorials', href: '/guides/tutorials' },
+  { label: 'Examples', href: '/guides/examples' },
   { label: 'Ecosystem', header: true },
-  { label: '@consenti/scanner', href: '/guides/ecosystem/scanner/', indent: true },
+  { label: '@consenti/scanner', href: '/guides/ecosystem/scanner', indent: true },
 ]
 
 function NavDropdown({
@@ -77,7 +77,7 @@ function NavDropdown({
             <Link
               key={item.href}
               href={item.href}
-              className={`block px-4 py-1.5 text-sm no-underline transition-colors ${item.indent ? 'ml-4' : ''} ${pathname === item.href || pathname === item.href.slice(0, -1) ? 'text-brand-600 dark:text-cyan-400 font-semibold' : 'text-slate-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-cyan-400 hover:bg-brand-50 dark:hover:bg-gray-700'}`}
+              className={`block px-4 py-1.5 text-sm no-underline transition-colors ${item.indent ? 'ml-4' : ''} ${pathname === item.href ? 'text-brand-600 dark:text-cyan-400 font-semibold' : 'text-slate-700 dark:text-gray-300 hover:text-brand-600 dark:hover:text-cyan-400 hover:bg-brand-50 dark:hover:bg-gray-700'}`}
             >
               {item.label}
             </Link>
@@ -267,7 +267,7 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   onClick={closeMobile}
-                  className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md no-underline transition-colors ${item.indent ? 'pl-8' : 'pl-5'} ${pathname === item.href || pathname === item.href.slice(0, -1) ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                  className={`flex items-center gap-2 text-sm px-3 py-2 rounded-md no-underline transition-colors ${item.indent ? 'pl-8' : 'pl-5'} ${pathname === item.href ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
                 >
                   {item.label}
                 </Link>
@@ -285,7 +285,7 @@ export function Navbar() {
                   key={item.href}
                   href={item.href}
                   onClick={closeMobile}
-                  className={`flex items-center gap-2 text-sm px-3 py-2 pl-5 rounded-md no-underline transition-colors ${pathname === item.href || pathname === item.href.slice(0, -1) ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
+                  className={`flex items-center gap-2 text-sm px-3 py-2 pl-5 rounded-md no-underline transition-colors ${pathname === item.href ? 'text-white bg-white/15' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
                 >
                   {item.label}
                 </Link>

@@ -107,6 +107,13 @@ const nextConfig: NextConfig = {
       { source: '/docs/compliance/tcf/', destination: '/docs/compliance/tcf-and-gpp-registration', permanent: true },
       { source: '/docs/compliance/self-registration', destination: '/docs/compliance/tcf-and-gpp-registration', permanent: true },
       { source: '/docs/compliance/self-registration/', destination: '/docs/compliance/tcf-and-gpp-registration', permanent: true },
+      // Legacy / mistyped URLs that search engines still request (Search Console "Not found (404)").
+      // Plugin docs live under /docs/api/plugins.
+      { source: '/docs/plugins', destination: '/docs/api/plugins', permanent: true },
+      { source: '/docs/plugins/:slug', destination: '/docs/api/plugins/:slug', permanent: true },
+      { source: '/privacy-policy', destination: '/privacy', permanent: true },
+      { source: '/guides/hot-topics/what-is-consenti', destination: '/guides/what-is-consenti', permanent: true },
+      { source: '/guides/hot-topics/how-cookiebot-works', destination: '/guides/hot-topics/open-source-alternatives-to-cookiebot', permanent: true },
     ]
   },
   // outputFileTracingRoot: join(__dirname, '../../'),

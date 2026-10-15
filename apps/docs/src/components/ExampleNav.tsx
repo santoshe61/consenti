@@ -12,7 +12,7 @@ export function ExampleNav({ currentSlug }: { currentSlug: string }) {
   return (
     <div className="not-prose mt-12 pt-6 border-t border-slate-200 dark:border-gray-700 flex items-center justify-between gap-4">
       <Link
-        href={`/guides/examples/${prev.slug}/`}
+        href={`/guides/examples/${prev.slug}`}
         className="group flex items-center gap-2 no-underline min-w-0"
       >
         <ArrowLeft size={16} className="shrink-0 text-slate-400 group-hover:text-brand-500 transition-colors" />
@@ -26,7 +26,7 @@ export function ExampleNav({ currentSlug }: { currentSlug: string }) {
         </div>
       </Link>
       <Link
-        href={`/guides/examples/${next.slug}/`}
+        href={`/guides/examples/${next.slug}`}
         className="group flex items-center gap-2 no-underline min-w-0 ml-auto text-right justify-end"
       >
         <div className="min-w-0">

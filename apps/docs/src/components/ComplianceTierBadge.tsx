@@ -31,7 +31,7 @@ export function ComplianceTierBadge({ tier }: ComplianceTierBadgeProps) {
   return (
     <div className="not-prose -mt-2 mb-4">
       <Link
-        href="/docs/compliance/jurisdiction-coverage-map/#compliance-tiers"
+        href="/docs/compliance/jurisdiction-coverage-map#compliance-tiers"
         className={`inline-flex items-center gap-1.5 text-xs font-medium border rounded-full px-2.5 py-1 no-underline hover:opacity-80 ${COMPLIANCE_TIER_STYLES[tier]}`}
       >
         {COMPLIANCE_TIER_LABELS[tier]}

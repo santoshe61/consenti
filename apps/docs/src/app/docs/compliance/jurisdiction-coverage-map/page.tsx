@@ -128,20 +128,20 @@ const TIER_DEFINITIONS: Array<{ tier: ComplianceTier; description: string }> = [
 ]
 
 const REGULATION_TIERS: Array<{ label: string; tier: ComplianceTier; href: string }> = [
-  { label: 'GDPR', tier: 'maintained', href: '/docs/compliance/gdpr/' },
-  { label: 'UK GDPR', tier: 'maintained', href: '/docs/compliance/uk-gdpr/' },
-  { label: 'CCPA', tier: 'maintained', href: '/docs/compliance/ccpa/' },
-  { label: 'CPRA', tier: 'maintained', href: '/docs/compliance/cpra/' },
-  { label: 'LGPD', tier: 'maintained', href: '/docs/compliance/lgpd/' },
-  { label: 'DPDPA (India)', tier: 'in-development', href: '/docs/compliance/dpdpa/' },
-  { label: 'PIPEDA / Law 25 (Canada)', tier: 'supported', href: '/docs/compliance/pipeda/' },
-  { label: 'POPIA (South Africa)', tier: 'supported', href: '/docs/compliance/popia/' },
-  { label: 'PDPA (Thailand)', tier: 'supported', href: '/docs/compliance/pdpa-th/' },
-  { label: 'APPI (Japan)', tier: 'supported', href: '/docs/compliance/appi/' },
-  { label: 'KVKK (Turkey)', tier: 'supported', href: '/docs/compliance/kvkk/' },
-  { label: 'COPPA (USA children)', tier: 'partial', href: '/docs/compliance/coppa/' },
-  { label: 'TCF v2.3 / GPP (IAB, programmatic ads)', tier: 'partial', href: '/docs/compliance/tcf-and-gpp-registration/' },
-  { label: 'PIPL (China)', tier: 'routing-only', href: '/docs/compliance/pipl/' },
+  { label: 'GDPR', tier: 'maintained', href: '/docs/compliance/gdpr' },
+  { label: 'UK GDPR', tier: 'maintained', href: '/docs/compliance/uk-gdpr' },
+  { label: 'CCPA', tier: 'maintained', href: '/docs/compliance/ccpa' },
+  { label: 'CPRA', tier: 'maintained', href: '/docs/compliance/cpra' },
+  { label: 'LGPD', tier: 'maintained', href: '/docs/compliance/lgpd' },
+  { label: 'DPDPA (India)', tier: 'in-development', href: '/docs/compliance/dpdpa' },
+  { label: 'PIPEDA / Law 25 (Canada)', tier: 'supported', href: '/docs/compliance/pipeda' },
+  { label: 'POPIA (South Africa)', tier: 'supported', href: '/docs/compliance/popia' },
+  { label: 'PDPA (Thailand)', tier: 'supported', href: '/docs/compliance/pdpa-th' },
+  { label: 'APPI (Japan)', tier: 'supported', href: '/docs/compliance/appi' },
+  { label: 'KVKK (Turkey)', tier: 'supported', href: '/docs/compliance/kvkk' },
+  { label: 'COPPA (USA children)', tier: 'partial', href: '/docs/compliance/coppa' },
+  { label: 'TCF v2.3 / GPP (IAB, programmatic ads)', tier: 'partial', href: '/docs/compliance/tcf-and-gpp-registration' },
+  { label: 'PIPL (China)', tier: 'routing-only', href: '/docs/compliance/pipl' },
 ]
 
 function TierPill({ tier }: { tier: ComplianceTier }) {
@@ -161,10 +161,10 @@ export default function JurisdictionCoverageMapPage() {
         <strong>{totalCountries} countries and territories</strong>, each pre-assigned to one of the
         8 built-in <strong>compliance groups</strong> — the model that decides opt-in vs. opt-out
         behaviour, GPC handling, and legitimate-interest rules. It's the reference for the{' '}
-        <code>type</code> field in <a href="/docs/ui/advanced-configuration/#compliance">UI</a> /{' '}
-        <a href="/docs/api/advanced-configuration/#compliance">Backend</a> configuration, and for
+        <code>type</code> field in <a href="/docs/ui/advanced-configuration#compliance">UI</a> /{' '}
+        <a href="/docs/api/advanced-configuration#compliance">Backend</a> configuration, and for
         the <code>compliance</code> array shown on every{' '}
-        <a href="/docs/compliance/gdpr/">compliance guide</a>.
+        <a href="/docs/compliance/gdpr">compliance guide</a>.
       </p>
 
       <Callout type="info">
@@ -173,7 +173,7 @@ export default function JurisdictionCoverageMapPage() {
         can author its own profile — banner copy, categories, GPC handling, everything — against a{' '}
         <a href="#custom-compliance-groups">custom compliance group</a> (see item 9 below) and route
         to it explicitly with <code>compliance.type</code>, no built-in group required. See the{' '}
-        <a href="/guides/backend/geo-routing/">Geo-Routing &amp; Auto-Detection guide</a> for how
+        <a href="/guides/backend/geo-routing">Geo-Routing &amp; Auto-Detection guide</a> for how
         country resolution feeds into this map.
       </Callout>
 
@@ -184,7 +184,7 @@ export default function JurisdictionCoverageMapPage() {
         <strong>Routing-only</strong>. The tier reflects how confidently Consenti tracks that
         regulation's ongoing legal changes, not just whether the code exists. The Maintained and
         Supported regulations are re-checked every quarter (see{' '}
-        <a href="/guides/what-is-consenti/">how Consenti aims to stay compliant</a>); the most
+        <a href="/guides/what-is-consenti">how Consenti aims to stay compliant</a>); the most
         recent review ran on <strong>8 October 2026</strong> (2026 Q4).
       </p>
       <table>
@@ -262,7 +262,7 @@ export default function JurisdictionCoverageMapPage() {
                 <td>
                   Admin dashboard profile wizard, Step 1 — choose <strong>None / Custom</strong>{' '}
                   instead of one of the 8 built-in radio options, then type the identifier. See the{' '}
-                  <a href="/docs/api/dashboard/">Admin Dashboard</a> guide.
+                  <a href="/docs/api/dashboard">Admin Dashboard</a> guide.
                 </td>
               </tr>
               <tr>
@@ -297,7 +297,7 @@ export default function JurisdictionCoverageMapPage() {
             or fixed — by registering a <code>ConsentiProfile</code> with a matching{' '}
             <code>complianceGroup</code> (optionally <code>deepMerge: true</code> to patch instead
             of replace). See{' '}
-            <a href="/docs/ui/advanced-profiles/#complianceGroup-override">
+            <a href="/docs/ui/advanced-profiles#complianceGroup-override">
               Overriding a built-in compliance group
             </a>
             .
@@ -333,7 +333,7 @@ export default function JurisdictionCoverageMapPage() {
         for that region while the rest of the group's cookies still default to granted. Only takes
         effect with a <code>geoDataProvider</code> that resolves a US state (<code>'geoip'</code>,{' '}
         <code>'maxmind'</code>, or <code>'hosted-geoip-lite'</code>) — see{' '}
-        <a href="/docs/compliance/ccpa/#colorados-sensitive-data-carve-out">the CCPA/CPRA guide</a>{' '}
+        <a href="/docs/compliance/ccpa#colorados-sensitive-data-carve-out">the CCPA/CPRA guide</a>{' '}
         for details.
       </Callout>
 

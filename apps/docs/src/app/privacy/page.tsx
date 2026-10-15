@@ -32,13 +32,13 @@ export default function PrivacyPage() {
           you are reading right now. It does not cover the Consenti software itself: what a site
           that installs <code>@consenti/ui</code> or <code>@consenti/api</code> collects from its
           own visitors is entirely up to that site&apos;s own configuration and its own privacy
-          policy. See the <Link href="/docs/getting-started/">documentation</Link> if that&apos;s
+          policy. See the <Link href="/docs/getting-started">documentation</Link> if that&apos;s
           what you&apos;re looking for.
         </p>
 
         <p>
           Consenti is built and maintained solo, in spare time (see{' '}
-          <Link href="/support/">Support Consenti</Link>). This is a good-faith description of what
+          <Link href="/support">Support Consenti</Link>). This is a good-faith description of what
           this site actually does — not a template, and not legal advice. If something here looks
           wrong or incomplete, please open an issue on{' '}
           <a
@@ -105,7 +105,7 @@ export default function PrivacyPage() {
         <h2>Your rights</h2>
         <p>
           You can ask what we hold about you, ask us to correct it, or ask us to delete it, at any
-          time. See <Link href="/support/">Support Consenti</Link> for contact details, or open an
+          time. See <Link href="/support">Support Consenti</Link> for contact details, or open an
           issue on{' '}
           <a
             href="https://github.com/santoshe61/consenti"
@@ -124,7 +124,7 @@ export default function PrivacyPage() {
         </p>
 
         <p>
-          Related: <Link href="/terms/">Terms of Use</Link> · <Link href="/license/">License</Link>
+          Related: <Link href="/terms">Terms of Use</Link> · <Link href="/license">License</Link>
         </p>
       </div>
     </main>

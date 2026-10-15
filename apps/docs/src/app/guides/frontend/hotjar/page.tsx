@@ -44,7 +44,7 @@ export default function FrontendHotjarGuide() {
       <p>
         There&apos;s no <code>getConsent(&apos;hotjar&apos;)</code> vendor format, so there&apos;s
         no single right answer — it depends on the granularity you want. All three are real,
-        independent calls (see <a href="/docs/ui/methods/#getconsent-type">API Methods</a> for the
+        independent calls (see <a href="/docs/ui/methods#getconsent-type">API Methods</a> for the
         full reference):
       </p>
 
@@ -64,7 +64,7 @@ export default function FrontendHotjarGuide() {
       <p>
         If Hotjar is bundled into a category alongside other tools and you want consent for exactly
         what the visitor toggled (not just the fixed taxonomy), read your own category ID instead
-        (see <a href="/docs/ui/advanced-profiles/#category-type">Category type</a>) —{' '}
+        (see <a href="/docs/ui/advanced-profiles#category-type">Category type</a>) —{' '}
         <code>&apos;granted&apos;</code> only when every parameter in that category is granted, not
         just Hotjar&apos;s:
       </p>
@@ -97,7 +97,7 @@ if (consent?.hotjar === 'granted') {
         Whichever call you read from, loading still works the same way: wrap the standard Hotjar
         snippet in a <code>CategoryScript</code> so it&apos;s never fetched — let alone executed —
         before consent exists. <code>categoryId</code> is your own authored category ID (see{' '}
-        <a href="/docs/ui/advanced-profiles/#category-type">Category type</a>) —{' '}
+        <a href="/docs/ui/advanced-profiles#category-type">Category type</a>) —{' '}
         <code>&apos;analytics&apos;</code> below is the common convention:
       </p>
 
@@ -172,17 +172,17 @@ new ConsentScript({
       <RelatedDocs
         items={[
           {
-            href: '/guides/frontend/clarity/',
+            href: '/guides/frontend/clarity',
             label: 'Microsoft Clarity',
             desc: 'The same script-gating pattern applied to a tool with its own consent API',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'The full getConsent(type) reference — purpose, category, and every vendor format',
           },
           {
-            href: '/docs/ui/advanced-profiles/',
+            href: '/docs/ui/advanced-profiles',
             label: 'Advanced Profiles',
             desc: 'The parameter (purpose) vs. category data model, in full',
           },

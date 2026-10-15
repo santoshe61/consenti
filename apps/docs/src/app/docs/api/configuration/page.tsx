@@ -63,7 +63,7 @@ http.createServer(consenti.handler).listen(3001)
       <Callout type="warning">
         The <code>json</code> driver stores data in memory and flushes to disk. It is fine for
         development, but <strong>switch to SQLite or a server database before production</strong>.
-        See <a href="/docs/api/advanced-configuration/#storage">storage</a> in the advanced
+        See <a href="/docs/api/advanced-configuration#storage">storage</a> in the advanced
         reference.
       </Callout>
 
@@ -121,11 +121,11 @@ http.createServer(consenti.handler).listen(3001)
             </td>
             <td>
               Pin one of the 8 built-in compliance groups instead of geo-detecting — see the{' '}
-              <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a>{' '}
+              <a href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</a>{' '}
               for every country and its assigned group. With <code>'auto'</code>,{' '}
               <code>compliance.geoDataProvider</code> and <code>compliance.complianceMap</code>{' '}
               control detection and the country → group mapping — see{' '}
-              <a href="/docs/api/advanced-configuration/">Advanced Configuration</a>.
+              <a href="/docs/api/advanced-configuration">Advanced Configuration</a>.
             </td>
           </tr>
           <tr>
@@ -143,7 +143,7 @@ http.createServer(consenti.handler).listen(3001)
       <Callout type="info">
         This page covers the common cases. For every field — storage drivers, all five auth modes,
         rate limiting, S3 sync, plugins, TCF, age gate, data retention, and more — see the{' '}
-        <a href="/docs/api/advanced-configuration/">Advanced Configuration reference</a>.
+        <a href="/docs/api/advanced-configuration">Advanced Configuration reference</a>.
       </Callout>
     </div>
   )

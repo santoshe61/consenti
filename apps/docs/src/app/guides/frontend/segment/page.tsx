@@ -56,7 +56,7 @@ export default function FrontendSegmentGuide() {
         rather than <code>analytics</code> — it&apos;s the call that attaches PII (email, user ID,
         traits) to the visitor, so it&apos;s reasonable for a visitor to allow anonymous page/track
         events while still declining to be identified. See{' '}
-        <a href="/docs/ui/methods/#getconsent-type">API Methods</a> for the full{' '}
+        <a href="/docs/ui/methods#getconsent-type">API Methods</a> for the full{' '}
         <code>getConsent(type)</code> reference.
       </Callout>
 
@@ -66,7 +66,7 @@ export default function FrontendSegmentGuide() {
         allowed — this also means the Segment CDN request itself, and every downstream
         destination it can trigger, never happens pre-consent. The <code>categoryId</code> below is
         your own authored category ID (see{' '}
-        <a href="/docs/ui/advanced-profiles/#category-type">Category type</a>) — use whichever one
+        <a href="/docs/ui/advanced-profiles#category-type">Category type</a>) — use whichever one
         covers analytics in your profile:
       </p>
 
@@ -177,17 +177,17 @@ new ConsentAction({
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'getConsent(type) and other instance methods',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'ConsentAction, CategoryScript, and consenti:consentSubmitted',
           },
           {
-            href: '/guides/frontend/gtm/',
+            href: '/guides/frontend/gtm',
             label: 'GTM & Google Consent Mode v2',
             desc: 'If you load analytics.js via a GTM tag instead of the snippet directly',
           },

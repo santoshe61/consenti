@@ -184,7 +184,7 @@ createConsenti({
       <p>
         Countries are mapped to compliance groups via an embedded map of 190+ countries and
         territories, maintained by the Consenti project — see the full list on the{' '}
-        <a href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</a>.{' '}
+        <a href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</a>.{' '}
         <code>geoDataProvider</code> decides which country/region gets looked up;{' '}
         <code>compliance.complianceMap</code> decides what group that country resolves to — set it
         to <code>'default'</code> to keep the embedded map, a URL to fetch your own JSON map
@@ -218,7 +218,7 @@ createConsenti({
         — pin <code>compliance.type</code> to a fixed group for the whole deployment, or author a
         profile against a <code>customComplianceGroup</code> and target it explicitly. Both are
         covered on the{' '}
-        <a href="/docs/compliance/jurisdiction-coverage-map/#custom-compliance-groups">
+        <a href="/docs/compliance/jurisdiction-coverage-map#custom-compliance-groups">
           Jurisdiction Coverage Map
         </a>
         .
@@ -241,17 +241,17 @@ createConsenti({
       <RelatedDocs
         items={[
           {
-            href: '/docs/api/advanced-configuration/',
+            href: '/docs/api/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'Full geoDataProvider and trustedProxies option reference',
           },
           {
-            href: '/docs/api/routes/public/',
+            href: '/docs/api/routes/public',
             label: 'Public Routes',
             desc: 'The /resolve-profile endpoint used by the widget',
           },
           {
-            href: '/docs/compliance/jurisdiction-coverage-map/',
+            href: '/docs/compliance/jurisdiction-coverage-map',
             label: 'Jurisdiction Coverage Map',
             desc: 'Every country, its law(s), and its compliance group',
           },

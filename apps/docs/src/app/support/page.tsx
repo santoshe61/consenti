@@ -133,7 +133,7 @@ export default function SupportPage() {
 
       <div className="text-center mt-6">
         <Link
-          href="/docs/getting-started/"
+          href="/docs/getting-started"
           className="text-brand-500 hover:text-brand-600 text-sm font-medium no-underline"
         >
           ← Back to documentation

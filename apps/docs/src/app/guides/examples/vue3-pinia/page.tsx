@@ -62,7 +62,7 @@ createApp(App).use(createPinia()).mount('#app')`}
       <Callout type="info">
         Using Nuxt 3? Do this inside a <code>.client.ts</code> plugin instead of{' '}
         <code>main.ts</code> — see <code>@consenti/ui/vue</code> in the{' '}
-        <a href="/docs/ui/frameworks/">Frameworks reference</a>.
+        <a href="/docs/ui/frameworks">Frameworks reference</a>.
       </Callout>
 
       <h2>2. Wrap useConsent() in a Pinia store</h2>
@@ -108,9 +108,9 @@ const consent = useConsentStore()
 
       <RelatedDocs
         items={[
-          { href: '/docs/ui/frameworks/', label: 'Frameworks', desc: 'React, Vue, Angular, and Vanilla JS integration patterns' },
-          { href: '/docs/ui/methods/', label: 'API Methods', desc: 'Every widget method the composable wraps' },
-          { href: '/docs/ui/events/', label: 'Events', desc: 'The raw consenti: events the composable subscribes to' },
+          { href: '/docs/ui/frameworks', label: 'Frameworks', desc: 'React, Vue, Angular, and Vanilla JS integration patterns' },
+          { href: '/docs/ui/methods', label: 'API Methods', desc: 'Every widget method the composable wraps' },
+          { href: '/docs/ui/events', label: 'Events', desc: 'The raw consenti: events the composable subscribes to' },
         ]}
       />
 

@@ -51,7 +51,7 @@ export default function FrontendClarityGuide() {
       <Callout type="info">
         All three keys currently roll up from the same <code>analytics</code> purpose — Clarity
         doesn&apos;t offer a way to separately opt out of, say, heatmaps but not session recording.
-        See <a href="/docs/ui/methods/#getconsent-type">API Methods</a> for the full{' '}
+        See <a href="/docs/ui/methods#getconsent-type">API Methods</a> for the full{' '}
         <code>getConsent(type)</code> reference.
       </Callout>
 
@@ -60,7 +60,7 @@ export default function FrontendClarityGuide() {
         Clarity has no build-time way to defer its own start, so the reliable approach is to not
         load <code>clarity.js</code> at all until consent exists. Wrap the standard snippet in a{' '}
         <code>CategoryScript</code>, keyed to your own authored category ID (see{' '}
-        <a href="/docs/ui/advanced-profiles/#category-type">Category type</a>) —{' '}
+        <a href="/docs/ui/advanced-profiles#category-type">Category type</a>) —{' '}
         <code>&apos;analytics&apos;</code> below is the common convention:
       </p>
 
@@ -141,17 +141,17 @@ new CategoryAction({
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'getConsent(type) and other instance methods',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'CategoryScript, CategoryAction, and consenti:consentSubmitted',
           },
           {
-            href: '/guides/frontend/hotjar/',
+            href: '/guides/frontend/hotjar',
             label: 'Hotjar & Others',
             desc: 'The same script-gating pattern applied to tools with no dedicated format',
           },

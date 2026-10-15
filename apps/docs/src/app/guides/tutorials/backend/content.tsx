@@ -121,8 +121,8 @@ app.all('/consenti/*', (c) => consenti.honoApp.fetch(c.req.raw))`}
         <code>consenti.handler</code> is a standard{' '}
         <code>http.IncomingMessage → http.ServerResponse</code> handler — any Node.js HTTP
         framework not listed above can still wrap it directly. Full reference on the{' '}
-        <Link href="/docs/api/installation/">Backend Installation</Link> and{' '}
-        <Link href="/docs/api/methods/">API Methods</Link> pages.
+        <Link href="/docs/api/installation">Backend Installation</Link> and{' '}
+        <Link href="/docs/api/methods">API Methods</Link> pages.
       </Callout>
     </>
   )
@@ -148,7 +148,7 @@ storage: { driver: 'mongodb', uri: process.env.MONGODB_URI, path: './consenti-da
       <p>
         <code>auth.mode: 'local'</code> is a username/password admin login — good for a single team.
         Switch to <code>'jwt'</code> for API consumers or <code>'oidc'</code>/<code>'saml'</code>{' '}
-        for enterprise SSO — see <Link href="/guides/backend/auth/">Auth Modes</Link>.
+        for enterprise SSO — see <Link href="/guides/backend/auth">Auth Modes</Link>.
       </p>
 
       <p>
@@ -187,7 +187,7 @@ compliance: {
 }`}
       />
       <p>
-        See <Link href="/guides/backend/geo-routing/">Geo-Routing &amp; Auto-Detection</Link> for a
+        See <Link href="/guides/backend/geo-routing">Geo-Routing &amp; Auto-Detection</Link> for a
         full comparison of every resolver.
       </p>
 
@@ -259,11 +259,11 @@ compliance: { dataRetention: { purgeAfterDays: 365 } }`}
       <CodeBlock lang="ts" code={`basePath: '/cmp' // dashboard now at /cmp/, API at /cmp/api/v1/`} />
 
       <Callout type="info">
-        See <Link href="/docs/api/advanced-configuration/">API Advanced Configuration</Link> for
+        See <Link href="/docs/api/advanced-configuration">API Advanced Configuration</Link> for
         every section above plus <code>plugins</code>, <code>branding</code>,{' '}
         <code>compliance.dataSigningHash</code>, <code>s3Api</code>, and{' '}
         <code>trustedProxies</code> — and{' '}
-        <Link href="/guides/backend/storage/">Choosing a Storage Driver</Link> for the storage
+        <Link href="/guides/backend/storage">Choosing a Storage Driver</Link> for the storage
         comparison.
       </Callout>
     </>
@@ -312,7 +312,7 @@ async function Step3UpdateProfiles() {
       </table>
       <p>
         The backend maps each visitor to a group via the embedded 190+ country/territory map (see{' '}
-        <Link href="/docs/compliance/jurisdiction-coverage-map/">
+        <Link href="/docs/compliance/jurisdiction-coverage-map">
           Jurisdiction Coverage Map
         </Link>
         ), then serves whichever profile is <em>active</em> for that group.
@@ -331,12 +331,12 @@ async function Step3UpdateProfiles() {
       <Callout type="tip">
         The backend automatically resolves the best profile per visitor via geo-routing — you
         rarely need to hardcode a profile ID on the frontend. See{' '}
-        <Link href="/guides/backend/geo-routing/">Geo-Routing &amp; Auto-Detection</Link>.
+        <Link href="/guides/backend/geo-routing">Geo-Routing &amp; Auto-Detection</Link>.
       </Callout>
       <p>
         Prefer to manage profiles as code instead of clicking through the UI? Everything the
         dashboard does is also available over REST — see{' '}
-        <Link href="/docs/api/routes/admin/">Admin Routes</Link> (<code>POST /profiles</code>,{' '}
+        <Link href="/docs/api/routes/admin">Admin Routes</Link> (<code>POST /profiles</code>,{' '}
         <code>PUT /profiles/:id</code>, <code>POST /profiles/:id/activate</code>, …).
       </p>
     </>
@@ -411,7 +411,7 @@ widget.onReady(() => {
       </Callout>
       <p>
         Already configured a custom <code>geoDataProvider</code> in{' '}
-        <Link href="/guides/tutorials/backend/configure-backend/">Configure Backend</Link>? Nothing
+        <Link href="/guides/tutorials/backend/configure-backend">Configure Backend</Link>? Nothing
         changes here — the frontend always delegates resolution to whatever the backend decides.
       </p>
     </>
@@ -464,7 +464,7 @@ widget.on('parentalConsentRequired', ({ parentalConsentToken, visitorId }) => {
 })`}
       />
       <p>
-        Full payload shapes in the <Link href="/docs/ui/events/">UI Events</Link> reference.
+        Full payload shapes in the <Link href="/docs/ui/events">UI Events</Link> reference.
       </p>
 
       <h2>Backend events (eventBus)</h2>
@@ -535,7 +535,7 @@ eventBus.on('ready', () => console.log('[consenti] backend ready'))`}
       />
       <p>
         Full reference for every event and payload shape in{' '}
-        <Link href="/docs/api/events/">API Events</Link>.
+        <Link href="/docs/api/events">API Events</Link>.
       </p>
     </>
   )
@@ -636,8 +636,8 @@ new CategoryAction({
 })`}
       />
       <p>
-        Full reference in <Link href="/docs/ui/events/">UI Events</Link> and{' '}
-        <Link href="/docs/api/events/">API Events</Link>.
+        Full reference in <Link href="/docs/ui/events">UI Events</Link> and{' '}
+        <Link href="/docs/api/events">API Events</Link>.
       </p>
     </>
   )
@@ -663,7 +663,7 @@ async function Step8ConnectVerify() {
       <Callout type="tip">
         Nothing showing up? Double-check <code>api.baseUrl</code> matches where the backend is
         actually mounted, and that CORS allows your frontend origin — see{' '}
-        <Link href="/docs/api/advanced-configuration/">API Advanced Configuration</Link>.
+        <Link href="/docs/api/advanced-configuration">API Advanced Configuration</Link>.
       </Callout>
     </>
   )
@@ -707,24 +707,24 @@ export function ConsentSetup() {
       <h2>What to read next</h2>
       <ul>
         <li>
-          <Link href="/docs/api/advanced-configuration/">API Configuration</Link> — storage
+          <Link href="/docs/api/advanced-configuration">API Configuration</Link> — storage
           drivers, auth modes, all options
         </li>
         <li>
-          <Link href="/docs/api/routes/">API Routes</Link> — every public and admin endpoint
+          <Link href="/docs/api/routes">API Routes</Link> — every public and admin endpoint
         </li>
         <li>
-          <Link href="/docs/api/plugins/">API Plugins</Link> — BigQuery, Segment, Snowflake
+          <Link href="/docs/api/plugins">API Plugins</Link> — BigQuery, Segment, Snowflake
         </li>
         <li>
-          <Link href="/guides/backend/webhooks/">Webhook Integration</Link> — forward consent
+          <Link href="/guides/backend/webhooks">Webhook Integration</Link> — forward consent
           decisions to your own endpoint via <code>eventBus</code>
         </li>
         <li>
-          <Link href="/docs/compliance/gdpr/">Compliance guides</Link> — what each group requires
+          <Link href="/docs/compliance/gdpr">Compliance guides</Link> — what each group requires
         </li>
         <li>
-          <Link href="/guides/examples/">Examples</Link> — complete real-life integrations
+          <Link href="/guides/examples">Examples</Link> — complete real-life integrations
         </li>
       </ul>
     </>

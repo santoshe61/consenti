@@ -38,7 +38,7 @@ export default function TermsPage() {
         <p>
           consenti.dev is provided as-is, for the purpose of documenting and demoing the Consenti
           software. Don&apos;t use it to attack, scrape abusively, or attempt to disrupt the site or
-          the SaaS-interest form (see <Link href="/privacy/">Privacy Policy</Link> for what that
+          the SaaS-interest form (see <Link href="/privacy">Privacy Policy</Link> for what that
           form collects and why). Demo/playground pages are for evaluation only — data entered there
           is not a durable record and may be reset at any time.
         </p>
@@ -47,7 +47,7 @@ export default function TermsPage() {
         <p>
           Consenti is open-source software licensed under the{' '}
           <strong>Apache License, Version 2.0</strong>. The license — not this page — is the binding
-          legal document governing your use of the code; see <Link href="/license/">License</Link>{' '}
+          legal document governing your use of the code; see <Link href="/license">License</Link>{' '}
           for a plain-language summary and a link to the full text.
         </p>
         <p>
@@ -64,9 +64,9 @@ export default function TermsPage() {
           actually compliant depends entirely on how it&apos;s configured: which compliance group is
           selected, how cookies/categories/legal bases are set up, whether the banner copy is
           accurate for that business, and so on. See{' '}
-          <Link href="/docs/compliance/compliance-groups/">Compliance Groups</Link> for what each
+          <Link href="/docs/compliance/compliance-groups">Compliance Groups</Link> for what each
           compliance group actually satisfies, and the{' '}
-          <Link href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</Link>{' '}
+          <Link href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</Link>{' '}
           for how the software maps countries to Compliance Groups — and consult qualified counsel for
           your specific situation. The maintainers bear no responsibility for legal or regulatory
           outcomes resulting from the use, misuse, or misconfiguration of this software. This is
@@ -84,7 +84,7 @@ export default function TermsPage() {
         <h2>4. Third-party services</h2>
         <p>
           This site uses Google reCAPTCHA and Algolia DocSearch (see{' '}
-          <Link href="/privacy/">Privacy Policy</Link>). Your use of those features is also subject
+          <Link href="/privacy">Privacy Policy</Link>). Your use of those features is also subject
           to those providers&apos; own terms.
         </p>
 
@@ -104,7 +104,7 @@ export default function TermsPage() {
           or registered trademarks of their respective owners. Their use here is for identification
           and comparison purposes only and does not imply any affiliation with, sponsorship of, or
           endorsement by, those owners. If you believe a comparison on this site is inaccurate or
-          outdated, let us know via <Link href="/support/">Support Consenti</Link> and we will
+          outdated, let us know via <Link href="/support">Support Consenti</Link> and we will
           review it.
         </p>
 
@@ -115,8 +115,8 @@ export default function TermsPage() {
         </p>
 
         <p>
-          Related: <Link href="/privacy/">Privacy Policy</Link> ·{' '}
-          <Link href="/license/">License</Link>
+          Related: <Link href="/privacy">Privacy Policy</Link> ·{' '}
+          <Link href="/license">License</Link>
         </p>
       </div>
     </main>

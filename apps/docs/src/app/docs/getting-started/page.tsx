@@ -153,22 +153,22 @@ export default function GettingStartedPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 not-prose mt-4">
         {[
           {
-            href: '/docs/getting-started/quick-start/',
+            href: '/docs/getting-started/quick-start',
             title: 'Quick Start',
             desc: 'Working code for frontend-only and full-stack in under 5 minutes',
           },
           {
-            href: '/docs/ui/',
+            href: '/docs/ui',
             title: 'UI Widget',
             desc: 'Lifecycle, mental model, and all widget sub-pages',
           },
           {
-            href: '/docs/api/',
+            href: '/docs/api',
             title: 'Backend API',
             desc: 'Installation, configuration, and admin dashboard',
           },
           {
-            href: '/docs/compliance/gdpr/',
+            href: '/docs/compliance/gdpr',
             title: 'GDPR compliance',
             desc: 'What Consenti does for you and what you still need to handle',
           },

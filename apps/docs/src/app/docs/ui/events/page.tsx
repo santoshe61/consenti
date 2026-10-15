@@ -214,7 +214,7 @@ interface ForgottenDetail {
       <h2>GTM / Google Consent Mode v2</h2>
       <p>
         When <code>utils.gtm</code> is configured (see the{' '}
-        <a href="/docs/ui/advanced-configuration/">Advanced Configuration page</a> for every{' '}
+        <a href="/docs/ui/advanced-configuration">Advanced Configuration page</a> for every{' '}
         <code>utils.gtm</code> option), Consenti calls the real <code>gtag()</code> consent API —
         via the standard stub-queue pattern, so it works whether your own gtag.js/GTM snippet loads
         before or after Consenti:

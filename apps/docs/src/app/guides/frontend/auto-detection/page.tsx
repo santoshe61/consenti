@@ -276,22 +276,22 @@ new ConsentiSetup({
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/advanced-configuration/',
+            href: '/docs/ui/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'api.enabled, compliance.type, and every geo/detection option',
           },
           {
-            href: '/docs/ui/advanced-profiles/',
+            href: '/docs/ui/advanced-profiles',
             label: 'Advanced Profiles',
             desc: 'ConsentiProfile, complianceGroup, and deepMerge overrides',
           },
           {
-            href: '/docs/compliance/jurisdiction-coverage-map/',
+            href: '/docs/compliance/jurisdiction-coverage-map',
             label: 'Jurisdiction Coverage Map',
             desc: 'The full 190+ country → compliance-group table',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'widget.setConfig() and other runtime methods',
           },

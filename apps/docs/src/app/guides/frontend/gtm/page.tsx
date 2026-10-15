@@ -173,17 +173,17 @@ const gtmConsent = widget.getGTMConsent()
       <RelatedDocs
         items={[
           {
-            href: '/docs/ui/advanced-configuration/',
+            href: '/docs/ui/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'Full utils.gtm option reference — containerId, verbose, and more',
           },
           {
-            href: '/docs/ui/methods/',
+            href: '/docs/ui/methods',
             label: 'API Methods',
             desc: 'widget.getGTMConsent() and other instance methods',
           },
           {
-            href: '/docs/ui/events/',
+            href: '/docs/ui/events',
             label: 'Events',
             desc: 'The consenti:* events mirrored onto dataLayer when verbose is on',
           },

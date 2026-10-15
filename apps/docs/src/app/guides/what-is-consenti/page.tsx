@@ -106,7 +106,7 @@ export default function WhatIsConsentiPage() {
         no server round-trip, no vendor in the middle. When you do add the optional backend, that
         same decision upgrades to real IP-based geo-resolution for higher accuracy, but the
         browser-only baseline is already jurisdiction-correct on its own. See{' '}
-        <Link href="/guides/frontend/auto-detection/">How Auto-Detection Works</Link> for the exact
+        <Link href="/guides/frontend/auto-detection">How Auto-Detection Works</Link> for the exact
         resolution logic.
       </p>
       <p>
@@ -162,7 +162,7 @@ export default function WhatIsConsentiPage() {
         This section describes the process the project is working toward, not a settled fact about
         how every release ships today. Current, per-law status (Full / Partial / In development)
         lives on the{' '}
-        <Link href="/docs/compliance/jurisdiction-coverage-map/">Jurisdiction Coverage Map</Link> and
+        <Link href="/docs/compliance/jurisdiction-coverage-map">Jurisdiction Coverage Map</Link> and
         the homepage compliance table — treat those as the source of truth, and this section as the
         intent behind them.
       </Callout>
@@ -192,7 +192,7 @@ export default function WhatIsConsentiPage() {
         <li>
           <strong>Implement and publish.</strong> Once the comment window closes, the plan gets
           built and shipped, with the outcome recorded in the{' '}
-          <Link href="/docs/changelog/">changelog</Link>.
+          <Link href="/docs/changelog">changelog</Link>.
         </li>
         <li>
           <strong>Lighter interim scans between quarters.</strong> A quarterly cycle is too slow for
@@ -202,7 +202,7 @@ export default function WhatIsConsentiPage() {
       </ol>
       <p>
         Planned or in-flight work already tracked this way shows up on{' '}
-        <Link href="/docs/upcoming-features/">Upcoming Features</Link>. The mechanism behind steps
+        <Link href="/docs/upcoming-features">Upcoming Features</Link>. The mechanism behind steps
         1–2 — the research brief, the 10-jurisdiction registry, and the report template — lives in{' '}
         <a
           href="https://github.com/santoshe61/consenti/tree/master/compliance-docs"
@@ -257,22 +257,22 @@ export default function WhatIsConsentiPage() {
       <RelatedDocs
         items={[
           {
-            href: '/guides/frontend/auto-detection/',
+            href: '/guides/frontend/auto-detection',
             label: 'How Auto-Detection Works',
             desc: 'The exact browser-side and server-side jurisdiction resolution logic',
           },
           {
-            href: '/docs/compliance/jurisdiction-coverage-map/',
+            href: '/docs/compliance/jurisdiction-coverage-map',
             label: 'Jurisdiction Coverage Map',
             desc: 'The full 190+ country → compliance-group table, with current status per law',
           },
           {
-            href: '/docs/compliance/compliance-groups/',
+            href: '/docs/compliance/compliance-groups',
             label: 'Compliance Groups',
             desc: 'The 8 built-in groups and the regulations behind each one',
           },
           {
-            href: '/docs/ui/plugins/',
+            href: '/docs/ui/plugins',
             label: 'Plugins',
             desc: 'Extending Consenti without forking it',
           },
@@ -302,7 +302,7 @@ export default function WhatIsConsentiPage() {
                 can trigger the wrong group. It&apos;s accurate enough to be the correct default for
                 the overwhelming majority of visitors with zero setup. For higher accuracy, add the
                 optional backend and switch to real IP-based geo-resolution; see{' '}
-                <Link href="/guides/frontend/auto-detection/">How Auto-Detection Works</Link>.
+                <Link href="/guides/frontend/auto-detection">How Auto-Detection Works</Link>.
               </p>
             ),
           },

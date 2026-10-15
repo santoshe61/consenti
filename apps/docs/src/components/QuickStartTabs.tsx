@@ -91,8 +91,8 @@ new ConsentiSetup({
 ]
 
 const MORE_LINKS: Record<Tab, { href: string; label: string }> = {
-  frontend: { href: '/docs/ui/', label: 'Full UI docs →' },
-  both: { href: '/docs/getting-started/', label: 'Full Getting Started guide →' },
+  frontend: { href: '/docs/ui', label: 'Full UI docs →' },
+  both: { href: '/docs/getting-started', label: 'Full Getting Started guide →' },
 }
 
 function QuickStartTabsView({ active }: { active: Tab }) {

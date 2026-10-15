@@ -35,7 +35,7 @@ export default function TutorialsChooserPage() {
 
       <div className="not-prose grid grid-cols-1 sm:grid-cols-2 gap-5 mt-8">
         <Link
-          href={`/guides/tutorials/frontend/${FRONTEND_TUTORIAL_STEPS[0]!.slug}/`}
+          href={`/guides/tutorials/frontend/${FRONTEND_TUTORIAL_STEPS[0]!.slug}`}
           className="group block no-underline rounded-2xl border-2 border-slate-200 dark:border-gray-700 p-6 hover:border-brand-400 hover:shadow-md transition-all bg-white dark:bg-gray-800"
         >
           <div className="w-10 h-10 rounded-xl bg-brand-50 dark:bg-brand-700/20 flex items-center justify-center mb-4 text-xl">
@@ -62,7 +62,7 @@ export default function TutorialsChooserPage() {
         </Link>
 
         <Link
-          href={`/guides/tutorials/backend/${BACKEND_TUTORIAL_STEPS[0]!.slug}/`}
+          href={`/guides/tutorials/backend/${BACKEND_TUTORIAL_STEPS[0]!.slug}`}
           className="group block no-underline rounded-2xl border-2 border-slate-200 dark:border-gray-700 p-6 hover:border-brand-400 hover:shadow-md transition-all bg-white dark:bg-gray-800"
         >
           <div className="w-10 h-10 rounded-xl bg-purple-50 dark:bg-purple-700/20 flex items-center justify-center mb-4 text-xl">
@@ -91,11 +91,11 @@ export default function TutorialsChooserPage() {
 
       <p className="mt-6 text-sm text-slate-400 dark:text-gray-500 text-center">
         Looking for a narrative walkthrough instead of a hands-on build?{' '}
-        <Link href="/guides/" className="text-brand-600 dark:text-brand-400 hover:underline">
+        <Link href="/guides" className="text-brand-600 dark:text-brand-400 hover:underline">
           See Guides
         </Link>{' '}
         — or browse{' '}
-        <Link href="/guides/examples/" className="text-brand-600 dark:text-brand-400 hover:underline">
+        <Link href="/guides/examples" className="text-brand-600 dark:text-brand-400 hover:underline">
           real-life Examples
         </Link>
         .

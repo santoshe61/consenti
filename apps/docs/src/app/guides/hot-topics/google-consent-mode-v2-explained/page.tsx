@@ -172,7 +172,7 @@ buildSyncGpcSnippet() // default dataLayer name`}
       />
       <p>
         See{' '}
-        <Link href="/docs/ui/advanced-configuration/">Advanced Configuration</Link> for the full
+        <Link href="/docs/ui/advanced-configuration">Advanced Configuration</Link> for the full
         snippet output, the custom-<code>dataLayerName</code> option, and exact placement in{' '}
         <code>&lt;head&gt;</code>.
       </p>
@@ -217,10 +217,10 @@ new ConsentiSetup({
       <p>
         For the full configuration options — container ID, URL passthrough, ads data redaction —
         see the dedicated{' '}
-        <Link href="/guides/frontend/gtm/">GTM & Google Consent Mode v2 guide</Link>. If
+        <Link href="/guides/frontend/gtm">GTM & Google Consent Mode v2 guide</Link>. If
         you&apos;re specifically wiring this up inside the Google Tag Manager console rather than
         via a JS library, the{' '}
-        <Link href="/guides/hot-topics/google-consent-mode-for-gtm/">
+        <Link href="/guides/hot-topics/google-consent-mode-for-gtm">
           Google Consent Mode for GTM
         </Link>{' '}
         guide covers that workflow.
@@ -229,17 +229,17 @@ new ConsentiSetup({
       <RelatedDocs
         items={[
           {
-            href: '/guides/frontend/gtm/',
+            href: '/guides/frontend/gtm',
             label: 'GTM & Google Consent Mode v2',
             desc: 'Full Consenti setup guide — config, dataLayer output, verification steps',
           },
           {
-            href: '/guides/hot-topics/google-consent-mode-for-gtm/',
+            href: '/guides/hot-topics/google-consent-mode-for-gtm',
             label: 'Google Consent Mode for GTM',
             desc: 'Configuring tags and triggers inside the GTM console',
           },
           {
-            href: '/docs/ui/advanced-configuration/',
+            href: '/docs/ui/advanced-configuration',
             label: 'Advanced Configuration',
             desc: 'Full utils.gtm option reference',
           },

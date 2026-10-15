@@ -267,37 +267,37 @@ app.listen(3000)`}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 not-prose mt-4">
         {[
           {
-            href: '/docs/api/installation/',
+            href: '/docs/api/installation',
             title: 'Installation',
             desc: 'npm install, embed in Express/Fastify/Next.js, first-run DB setup',
           },
           {
-            href: '/docs/api/configuration/',
+            href: '/docs/api/configuration',
             title: 'Configuration',
             desc: 'Quick start — the config options most deployments need',
           },
           {
-            href: '/docs/api/advanced-configuration/',
+            href: '/docs/api/advanced-configuration',
             title: 'Advanced Configuration',
             desc: 'Full createConsenti() options reference including s3Api, handleCache, and geo resolvers',
           },
           {
-            href: '/docs/compliance/jurisdiction-coverage-map/',
+            href: '/docs/compliance/jurisdiction-coverage-map',
             title: 'Jurisdiction Coverage Map',
             desc: 'Every country, its law(s), and its compliance group',
           },
           {
-            href: '/docs/api/routes/',
+            href: '/docs/api/routes',
             title: 'API Routes',
             desc: 'REST endpoints, request/response shapes',
           },
           {
-            href: '/docs/api/dashboard/',
+            href: '/docs/api/dashboard',
             title: 'Admin Dashboard',
             desc: 'Built-in Preact SPA — profiles, templates, consent records, RBAC',
           },
           {
-            href: '/docs/api/events/',
+            href: '/docs/api/events',
             title: 'Events',
             desc: 'EventBus reference — consent, profile, and cache lifecycle events',
           },

@@ -27,7 +27,7 @@ export const metadata: Metadata = {
 const sections = [
   {
     title: 'Getting Started',
-    href: '/docs/getting-started/',
+    href: '/docs/getting-started',
     Icon: Rocket,
     iconColor: 'text-brand-500',
     iconBg: 'bg-brand-50',
@@ -35,7 +35,7 @@ const sections = [
   },
   {
     title: 'UI Widget',
-    href: '/docs/ui/',
+    href: '/docs/ui',
     Icon: Layout,
     iconColor: 'text-blue-500',
     iconBg: 'bg-blue-50',
@@ -43,7 +43,7 @@ const sections = [
   },
   {
     title: 'Backend API',
-    href: '/docs/api/',
+    href: '/docs/api',
     Icon: Database,
     iconColor: 'text-emerald-600',
     iconBg: 'bg-emerald-50',
@@ -51,7 +51,7 @@ const sections = [
   },
   {
     title: 'Compliance',
-    href: '/docs/compliance/gdpr/',
+    href: '/docs/compliance/gdpr',
     Icon: Scale,
     iconColor: 'text-purple-600',
     iconBg: 'bg-purple-50',
@@ -59,7 +59,7 @@ const sections = [
   },
   {
     title: 'Plugins',
-    href: '/docs/api/plugins/',
+    href: '/docs/api/plugins',
     Icon: Plug,
     iconColor: 'text-orange-500',
     iconBg: 'bg-orange-50',
