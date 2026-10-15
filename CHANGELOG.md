@@ -3,10 +3,80 @@
 All notable changes to Consenti are listed here in reverse chronological order.
 Each entry is a summary of diff, migration notes, and breaking-changes.
 
-For unreleased in-progress work, see the raw files in [`./changelog/`](./changelog/).
+Unreleased in-progress work is drafted as raw files in `./changelog/` and merged into this file at
+release time.
 
 ---
 <!-- Changelpg entries here -->
+## [0.5.1] - 2026-10-15
+
+### Summary
+Three fixes. (1) The United Kingdom never resolved under `compliance.type: 'auto'`: geo providers
+(`geoip`, `maxmind`), the built-in timezone table and `en-GB` language tags all emit ISO `GB`, while
+`EMBEDDED_COMPLIANCE_MAP` keys it as `UK`, so `GET /resolve-profile` returned
+`{ path: null, complianceGroup: 'opt-in', found: false }` and the widget showed the default banner even
+with an active `opt-in` profile (storage-independent). Alongside it, `compliance.complianceMap` gains
+an `override` key so changing one country no longer means re-declaring every country served, and custom
+`geoDataProvider` functions now receive the full browser hints the widget already sends. (2) On
+Windows, saving or activating a profile failed with
+`EPERM: operation not permitted, rename '…\profiles\<tenant>\<group>.new-xxxxxxxx' -> '…\profiles\<tenant>\<group>'`
+(HTTP 500): the hot-serve directory for a compliance group is a junction and Windows refuses to rename
+over an existing junction, whereas POSIX `rename()` atomically replaces a symlink. The version files
+were written but the live `{complianceGroup}/` path was never re-pointed, so the banner kept serving
+the old snapshot. (3) The `json` storage adapter did not work on Windows at all.
+
+### Added
+
+#### `@consenti/ui`
+- Standalone-mode `geoDataProvider` is called with the browser hints.
+
+#### `@consenti/api`
+- `/resolve-profile` forwards the widget's full `languages` list and requested `locale` to
+  `geoDataProvider` (also parsed from `Accept-Language` when the widget hints are absent); input is
+  sanitised (max 20 languages, tags up to 35 chars).
+
+#### `@consenti/types`
+- `ComplianceMapData.override?: boolean`; `CountryResolverFn` context gains `languages: string[]` and
+  `locale: string`; `WidgetCountryResolverFn` receives `{ timezone, language, languages, locale }`.
+
+#### `@consenti/utils`
+- `findCountryEntry()` — country lookup that treats `GB` and `UK` as the same country.
+
+### Changed
+- `@consenti/utils`: `resolveComplianceMapOverride()` merges an operator map over the embedded map when
+  the document sets `override: false` (country-level replacement — an operator entry replaces the
+  embedded entry wholesale, never deep-merged); `override: true`/omitted keeps the existing replace
+  behaviour; a non-boolean `override` fails validation and falls back to the embedded map.
+- `@consenti/ui`: standalone-mode `complianceMap` honours `override: true` (an unlisted country gets the
+  strictest group, `'opt-in'`, instead of falling back to the embedded mapping); omitted/`false` keeps
+  the existing fall-back — the widget default intentionally differs from the server's.
+- `@consenti/api`: setup-wizard config summary states whether a custom map merges or replaces.
+
+### Fixed
+- `@consenti/api`: **Windows** — activating a profile no longer fails with `EPERM` when the
+  compliance-group junction already exists; the existing junction is removed just before the swap (the
+  previous version's own directory is untouched). The swap stays a single atomic `rename()` on
+  macOS/Linux. The temporary junction is now cleaned up if the swap fails.
+- `@consenti/api`: **Windows, `json` storage** — the adapter derived its parent directory with a
+  `/`-only regex, so on a backslash path it created a *directory* named `consenti-data.json`; every
+  write then failed (logged as a warning only) and the data was lost on restart. It now uses
+  `path.dirname()`.
+- `@consenti/api`: `/resolve-profile` resolves `Europe/London` / `en-GB` / geoip `GB` visitors to the
+  UK group (`opt-in`).
+- `@consenti/ui`: standalone `compliance.type: 'auto'` resolves `en-GB` browsers.
+- `@consenti/ui`: `profile-resolver` integration test harness no longer throws on Node 21+
+  (`navigator` is getter-only).
+
+### Breaking changes
+None.
+
+### Migration
+None. To change only some countries, add `override: false` to your `complianceMap` document. A profile
+whose activation failed earlier on Windows is repaired by saving it again; on Windows with `json`
+storage, delete the stray `db\consenti-data.json\` directory if one exists.
+
+---
+
 ## [0.5.0] - 2026-10-08
 
 ### Summary
