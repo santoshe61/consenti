@@ -458,6 +458,7 @@ export function createConsenti(userConfig: ConsentiServerConfig) {
   const consentService = new ConsentService(
     consentRepo, visitorRepo, profileRepo, auditRepo, 'default', config.compliance,
     pluginEngine, eventBus, compliance.tcf, storage, compliance.dataSigningHash, compliance.gpp,
+    (id, version) => profileService.getArchivedSnapshot(id, version),
   )
   const userService = new UserService(userRepo, auditRepo)
 

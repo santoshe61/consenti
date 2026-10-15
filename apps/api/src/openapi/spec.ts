@@ -5,6 +5,7 @@ const SHARED_SCHEMAS = {
       id: { type: 'string' },
       visitorId: { type: 'string' },
       profileId: { type: 'string' },
+      profileVersion: { type: 'integer', description: 'Profile version in force when this consent was last given; with `profileId` it pins the exact on-disk snapshot (the banner text shown). Absent on records created before it was tracked.' },
       locale: { type: 'string' },
       consentJson: { type: 'object', additionalProperties: { type: 'string', enum: ['granted', 'denied', 'objected'] } },
       gpcDetected: { type: 'boolean' },

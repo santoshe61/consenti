@@ -96,10 +96,17 @@ export function buildConsentSignaturePayload(record: {
   return `${record.tenantId}|${record.visitorId}|${record.profileId}|${record.locale}|${sortedConsent}`
 }
 
+/** The fields of the record's profile that verification needs — from the DB row, or, once that
+ * row is deleted, from its archived snapshot on disk. */
+export interface RecordProfileRef {
+  id: string
+  expiryDays: number | undefined
+}
+
 /**
- * `recordProfile` is the exact (immutable, possibly archived) profile snapshot the consent was
- * collected against — looked up by `record.profileId`, which never changes after the fact.
- * `activeProfile` is whatever is currently live for that snapshot's compliance group — if its id
+ * `recordProfile` is the profile the consent was collected against — looked up by
+ * `record.profileId`, which never changes after the fact.
+ * `activeProfile` is whatever is currently live for that profile's compliance group — if its id
  * no longer matches `recordProfile.id`, a newer edit has superseded it and the consent is stale.
  * `signingKey` is only checked when both it and `record.signature` are present — a record from
  * before `dataSigningHash` existed (or otherwise never signed) never fails this check for its
@@ -108,7 +115,7 @@ export function buildConsentSignaturePayload(record: {
  */
 export function verifyConsent(
   record: ConsentDbRecord,
-  recordProfile: Profile,
+  recordProfile: RecordProfileRef,
   activeProfile: Profile | null,
   signingKey?: string,
 ): ConsentVerifyResult {
@@ -152,8 +159,8 @@ export function buildTcfPayload(
   }
 }
 
-function isExpired(record: ConsentDbRecord, profile: Profile): boolean {
-  const expiryDays = profile.profileJson.expiryDays
+function isExpired(record: ConsentDbRecord, profile: RecordProfileRef): boolean {
+  const { expiryDays } = profile
   if (!expiryDays) return false
   const createdMs = new Date(record.createdAt).getTime()
   const expiryMs = createdMs + expiryDays * 24 * 60 * 60 * 1000

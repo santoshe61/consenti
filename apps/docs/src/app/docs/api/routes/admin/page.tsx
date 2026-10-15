@@ -95,14 +95,14 @@ export default function AdminRoutesPage() {
               [
                 'POST',
                 '/profiles',
-                'Create a profile — 422 on compliance errors; conflict detection on active group',
+                'Create a profile — 400 if a compliance group or locale code is not a safe file name (lowercase group key, language-tag locales); 422 on compliance errors; conflict detection on active group',
               ],
               ['GET', '/profiles/:id', 'Get a profile'],
-              ['PUT', '/profiles/:id', 'Update a profile — stable id, increments version in place'],
+              ['PUT', '/profiles/:id', 'Update a profile — stable id, increments version in place; same group/locale name rules as create'],
               [
                 'DELETE',
                 '/profiles/:id',
-                'Delete a profile — removes the DB row only; on-disk version snapshots remain (see Archived Profiles)',
+                'Delete a profile — removes the DB row only; on-disk version snapshots, consent records and the audit entry remain (see Archived Profiles)',
               ],
               [
                 'POST',
@@ -2196,8 +2196,8 @@ ${AUTH_HEADER}
             code: `// Content-Type: text/csv
 // Content-Disposition: attachment; filename="consents.csv"
 
-id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,created_at,updated_at
-record-uuid,visitor-uuid,prof-a1b2c3,en,"{""necessary"":""granted""}",0,banner,2026-06-24T10:00:00.000Z,2026-06-24T10:00:00.000Z`,
+id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,signature,created_at,updated_at,profile_version
+record-uuid,visitor-uuid,prof-a1b2c3,en,"{""necessary"":""granted""}",0,banner,,2026-06-24T10:00:00.000Z,2026-06-24T10:00:00.000Z,3`,
           },
         ]}
       />

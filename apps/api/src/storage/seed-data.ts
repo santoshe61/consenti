@@ -84,7 +84,10 @@ const consentRecords: TableDef = {
     { n: 'id',                     t: 'pk' },
     { n: 'tenant_id',              t: 'text', ref: 'tenants' },
     { n: 'visitor_id',             t: 'text' },
-    { n: 'profile_id',             t: 'text', ref: 'profiles' },
+    // No FK to profiles: a consent record is evidence and must outlive its profile row — a
+    // deleted profile's versions stay on disk (see ProfileService.getArchivedSnapshot).
+    { n: 'profile_id',             t: 'text' },
+    { n: 'profile_version',        t: 'int', null: true }, // null = recorded before versions were tracked
     { n: 'locale',                 t: 'text_sm' },
     { n: 'consent_json',           t: 'json' },
     { n: 'gpc_detected',           t: 'bool', def: false },
@@ -116,6 +119,7 @@ const consentHistory: TableDef = {
     { n: 'tenant_id',         t: 'text', ref: 'tenants' },
     { n: 'consent_record_id', t: 'text', ref: 'consent_records' },
     { n: 'visitor_id',        t: 'text' },
+    { n: 'profile_version',   t: 'int', null: true },
     { n: 'old_json',          t: 'json', null: true },
     { n: 'new_json',          t: 'json' },
     { n: 'action',            t: 'text_sm' },
@@ -151,7 +155,7 @@ const noticeShown: TableDef = {
     { n: 'id',         t: 'pk' },
     { n: 'tenant_id',  t: 'text', ref: 'tenants' },
     { n: 'visitor_id', t: 'text' },
-    { n: 'profile_id', t: 'text', ref: 'profiles' },
+    { n: 'profile_id', t: 'text' }, // no FK to profiles, same reason as consent_records.profile_id
     { n: 'locale',     t: 'text_sm' },
     { n: 'created_at', t: 'ts', def: '$now' },
   ],
@@ -303,10 +307,14 @@ const uiTemplates: TableDef = {
 }
 
 // ── Exported table definition groups ─────────────────────────────────────────
-// No installations predate this schema, so every adapter creates the full current table set
-// in one pass on first connect — no incremental/versioned migration steps. `migrate()` in each
-// SQL adapter keeps a `schema_version`/`PRAGMA user_version` check so *future* real migrations
-// have somewhere to hook in; there's just nothing to gate behind a version yet.
+// A fresh install creates the full current table set in one pass and is stamped SCHEMA_VERSION.
+// Each SQL adapter's `migrate()` gates upgrades of older databases on `schema_version` /
+// `PRAGMA user_version`:
+//   v1 → v2  drop the profile_id foreign keys on consent_records / notice_shown (a consent record
+//            is evidence and must outlive its profile) and add profile_version to
+//            consent_records / consent_history.
+// MongoDB and the JSON file adapter are schemaless — the new field is simply optional there.
+export const SCHEMA_VERSION = 2
 
 /** All tables, SQLite dialect — `usersSqlite` includes `allowed_tenants`. */
 export const ALL_TABLES_SQLITE: readonly TableDef[] = [
@@ -456,6 +464,32 @@ function toMySQL(tables: readonly TableDef[]): string {
   const idx = tables.map(buildIndexesMySQL).filter(Boolean).join('\n')
   return idx ? `${tables.map(buildTableMySQL).join('\n')}\n${idx}` : tables.map(buildTableMySQL).join('\n')
 }
+
+// ── v1 → v2 upgrade (SQLite) ──────────────────────────────────────────────────
+// SQLite can't drop a foreign key in place, so the two tables are rebuilt from the current
+// TableDefs (copying every pre-existing column) — the standard 12-step procedure. Run with
+// foreign_keys=OFF, inside one transaction; the caller restores foreign_keys=ON afterwards.
+
+const V2_NEW_COLUMNS = new Set(['profile_version'])
+
+function sqliteRebuildSQL(t: TableDef): string {
+  const kept = t.cols.map(c => c.n).filter(n => !V2_NEW_COLUMNS.has(n)).join(', ')
+  return [
+    buildTableSQLite({ ...t, name: `${t.name}_v2` }),
+    `INSERT INTO ${t.name}_v2 (${kept}) SELECT ${kept} FROM ${t.name};`,
+    `DROP TABLE ${t.name};`,
+    `ALTER TABLE ${t.name}_v2 RENAME TO ${t.name};`,
+    buildIndexesSQLite(t),
+  ].filter(Boolean).join('\n')
+}
+
+/** Body of the SQLite v1 → v2 upgrade — wrapped in BEGIN/COMMIT by the adapters. */
+export const SQLITE_MIGRATE_V2_SQL = [
+  sqliteRebuildSQL(consentRecords),
+  sqliteRebuildSQL(noticeShown),
+  'ALTER TABLE consent_history ADD COLUMN profile_version INTEGER;',
+  'PRAGMA user_version = 2;',
+].join('\n')
 
 // ── Index list for document stores ────────────────────────────────────────────
 // MongoDB is schemaless, so it can't consume CREATE INDEX SQL — it consumes this list directly.

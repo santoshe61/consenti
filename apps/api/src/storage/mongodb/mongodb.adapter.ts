@@ -40,7 +40,7 @@ interface DocProfile {
   created_at: string; updated_at: string
 }
 interface DocConsent {
-  _id: string; tenant_id: string; visitor_id: string; profile_id: string
+  _id: string; tenant_id: string; visitor_id: string; profile_id: string; profile_version?: number
   locale: string; consent_json: ConsentValue
   gpc_detected: boolean; source: string; created_at: string; updated_at: string
   age_verified?: boolean; parental_consent_token?: string; tcf_string?: string
@@ -54,7 +54,7 @@ interface DocConsentSummary {
   age_verified?: boolean
 }
 interface DocConsentHistory {
-  _id: string; tenant_id: string; consent_record_id: string; visitor_id: string
+  _id: string; tenant_id: string; consent_record_id: string; visitor_id: string; profile_version?: number
   old_json: ConsentValue | null; new_json: ConsentValue; action: string; created_at: string
 }
 interface DocVisitor {
@@ -114,6 +114,7 @@ function mapProfile(d: DocProfile): Profile {
 function mapConsent(d: DocConsent): ConsentDbRecord {
   return {
     id: d._id, tenantId: d.tenant_id, visitorId: d.visitor_id, profileId: d.profile_id,
+    ...(d.profile_version != null ? { profileVersion: d.profile_version } : {}),
     locale: d.locale, consentJson: d.consent_json,
     gpcDetected: d.gpc_detected, source: d.source as ConsentDbRecord['source'],
     createdAt: d.created_at, updatedAt: d.updated_at,
@@ -140,6 +141,7 @@ function mapHistory(d: DocConsentHistory): ConsentHistoryEntry {
   return {
     id: d._id, tenantId: d.tenant_id, consentRecordId: d.consent_record_id,
     visitorId: d.visitor_id, oldJson: d.old_json, newJson: d.new_json,
+    ...(d.profile_version != null ? { profileVersion: d.profile_version } : {}),
     action: d.action as ConsentHistoryEntry['action'], createdAt: d.created_at,
   }
 }
@@ -345,6 +347,7 @@ export class MongoDBAdapter implements StorageAdapter {
     const doc: DocConsent = {
       _id: randomConsentId(), tenant_id: data.tenantId, visitor_id: data.visitorId,
       profile_id: data.profileId,
+      ...(data.profileVersion != null ? { profile_version: data.profileVersion } : {}),
       locale: data.locale, consent_json: data.consentJson,
       gpc_detected: data.gpcDetected, source: data.source,
       created_at: now, updated_at: now,
@@ -355,7 +358,7 @@ export class MongoDBAdapter implements StorageAdapter {
       ...(data.signature != null ? { signature: data.signature } : {}),
     }
     await this.col('consent_records').insertOne(doc)
-    await this.writeHistory(doc._id, data.tenantId, data.visitorId, null, data.consentJson, 'created')
+    await this.writeHistory(doc._id, data.tenantId, data.visitorId, null, data.consentJson, 'created', data.profileVersion)
     return mapConsent(doc)
   }
 
@@ -364,6 +367,7 @@ export class MongoDBAdapter implements StorageAdapter {
     if (!existing) throw new Error(`Consent for visitor ${visitorId} not found`)
     const now = new Date().toISOString()
     const set: Record<string, unknown> = { updated_at: now, consent_json: data.consentJson }
+    if (data.profileVersion != null) set['profile_version'] = data.profileVersion
     if (data.locale != null) set['locale'] = data.locale
     if (data.gpcDetected != null) set['gpc_detected'] = data.gpcDetected
     if (data.signature != null) set['signature'] = data.signature
@@ -371,7 +375,7 @@ export class MongoDBAdapter implements StorageAdapter {
       { visitor_id: visitorId }, { $set: set }, { returnDocument: 'after' },
     ))
     if (!res) throw new Error(`Consent for visitor ${visitorId} not found`)
-    await this.writeHistory(res._id, res.tenant_id, visitorId, existing.consentJson, data.consentJson, 'updated')
+    await this.writeHistory(res._id, res.tenant_id, visitorId, existing.consentJson, data.consentJson, 'updated', data.profileVersion ?? existing.profileVersion)
     return mapConsent(res)
   }
 
@@ -424,11 +428,12 @@ export class MongoDBAdapter implements StorageAdapter {
 
   private async writeHistory(
     consentRecordId: string, tenantId: string, visitorId: string,
-    oldJson: ConsentValue | null, newJson: ConsentValue, action: string,
+    oldJson: ConsentValue | null, newJson: ConsentValue, action: string, profileVersion: number | undefined,
   ): Promise<void> {
     const doc: DocConsentHistory = {
       _id: randomUUID(), tenant_id: tenantId, consent_record_id: consentRecordId,
       visitor_id: visitorId, old_json: oldJson, new_json: newJson,
+      ...(profileVersion != null ? { profile_version: profileVersion } : {}),
       action, created_at: new Date().toISOString(),
     }
     await this.col('consent_history').insertOne(doc)

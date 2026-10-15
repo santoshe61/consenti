@@ -1,6 +1,6 @@
 import type { Pool, PoolConnection, RowDataPacket, ResultSetHeader } from 'mysql2/promise'
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
-import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_MYSQL } from '../seed-data'
+import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_MYSQL, SCHEMA_VERSION } from '../seed-data'
 import { likePrefix } from '../../utils/sql-search'
 import { buildProfileSummaries, tallyOptIn } from '../derived-queries'
 import type {
@@ -30,7 +30,7 @@ interface RowProfile extends RowDataPacket {
   created_at: string; updated_at: string
 }
 interface RowConsent extends RowDataPacket {
-  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  id: string; tenant_id: string; visitor_id: string; profile_id: string; profile_version?: number | null
   locale: string; consent_json: string
   gpc_detected: number; source: string; created_at: string; updated_at: string
   age_verified?: number; parental_consent_token?: string | null; tcf_string?: string | null
@@ -43,7 +43,7 @@ interface RowConsentSummary extends RowDataPacket {
   age_verified?: number; created_at: string; updated_at: string
 }
 interface RowConsentHistory extends RowDataPacket {
-  id: string; tenant_id: string; consent_record_id: string; visitor_id: string
+  id: string; tenant_id: string; consent_record_id: string; visitor_id: string; profile_version?: number | null
   old_json: string | null; new_json: string; action: string; created_at: string
 }
 interface RowVisitor extends RowDataPacket {
@@ -114,6 +114,7 @@ function mapProfile(r: RowProfile): Profile {
 function mapConsent(r: RowConsent): ConsentDbRecord {
   return {
     id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id,
+    ...(r.profile_version != null ? { profileVersion: r.profile_version } : {}),
     locale: r.locale,
     consentJson: JSON.parse(r.consent_json) as ConsentValue,
     gpcDetected: r.gpc_detected === 1, source: r.source as ConsentDbRecord['source'],
@@ -141,6 +142,7 @@ function mapHistory(r: RowConsentHistory): ConsentHistoryEntry {
   return {
     id: r.id, tenantId: r.tenant_id, consentRecordId: r.consent_record_id,
     visitorId: r.visitor_id,
+    ...(r.profile_version != null ? { profileVersion: r.profile_version } : {}),
     oldJson: r.old_json ? JSON.parse(r.old_json) as ConsentValue : null,
     newJson: JSON.parse(r.new_json) as ConsentValue,
     action: r.action as ConsentHistoryEntry['action'], createdAt: r.created_at,
@@ -251,10 +253,9 @@ export class MySQLAdapter implements StorageAdapter {
   }
 
   async migrate(): Promise<void> {
-    // No installations predate this schema, so a fresh connect always creates the full current
-    // table set in one pass — no incremental/versioned steps needed. `schema_version` is kept
-    // as the hook for whenever a *real* future migration is needed: add `if (version < N)`
-    // blocks below the initial creation, the same shape as the removed historical ones.
+    // A fresh connect creates the full current schema in one pass and stamps SCHEMA_VERSION; an
+    // older database is upgraded in place, gated on `schema_version` (see seed-data.ts for what
+    // each version changed).
     const conn: PoolConnection = await this.pool.getConnection()
     try {
       const [tables] = await conn.query<RowDataPacket[]>('SHOW TABLES LIKE ?', ['schema_version'])
@@ -263,11 +264,36 @@ export class MySQLAdapter implements StorageAdapter {
           await conn.query(stmt)
         }
         await this.seed(conn)
-        await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (1)')
+        await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (?)', [SCHEMA_VERSION])
+      } else {
+        const [rows] = await conn.query<RowDataPacket[]>('SELECT MAX(version) AS version FROM schema_version')
+        if ((rows[0]?.['version'] ?? 0) < 2) await this.migrateToV2(conn)
       }
     } finally {
       conn.release()
     }
+  }
+
+  // MySQL DDL auto-commits, so this can't be rolled back — every step checks first instead, so a
+  // run interrupted halfway simply resumes on the next start.
+  private async migrateToV2(conn: PoolConnection): Promise<void> {
+    const [fks] = await conn.query<RowDataPacket[]>(
+      `SELECT TABLE_NAME AS tbl, CONSTRAINT_NAME AS name FROM information_schema.KEY_COLUMN_USAGE
+       WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME IN ('consent_records','notice_shown')
+         AND COLUMN_NAME = 'profile_id' AND REFERENCED_TABLE_NAME = 'profiles'`,
+    )
+    for (const fk of fks) {
+      await conn.query(`ALTER TABLE \`${String(fk['tbl'])}\` DROP FOREIGN KEY \`${String(fk['name']).replace(/`/g, '``')}\``)
+    }
+    for (const table of ['consent_records', 'consent_history']) {
+      const [cols] = await conn.query<RowDataPacket[]>(
+        `SELECT 1 FROM information_schema.COLUMNS
+         WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = 'profile_version'`,
+        [table],
+      )
+      if (cols.length === 0) await conn.query(`ALTER TABLE ${table} ADD COLUMN profile_version INT NULL`)
+    }
+    await conn.query('INSERT IGNORE INTO schema_version (version) VALUES (?)', [SCHEMA_VERSION])
   }
 
   private async seed(conn: PoolConnection): Promise<void> {
@@ -341,15 +367,15 @@ export class MySQLAdapter implements StorageAdapter {
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
     const id = randomConsentId()
     await this.exec(
-      'INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)',
-      [id, data.tenantId, data.visitorId, data.profileId, data.locale,
+      'INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, profile_version, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [id, data.tenantId, data.visitorId, data.profileId, data.profileVersion ?? null, data.locale,
         JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source,
         data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.gppString ?? null, data.signature ?? null],
     )
     const rows = await this.q<RowConsent>('SELECT * FROM consent_records WHERE id=?', [id])
     const row = rows[0]
     if (!row) throw new Error('Consent creation failed')
-    await this.writeHistory(id, data.tenantId, data.visitorId, null, data.consentJson, 'created')
+    await this.writeHistory(id, data.tenantId, data.visitorId, null, data.consentJson, 'created', data.profileVersion ?? null)
     return mapConsent(row)
   }
 
@@ -358,6 +384,7 @@ export class MySQLAdapter implements StorageAdapter {
     if (!existing) throw new Error(`Consent for visitor ${visitorId} not found`)
     const sets: string[] = ['consent_json=?']
     const vals: (string | number | boolean | null)[] = [JSON.stringify(data.consentJson)]
+    if (data.profileVersion != null) { sets.push('profile_version=?'); vals.push(data.profileVersion) }
     if (data.locale != null) { sets.push('locale=?'); vals.push(data.locale) }
     if (data.gpcDetected != null) { sets.push('gpc_detected=?'); vals.push(data.gpcDetected ? 1 : 0) }
     if (data.signature != null) { sets.push('signature=?'); vals.push(data.signature) }
@@ -366,7 +393,7 @@ export class MySQLAdapter implements StorageAdapter {
     const rows = await this.q<RowConsent>('SELECT * FROM consent_records WHERE visitor_id=?', [visitorId])
     const row = rows[0]
     if (!row) throw new Error(`Consent for visitor ${visitorId} not found`)
-    await this.writeHistory(row.id, row.tenant_id, visitorId, existing.consentJson, data.consentJson, 'updated')
+    await this.writeHistory(row.id, row.tenant_id, visitorId, existing.consentJson, data.consentJson, 'updated', data.profileVersion ?? existing.profileVersion ?? null)
     return mapConsent(row)
   }
 
@@ -416,11 +443,11 @@ export class MySQLAdapter implements StorageAdapter {
 
   private async writeHistory(
     consentRecordId: string, tenantId: string, visitorId: string,
-    oldJson: ConsentValue | null, newJson: ConsentValue, action: string,
+    oldJson: ConsentValue | null, newJson: ConsentValue, action: string, profileVersion: number | null,
   ): Promise<void> {
     await this.exec(
-      'INSERT INTO consent_history (id, tenant_id, consent_record_id, visitor_id, old_json, new_json, action) VALUES (?,?,?,?,?,?,?)',
-      [randomUUID(), tenantId, consentRecordId, visitorId,
+      'INSERT INTO consent_history (id, tenant_id, consent_record_id, visitor_id, profile_version, old_json, new_json, action) VALUES (?,?,?,?,?,?,?,?)',
+      [randomUUID(), tenantId, consentRecordId, visitorId, profileVersion,
       oldJson ? JSON.stringify(oldJson) : null, JSON.stringify(newJson), action],
     )
   }

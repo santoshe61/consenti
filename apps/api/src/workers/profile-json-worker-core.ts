@@ -3,6 +3,7 @@ import { join, resolve } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type { CookieMap, MainBanner, GpcBanner, PreferenceModal, S3ApiConfig, PublicProfileResponse, AgeGateModalContent } from '@consenti/types'
 import { s3Put, s3Delete } from '../storage/s3/s3-client.js'
+import { findUnsafePathSegment, isSafeGroupKey } from '../utils/path-segment.js'
 
 /** One locale's resolved banner/modal content — see `ProfileService`'s `ResolvedLocaleContent`. */
 interface ResolvedLocaleContent {
@@ -60,6 +61,23 @@ function s3Key(tenantId: string, segment: string, locale: string): string {
   return `profiles/${tenantId}/${segment}/${locale}.json`
 }
 
+/** Defence in depth: the request validators already reject these, but this is the layer that
+ * actually deletes and replaces directories — a bad name here must never reach the file system. */
+function assertSafeToWrite(msg: WorkerMessage): void {
+  const unsafe = findUnsafePathSegment({
+    defaultLocale: msg.profile.defaultLocale,
+    locales: msg.profile.locales,
+    localeContentKeys: Object.keys(msg.localeContent),
+  })
+  if (unsafe) throw new Error(`Refusing to write profile files: ${unsafe}`)
+}
+
+function assertSafeGroup(complianceGroup: string): void {
+  if (!isSafeGroupKey(complianceGroup)) {
+    throw new Error(`Refusing to touch the live profile directory for compliance group ${JSON.stringify(complianceGroup)}`)
+  }
+}
+
 function writeJsonFile(filePath: string, content: string): void {
   const tmp = filePath + '.tmp'
   writeFileSync(tmp, content, 'utf8')
@@ -92,6 +110,7 @@ function profileWideFields(profile: WorkerMessage['profile']): Partial<Pick<Work
  */
 export async function writeVersionDir(msg: WorkerMessage): Promise<void> {
   const { storagePath, tenantId, profileId, version, profile, localeContent, previousVersion, s3Config } = msg
+  assertSafeToWrite(msg)
   const dir = versionDir(storagePath, tenantId, profileId, version)
   mkdirSync(dir, { recursive: true })
 
@@ -170,6 +189,7 @@ function clearNonSymlink(linkPath: string): void {
  */
 export async function activateComplianceGroup(msg: WorkerMessage): Promise<void> {
   const { storagePath, tenantId, profileId, version, complianceGroup, s3Config } = msg
+  assertSafeGroup(complianceGroup)
   const srcDir = resolve(versionDir(storagePath, tenantId, profileId, version))
   const linkPath = complianceDir(storagePath, tenantId, complianceGroup)
 
@@ -201,6 +221,7 @@ export async function activateComplianceGroup(msg: WorkerMessage): Promise<void>
 
 export async function deactivateComplianceGroup(msg: WorkerMessage): Promise<void> {
   const { storagePath, tenantId, complianceGroup, s3Config } = msg
+  assertSafeGroup(complianceGroup)
   const linkPath = complianceDir(storagePath, tenantId, complianceGroup)
 
   if (existsSync(linkPath)) {

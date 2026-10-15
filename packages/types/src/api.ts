@@ -429,6 +429,9 @@ export interface ConsentDbRecord {
   tenantId: string
   visitorId: string
   profileId: string
+  /** The profile's `version` when this consent was last given — with `profileId`, pins the exact
+   * on-disk snapshot (the banner text the visitor saw). Absent on records from before it was tracked. */
+  profileVersion?: number
   locale: string
   consentJson: ConsentValue
   gpcDetected: boolean
@@ -450,6 +453,8 @@ export interface ConsentHistoryEntry {
   tenantId: string
   consentRecordId: string
   visitorId: string
+  /** The profile version in force for this change — see {@link ConsentDbRecord.profileVersion}. */
+  profileVersion?: number
   oldJson: ConsentValue | null
   newJson: ConsentValue
   action: 'created' | 'updated' | 'withdrawn'
@@ -566,6 +571,7 @@ export interface CreateConsentInput {
   tenantId: string
   visitorId: string
   profileId: string
+  profileVersion?: number
   locale: string
   consentJson: ConsentValue
   gpcDetected: boolean
@@ -579,6 +585,7 @@ export interface CreateConsentInput {
 
 export interface UpdateConsentInput {
   consentJson: ConsentValue
+  profileVersion?: number
   locale?: string
   gpcDetected?: boolean
   signature?: string

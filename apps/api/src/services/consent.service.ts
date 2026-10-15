@@ -1,7 +1,8 @@
 import type {
   ConsentDbRecord, ConsentVerifyResult, CreateConsentInput, UpdateConsentInput,
-  ComplianceConfig, TcfConfig, GppConfig, CategoryMap, CookieMap, ProfileConfig, StorageAdapter,
+  ComplianceConfig, TcfConfig, GppConfig, CategoryMap, CookieMap, ProfileConfig, StorageAdapter, PublicProfileResponse,
 } from '@consenti/types'
+import type { RecordProfileRef } from '../core/consent-engine'
 import { buildConsentValue, verifyConsent, validateConsentInput, buildTcfPayload, buildConsentSignaturePayload } from '../core/consent-engine'
 import { buildCookieCategoryIndex, encodeTcString } from '@consenti/utils'
 import { getGvl } from '../tcf/gvl-cache'
@@ -31,6 +32,7 @@ export class ConsentService {
     private storage?: StorageAdapter,
     private dataSigningHash?: string,
     private gppConfig?: GppConfig,
+    private archivedSnapshot?: (profileId: string, version?: number) => Promise<PublicProfileResponse | null>,
   ) { }
 
   private sign(payload: { tenantId: string; visitorId: string; profileId: string; locale: string; consentJson: ConsentDbRecord['consentJson'] }): string | undefined {
@@ -209,6 +211,8 @@ export class ConsentService {
       ...(signature ? { signature } : {}),
     }
     if (this.pluginEngine) baseInput = await this.pluginEngine.runBeforeConsentSave(baseInput)
+    // After the plugin hook, so no plugin can drop it — with profileId it pins the exact snapshot shown.
+    baseInput = { ...baseInput, profileVersion: profile.version }
 
     const existing = await this.consents.get(input.visitorId)
     let record: ConsentDbRecord
@@ -217,7 +221,7 @@ export class ConsentService {
       const updateData = await (this.pluginEngine
         ? this.pluginEngine.runBeforeConsentUpdate({ consentJson: builtConsent, locale: input.locale, gpcDetected: input.gpcDetected, ...(signature ? { signature } : {}) })
         : Promise.resolve({ consentJson: builtConsent, locale: input.locale, gpcDetected: input.gpcDetected, ...(signature ? { signature } : {}) }))
-      record = await this.consents.update(input.visitorId, updateData)
+      record = await this.consents.update(input.visitorId, { ...updateData, profileVersion: profile.version })
     } else {
       record = await this.consents.create(baseInput)
     }
@@ -289,7 +293,7 @@ export class ConsentService {
     const updateData = await (this.pluginEngine
       ? this.pluginEngine.runBeforeConsentUpdate(updatePayload)
       : Promise.resolve(updatePayload))
-    const record = await this.consents.update(visitorId, updateData)
+    const record = await this.consents.update(visitorId, { ...updateData, profileVersion: profile.version })
     await this.audit.log({
       tenantId: this.tenantId,
       action: 'consent:updated',
@@ -311,10 +315,15 @@ export class ConsentService {
     const record = await this.consents.get(visitorId)
     if (!record) return { valid: false, reasons: ['profile_changed'] }
 
-    const recordProfile = await this.profiles.get(record.profileId)
-    if (!recordProfile) return { valid: false, reasons: ['profile_changed'] }
+    const row = await this.profiles.get(record.profileId)
+    // A deleted profile's row is gone but its snapshots stay on disk; resolve to the newest one.
+    const archived = row ? null : await this.archivedSnapshot?.(record.profileId, record.profileVersion) ?? null
+    if (!row && !archived) return { valid: false, reasons: ['profile_changed'] }
 
-    const complianceGroup = recordProfile.profileJson.complianceGroup
+    const recordProfile: RecordProfileRef = row
+      ? { id: row.id, expiryDays: row.profileJson.expiryDays }
+      : { id: record.profileId, expiryDays: archived?.expiryDays }
+    const complianceGroup = row ? row.profileJson.complianceGroup : archived?.complianceGroup
     const activeProfile = complianceGroup ? await this.profiles.findActiveByComplianceGroup(this.tenantId, complianceGroup) : null
 
     return verifyConsent(record, recordProfile, activeProfile, this.dataSigningHash)

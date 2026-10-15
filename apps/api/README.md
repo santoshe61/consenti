@@ -63,6 +63,16 @@ npm install mongodb
 
 ```
 
+### Schema upgrades
+
+SQL drivers (SQLite, PostgreSQL, MySQL/MariaDB) track a schema version (`schema_version` table, or `PRAGMA user_version` on SQLite). A fresh database is created at the current version; an older one is upgraded automatically on the next start — no manual step. MongoDB and the JSON file store are schemaless, so older data simply lacks the newer optional fields.
+
+| Version | Change |
+|---|---|
+| 2 | `consent_records.profile_id` / `notice_shown.profile_id` no longer reference `profiles` (a consent record is evidence and survives deleting its profile); `profile_version` added to `consent_records` and `consent_history` — with `profile_id` it pins the exact on-disk snapshot a visitor was shown. |
+
+Take a backup before upgrading production databases. SQLite upgrades rebuild the two affected tables inside one transaction; PostgreSQL's run in one transaction; MySQL/MariaDB DDL cannot be rolled back, so each step is idempotent and an interrupted upgrade resumes on the next start.
+
 ### Which SQLite driver should I use?
 
 | Driver | Config | Node requirement | Extra install? |
@@ -695,7 +705,7 @@ available account-hardening, not a login gate, until wired into the login flow.
 | `POST`     | `/profiles`                      | Create a profile — 422 on missing mandatory content or compliance errors; `{ conflict, requiresChoice: true }` when an active profile exists on the same `complianceGroup` |
 | `GET`      | `/profiles/:id`                  | Get a profile                                                           |
 | `PUT`      | `/profiles/:id`                  | Edit a profile — mutates the row **in place**, increments `version`; returned `id` always matches the URL's. Same mandatory-content + compliance validation + conflict detection |
-| `DELETE`   | `/profiles/:id`                  | Delete a profile                                                        |
+| `DELETE`   | `/profiles/:id`                  | Delete a profile — removes the DB row only; version snapshots, consent records and the audit entry are kept |
 | `POST`     | `/profiles/:id/copy`             | Duplicate a profile as a new, always-inactive profile (`version` resets to 1). Optional `{ name }` body, defaults to `Copy of {name}` |
 | `POST`     | `/profiles/:id/activate`         | Activate a profile — writes locale JSON files to `${complianceGroup}/` |
 | `POST`     | `/profiles/:id/deactivate`       | Deactivate a profile — removes `${complianceGroup}/` locale files       |
@@ -1022,7 +1032,7 @@ Served at `{basePath}/` when `dashboard: true`.
 | `name`              | `string`                                             | Human-readable profile name                                                 |
 | `defaultLocale`     | `string` (BCP 47)                                    | Locale served when visitor locale is unavailable; written as `default.json` |
 | `complianceGroup`   | `ComplianceGroupId`                                  | Regulation group for geo-routing (e.g. `opt-in`, `opt-out-strict`)          |
-| `customComplianceGroup` | `string` (lower-kebab-case)                      | Required when `complianceGroup` is unset ("None / Custom") — it's the identifier the widget's `compliance.type` config uses to fetch this profile (see [Public REST API](#public-rest-api) hot-serve path). Drives activation, deactivation, and "one active profile per group" conflict detection the same way `complianceGroup` does; no `COMPLIANCE_GROUPS` validation rules or GPC defaults apply to it, since none exist for a free-form name. |
+| `customComplianceGroup` | `string` (lower-kebab-case, 1–64 chars of `a-z 0-9 - _`, starting with a letter or digit; not a reserved name such as `con`/`nul`, and not starting with `prof_`) | Required when `complianceGroup` is unset ("None / Custom") — it's the identifier the widget's `compliance.type` config uses to fetch this profile (see [Public REST API](#public-rest-api) hot-serve path). Drives activation, deactivation, and "one active profile per group" conflict detection the same way `complianceGroup` does; no `COMPLIANCE_GROUPS` validation rules or GPC defaults apply to it, since none exist for a free-form name. |
 | `gpcMode`           | `'ignore' \| 'honor' \| 'strict'`                   | GPC signal handling. Overrides group default.                               |
 | `expiryDays`        | `number` (default `365`)                             | Days until stored consent expires and the visitor is asked again. Profile-wide — replaces the old per-parameter expiry field. |
 | `darkMode`          | `boolean`                                            | Enable dark mode in the consent banner                                      |

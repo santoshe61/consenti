@@ -142,7 +142,8 @@ export class ProfileService {
       ...(localeContent ?? {}),
     }
 
-    const isActive = pj.isActive ?? false
+    // No group means there is no live directory to point at — same rule `activate()` follows.
+    const isActive = (pj.isActive ?? false) && complianceGroup !== ''
     const action: WorkerMessage['action'] = isActive ? 'activate' : 'write'
     const msg: WorkerMessage = {
       action,
@@ -172,11 +173,12 @@ export class ProfileService {
     }
   }
 
-  async create(input: Omit<CreateProfileInput, 'tenantId'>): Promise<Profile> {
+  async create(input: Omit<CreateProfileInput, 'tenantId'>, actorId?: string): Promise<Profile> {
     const { localeContent, ...rest } = input
     const profile = await this.profiles.create({ ...rest, tenantId: this.tenantId })
     await this.audit.log({
       tenantId: this.tenantId,
+      ...(actorId != null ? { userId: actorId } : {}),
       action: 'profile:created',
       resourceType: 'profile',
       resourceId: profile.id,
@@ -202,7 +204,7 @@ export class ProfileService {
    * new profile rather than byte-copied from the source's. Non-default locale content is read
    * back off the source's current version files so the copy carries every locale forward too.
    */
-  async copy(id: string, name?: string): Promise<Profile> {
+  async copy(id: string, name?: string, actorId?: string): Promise<Profile> {
     const src = await this.profiles.get(id)
     if (!src) throw new Error(`Profile ${id} not found`)
     const locales = src.profileJson.locales?.length ? src.profileJson.locales : [src.defaultLocale]
@@ -225,7 +227,7 @@ export class ProfileService {
       defaultLocale: src.defaultLocale,
       profileJson: { ...src.profileJson, isActive: false },
       ...(Object.keys(localeContent).length > 0 ? { localeContent } : {}),
-    })
+    }, actorId)
   }
 
   /**
@@ -233,7 +235,7 @@ export class ProfileService {
    * incremented. The prior state isn't kept as a separate DB row; its resolved-JSON snapshot
    * on disk (see {@link listVersions}) is the audit trail for that edit.
    */
-  async update(id: string, input: UpdateProfileInput): Promise<Profile> {
+  async update(id: string, input: UpdateProfileInput, actorId?: string): Promise<Profile> {
     const old = await this.profiles.get(id)
     if (!old) throw new Error(`Profile ${id} not found`)
     const { localeContent, ...rest } = input
@@ -256,6 +258,7 @@ export class ProfileService {
 
     await this.audit.log({
       tenantId: this.tenantId,
+      ...(actorId != null ? { userId: actorId } : {}),
       action: 'profile:updated',
       resourceType: 'profile',
       resourceId: profile.id,
@@ -271,16 +274,26 @@ export class ProfileService {
     return profile
   }
 
-  async delete(id: string): Promise<void> {
+  async delete(id: string, actorId?: string): Promise<void> {
     const old = await this.profiles.get(id)
     await this.profiles.delete(id)
     this.localeCache?.invalidate(id)
     await this.audit.log({
       tenantId: this.tenantId,
+      ...(actorId != null ? { userId: actorId } : {}),
       action: 'profile:deleted',
       resourceType: 'profile',
       resourceId: id,
-      ...(old != null ? { oldData: { profileId: old.id, version: old.version } } : {}),
+      // The row is gone after this, so the audit entry is the only place its name and group survive.
+      ...(old != null ? {
+        oldData: {
+          profileId: old.id,
+          version: old.version,
+          name: old.name,
+          complianceGroup: this.groupKey(old.profileJson),
+          wasActive: old.profileJson.isActive ?? false,
+        },
+      } : {}),
     })
     this.eventBus?.emit('profile:deleted', { id, previous: old })
 
@@ -297,7 +310,7 @@ export class ProfileService {
     }
   }
 
-  async activate(id: string): Promise<Profile> {
+  async activate(id: string, actorId?: string): Promise<Profile> {
     const profile = await this.profiles.get(id)
     if (!profile) throw new Error(`Profile ${id} not found`)
     const groupKey = this.groupKey(profile.profileJson)
@@ -309,12 +322,12 @@ export class ProfileService {
     if (this.profilesDir && groupKey) {
       await this.writeLocaleFiles(updated, undefined, groupKey, profile.version)
     }
-    await this.audit.log({ tenantId: this.tenantId, action: 'profile.activated', resourceType: 'profile', resourceId: id })
+    await this.audit.log({ tenantId: this.tenantId, ...(actorId != null ? { userId: actorId } : {}), action: 'profile.activated', resourceType: 'profile', resourceId: id })
     this.eventBus?.emit('profile.activated', updated)
     return updated
   }
 
-  async deactivate(id: string): Promise<Profile> {
+  async deactivate(id: string, actorId?: string): Promise<Profile> {
     const profile = await this.profiles.get(id)
     if (!profile) throw new Error(`Profile ${id} not found`)
     const groupKey = this.groupKey(profile.profileJson)
@@ -330,7 +343,7 @@ export class ProfileService {
       this.handleCache?.(paths, id, true)
       this.eventBus?.emit('cache:purge', { paths, profileId: id })
     }
-    await this.audit.log({ tenantId: this.tenantId, action: 'profile.deactivated', resourceType: 'profile', resourceId: id })
+    await this.audit.log({ tenantId: this.tenantId, ...(actorId != null ? { userId: actorId } : {}), action: 'profile.deactivated', resourceType: 'profile', resourceId: id })
     this.eventBus?.emit('profile.deactivated', updated)
     return updated
   }
@@ -475,6 +488,26 @@ export class ProfileService {
       return []
     }
     return versions.sort((a, b) => b.version - a.version)
+  }
+
+  /**
+   * The newest on-disk snapshot of a profile whose DB row has been deleted — what a surviving
+   * consent record's `profileId` resolves to. Null when nothing was ever written for that id.
+   * `version` is the one a consent record was given (`ConsentDbRecord.profileVersion`); records
+   * from before it was tracked have none, and so does a version whose files are gone — both
+   * resolve to the newest snapshot.
+   */
+  async getArchivedSnapshot(profileId: string, version?: number): Promise<PublicProfileResponse | null> {
+    const versions = await this.listVersions(profileId)
+    const entry = versions.find(v => v.version === version) ?? versions[0]
+    if (!entry) return null
+    const raw = await this.getVersionFile(profileId, String(entry.version), 'default')
+    if (!raw) return null
+    try {
+      return JSON.parse(raw) as PublicProfileResponse
+    } catch {
+      return null
+    }
   }
 
   /** Works for archived profiles too — see `listVersions()`. */

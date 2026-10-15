@@ -1,8 +1,22 @@
 import type { CreateProfileInput, UpdateProfileInput } from '@consenti/types'
+import { findUnsafePathSegment } from '../utils/path-segment'
 
 export interface ValidationResult {
   valid: boolean
   error?: string
+}
+
+/** These fields become directory and file names on disk — see utils/path-segment.ts. */
+function pathSegmentProblem(b: Record<string, unknown>): string | null {
+  const pj = b['profileJson'] && typeof b['profileJson'] === 'object' ? b['profileJson'] as Record<string, unknown> : {}
+  const localeContent = b['localeContent'] && typeof b['localeContent'] === 'object' ? Object.keys(b['localeContent']) : []
+  return findUnsafePathSegment({
+    defaultLocale: b['defaultLocale'],
+    complianceGroup: pj['complianceGroup'],
+    customComplianceGroup: pj['customComplianceGroup'],
+    locales: pj['locales'],
+    localeContentKeys: localeContent,
+  })
 }
 
 export function validateCreateProfile(body: unknown): ValidationResult {
@@ -18,11 +32,15 @@ export function validateCreateProfile(body: unknown): ValidationResult {
   if (typeof pj['uiTemplateId'] !== 'string' || !pj['uiTemplateId']) {
     return { valid: false, error: 'profileJson.uiTemplateId is required' }
   }
+  const unsafe = pathSegmentProblem(b)
+  if (unsafe) return { valid: false, error: unsafe }
   return { valid: true }
 }
 
 export function validateUpdateProfile(body: unknown): ValidationResult {
   if (!body || typeof body !== 'object') return { valid: false, error: 'Request body must be a JSON object' }
+  const unsafe = pathSegmentProblem(body as Record<string, unknown>)
+  if (unsafe) return { valid: false, error: unsafe }
   return { valid: true }
 }
 

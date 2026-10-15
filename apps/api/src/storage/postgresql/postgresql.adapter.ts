@@ -1,6 +1,6 @@
 import type { Pool, PoolClient, QueryResult } from 'pg'
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
-import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_POSTGRES } from '../seed-data'
+import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_POSTGRES, SCHEMA_VERSION } from '../seed-data'
 import { likePrefix } from '../../utils/sql-search'
 import { buildProfileSummaries, tallyOptIn } from '../derived-queries'
 import type {
@@ -45,7 +45,7 @@ interface RowProfile {
   created_at: string; updated_at: string
 }
 interface RowConsent {
-  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  id: string; tenant_id: string; visitor_id: string; profile_id: string; profile_version?: number | null
   locale: string; consent_json: ConsentValue
   gpc_detected: boolean; source: string; created_at: string; updated_at: string
   age_verified?: boolean; parental_consent_token?: string | null; tcf_string?: string | null
@@ -58,7 +58,7 @@ interface RowConsentSummary {
   age_verified?: boolean; created_at: string; updated_at: string
 }
 interface RowConsentHistory {
-  id: string; tenant_id: string; consent_record_id: string; visitor_id: string
+  id: string; tenant_id: string; consent_record_id: string; visitor_id: string; profile_version?: number | null
   old_json: ConsentValue | null; new_json: ConsentValue; action: string; created_at: string
 }
 interface RowVisitor {
@@ -112,6 +112,7 @@ function mapProfile(r: RowProfile): Profile {
 function mapConsent(r: RowConsent): ConsentDbRecord {
   return {
     id: r.id, tenantId: r.tenant_id, visitorId: r.visitor_id, profileId: r.profile_id,
+    ...(r.profile_version != null ? { profileVersion: r.profile_version } : {}),
     locale: r.locale,
     consentJson: r.consent_json,
     gpcDetected: r.gpc_detected, source: r.source as ConsentDbRecord['source'],
@@ -139,6 +140,7 @@ function mapHistory(r: RowConsentHistory): ConsentHistoryEntry {
   return {
     id: r.id, tenantId: r.tenant_id, consentRecordId: r.consent_record_id,
     visitorId: r.visitor_id,
+    ...(r.profile_version != null ? { profileVersion: r.profile_version } : {}),
     oldJson: r.old_json,
     newJson: r.new_json,
     action: r.action as ConsentHistoryEntry['action'], createdAt: r.created_at,
@@ -243,10 +245,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async migrate(): Promise<void> {
-    // No installations predate this schema, so a fresh connect always creates the full current
-    // table set in one pass — no incremental/versioned steps needed. `schema_version` is kept
-    // as the hook for whenever a *real* future migration is needed: add `if (version < N)`
-    // blocks below the initial creation, the same shape as the removed historical ones.
+    // A fresh connect creates the full current schema in one pass and stamps SCHEMA_VERSION; an
+    // older database is upgraded in place, gated on `schema_version` (see seed-data.ts for what
+    // each version changed).
     const client: PoolClient = await this.pool.connect()
     try {
       let version = 0
@@ -264,15 +265,38 @@ export class PostgreSQLAdapter implements StorageAdapter {
             await client.query(stmt)
           }
           await this.seedTx(client)
-          await client.query('INSERT INTO schema_version (version) VALUES (1) ON CONFLICT DO NOTHING')
+          await client.query('INSERT INTO schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING', [SCHEMA_VERSION])
           await client.query('COMMIT')
         } catch (err) {
           await client.query('ROLLBACK')
           throw err
         }
+      } else if (version < 2) {
+        await this.migrateToV2(client)
       }
     } finally {
       client.release()
+    }
+  }
+
+  private async migrateToV2(client: PoolClient): Promise<void> {
+    await client.query('BEGIN')
+    try {
+      const fks = await client.query<{ tbl: string; name: string }>(
+        `SELECT c.conrelid::regclass::text AS tbl, c.conname AS name FROM pg_constraint c
+         WHERE c.contype = 'f' AND c.confrelid = to_regclass('profiles')
+           AND c.conrelid IN (to_regclass('consent_records'), to_regclass('notice_shown'))`,
+      )
+      for (const fk of fks.rows) {
+        await client.query(`ALTER TABLE ${fk.tbl} DROP CONSTRAINT "${fk.name.replace(/"/g, '""')}"`)
+      }
+      await client.query('ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS profile_version INTEGER')
+      await client.query('ALTER TABLE consent_history ADD COLUMN IF NOT EXISTS profile_version INTEGER')
+      await client.query('INSERT INTO schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING', [SCHEMA_VERSION])
+      await client.query('COMMIT')
+    } catch (err) {
+      await client.query('ROLLBACK')
+      throw err
     }
   }
 
@@ -360,15 +384,15 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
     const id = randomConsentId()
     const rows = await this.q<RowConsent>(
-      `INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature)
-       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,$12,$13) RETURNING *`,
-      [id, data.tenantId, data.visitorId, data.profileId,
+      `INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, profile_version, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature)
+       VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
+      [id, data.tenantId, data.visitorId, data.profileId, data.profileVersion ?? null,
         data.locale, JSON.stringify(data.consentJson), data.gpcDetected, data.source,
         data.ageVerified ?? false, data.parentalConsentToken ?? null, data.tcfString ?? null, data.gppString ?? null, data.signature ?? null],
     )
     const row = rows[0]
     if (!row) throw new Error('Consent creation failed')
-    await this.writeHistory(id, data.tenantId, data.visitorId, null, data.consentJson, 'created')
+    await this.writeHistory(id, data.tenantId, data.visitorId, null, data.consentJson, 'created', data.profileVersion ?? null)
     return mapConsent(row)
   }
 
@@ -378,6 +402,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     const sets: string[] = ['consent_json=$1::jsonb', 'updated_at=NOW()']
     const vals: (string | number | boolean | null)[] = [JSON.stringify(data.consentJson)]
     let idx = 2
+    if (data.profileVersion != null) { sets.push(`profile_version=$${idx++}`); vals.push(data.profileVersion) }
     if (data.locale != null) { sets.push(`locale=$${idx++}`); vals.push(data.locale) }
     if (data.gpcDetected != null) { sets.push(`gpc_detected=$${idx++}`); vals.push(data.gpcDetected) }
     if (data.signature != null) { sets.push(`signature=$${idx++}`); vals.push(data.signature) }
@@ -388,7 +413,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     )
     const row = rows[0]
     if (!row) throw new Error(`Consent for visitor ${visitorId} not found`)
-    await this.writeHistory(row.id, row.tenant_id, visitorId, existing.consentJson, data.consentJson, 'updated')
+    await this.writeHistory(row.id, row.tenant_id, visitorId, existing.consentJson, data.consentJson, 'updated', data.profileVersion ?? existing.profileVersion ?? null)
     return mapConsent(row)
   }
 
@@ -439,12 +464,12 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   private async writeHistory(
     consentRecordId: string, tenantId: string, visitorId: string,
-    oldJson: ConsentValue | null, newJson: ConsentValue, action: string,
+    oldJson: ConsentValue | null, newJson: ConsentValue, action: string, profileVersion: number | null,
   ): Promise<void> {
     await this.q(
-      `INSERT INTO consent_history (id, tenant_id, consent_record_id, visitor_id, old_json, new_json, action)
-       VALUES ($1,$2,$3,$4,$5::jsonb,$6::jsonb,$7)`,
-      [randomUUID(), tenantId, consentRecordId, visitorId,
+      `INSERT INTO consent_history (id, tenant_id, consent_record_id, visitor_id, profile_version, old_json, new_json, action)
+       VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)`,
+      [randomUUID(), tenantId, consentRecordId, visitorId, profileVersion,
       oldJson ? JSON.stringify(oldJson) : null, JSON.stringify(newJson), action],
     )
   }

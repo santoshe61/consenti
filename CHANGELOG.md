@@ -23,7 +23,14 @@ Windows, saving or activating a profile failed with
 (HTTP 500): the hot-serve directory for a compliance group is a junction and Windows refuses to rename
 over an existing junction, whereas POSIX `rename()` atomically replaces a symlink. The version files
 were written but the live `{complianceGroup}/` path was never re-pointed, so the banner kept serving
-the old snapshot. (3) The `json` storage adapter did not work on Windows at all.
+the old snapshot. (3) The `json` storage adapter did not work on Windows at all. (4) On MariaDB (10.5+),
+PostgreSQL and SQLite a profile that had ever recorded a consent or notice could not be deleted —
+`consent_records.profile_id` and `notice_shown.profile_id` had foreign keys to `profiles(id)`, so
+`DELETE /profiles/:id` returned HTTP 500 (`Cannot delete or update a parent row: a foreign key constraint
+fails`). Oracle MySQL parsed but ignored the inline constraint, and the JSON and MongoDB adapters never had
+one, so this also closes an adapter-parity gap. (5) Hardening so a deleted or edited profile never loses
+evidence: each consent now records the profile version it was given, profile actions are attributed to the
+admin who made them, and compliance-group / locale names are validated as safe directory and file names.
 
 ### Added
 
@@ -31,11 +38,22 @@ the old snapshot. (3) The `json` storage adapter did not work on Windows at all.
 - Standalone-mode `geoDataProvider` is called with the browser hints.
 
 #### `@consenti/api`
+- **Schema v2** (all SQL drivers; MongoDB/JSON simply gain an optional field): `consent_records` and
+  `consent_history` get a nullable `profile_version`. The service stamps it on every create/update (after
+  any plugin hook, never from the request body). With `profile_id` it pins the exact on-disk snapshot —
+  the banner text the visitor saw — and `verify()` resolves a deleted profile through that version.
+  Records created before this have no version and resolve to the newest snapshot.
+- `profile_version` in the consent CSV (appended as the last column) and XLSX exports, and in the
+  `ConsentRecord` OpenAPI schema.
+- Admin profile actions (create, copy, update, delete, activate, deactivate) now record the acting admin's
+  `userId` in the audit log.
 - `/resolve-profile` forwards the widget's full `languages` list and requested `locale` to
   `geoDataProvider` (also parsed from `Accept-Language` when the widget hints are absent); input is
   sanitised (max 20 languages, tags up to 35 chars).
 
 #### `@consenti/types`
+- `ConsentDbRecord.profileVersion?`, `ConsentHistoryEntry.profileVersion?`, `UpdateConsentInput.profileVersion?`
+  (and on `CreateConsentInput`) — the profile `version` in force when a consent was given.
 - `ComplianceMapData.override?: boolean`; `CountryResolverFn` context gains `languages: string[]` and
   `locale: string`; `WidgetCountryResolverFn` receives `{ timezone, language, languages, locale }`.
 
@@ -51,8 +69,28 @@ the old snapshot. (3) The `json` storage adapter did not work on Windows at all.
   strictest group, `'opt-in'`, instead of falling back to the embedded mapping); omitted/`false` keeps
   the existing fall-back — the widget default intentionally differs from the server's.
 - `@consenti/api`: setup-wizard config summary states whether a custom map merges or replaces.
+- `@consenti/api`: `consent_records.profile_id` and `notice_shown.profile_id` no longer have a foreign key
+  to `profiles` (fresh-install schema, all SQL dialects). A consent record is evidence (GDPR Art. 7(1):
+  the controller must be able to demonstrate consent) and must outlive the profile it was collected
+  against; the profile's version snapshots stay on disk after deletion by design. Existing databases are
+  upgraded automatically (see Migration). Nothing else is
+  removed on delete — consent records, notice records, version snapshots and the audit trail are all kept.
+- `@consenti/api`: the `profile:deleted` audit entry now also records the profile's `name`,
+  `complianceGroup` and `wasActive` (previously only `profileId` and `version`) — once the row is gone,
+  the append-only audit log is the only place those survive.
+- `@consenti/api`: `GET /consent/:visitorId/verify` resolves a record whose profile was deleted to the
+  profile's newest archived snapshot instead of failing blind: the result still reports
+  `profile_changed`, now with `consentProfileId`, and `currentProfileId` (the profile that replaced it in
+  the same compliance group) and `consent_expired` are derived from the snapshot.
 
 ### Fixed
+- `@consenti/api`: **MariaDB 10.5+, PostgreSQL, SQLite** — `DELETE /profiles/:id` no longer fails with a
+  foreign-key error for a profile that has consent or notice records (see Changed).
+- `@consenti/api`: saving an active profile that has no compliance group no longer points the "live
+  directory" at the tenant's whole `profiles/` folder (which the old code would have emptied); such a save
+  only writes its version files, like `activate()` already did.
+- `@consenti/api`: the worker now refuses to touch the file system for an unsafe compliance-group or
+  locale name, even if request validation were bypassed.
 - `@consenti/api`: **Windows** — activating a profile no longer fails with `EPERM` when the
   compliance-group junction already exists; the existing junction is removed just before the swap (the
   previous version's own directory is untouched). The swap stays a single atomic `rename()` on
@@ -68,10 +106,22 @@ the old snapshot. (3) The `json` storage adapter did not work on Windows at all.
   (`navigator` is getter-only).
 
 ### Breaking changes
-None.
+Stricter names for anything that becomes a directory or file name: `profileJson.complianceGroup` /
+`customComplianceGroup` must be 1–64 characters of `a-z 0-9 - _`, start with a letter or digit, not be a
+reserved Windows device name (`con`, `nul`, `com1`…) and not start with `prof_`; `defaultLocale`,
+`locales` and `localeContent` keys must be language tags (`en`, `pt-BR`) with no case-insensitive
+duplicates. `POST`/`PUT /profiles` answer `400` otherwise, and activating a profile whose stored group
+violates this fails — rename it (upper-case or spaced custom groups are the likely case). All built-in
+groups and normal locales are unaffected.
 
 ### Migration
-None. To change only some countries, add `override: false` to your `complianceMap` document. A profile
+Automatic. The first start on 0.5.1 upgrades an existing database to schema v2 — drops the two
+`profile_id` foreign keys and adds `profile_version` — on MariaDB, PostgreSQL and SQLite; MySQL (Oracle)
+only gains the column, MongoDB and the JSON store need nothing. Take a backup first for production
+databases. PostgreSQL runs in one transaction; SQLite rebuilds the two affected tables in one
+transaction; MySQL/MariaDB DDL cannot be rolled back, so each step is idempotent and an interrupted
+upgrade resumes on the next start. Verified end to end against MariaDB 10.5 and 10.11, MySQL 8.4,
+PostgreSQL 16, SQLite (`node:sqlite`, `node-sqlite3-wasm`) and MongoDB 7. To change only some countries, add `override: false` to your `complianceMap` document. A profile
 whose activation failed earlier on Windows is repaired by saving it again; on Windows with `json`
 storage, delete the stray `db\consenti-data.json\` directory if one exists.
 

@@ -3,7 +3,7 @@ import type { Database as DB, Statement } from 'node-sqlite3-wasm'
 const MAX_PAGE_SIZE = 500
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import { resolveStoragePaths } from '../../utils/storage-path'
-import { SEED_SQL, SCHEMA_SQL_SQLITE } from '../seed-data'
+import { SEED_SQL, SCHEMA_SQL_SQLITE, SCHEMA_VERSION, SQLITE_MIGRATE_V2_SQL } from '../seed-data'
 import { likePrefix } from '../../utils/sql-search'
 import type {
   StorageAdapter,
@@ -66,7 +66,7 @@ interface RawProfile {
   created_at: string; updated_at: string
 }
 interface RawConsent {
-  id: string; tenant_id: string; visitor_id: string; profile_id: string
+  id: string; tenant_id: string; visitor_id: string; profile_id: string; profile_version?: number | null
   locale: string; consent_json: string
   gpc_detected: number; source: string; created_at: string; updated_at: string
   age_verified?: number; parental_consent_token?: string | null; tcf_string?: string | null
@@ -79,7 +79,7 @@ interface RawConsentSummary {
   age_verified?: number; created_at: string; updated_at: string
 }
 interface RawConsentHistory {
-  id: string; tenant_id: string; consent_record_id: string; visitor_id: string
+  id: string; tenant_id: string; consent_record_id: string; visitor_id: string; profile_version?: number | null
   old_json: string | null; new_json: string; action: string; created_at: string
 }
 interface RawVisitor {
@@ -178,16 +178,20 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
   }
 
   async migrate(): Promise<void> {
-    // No installations predate this schema, so a fresh connect always creates the full current
-    // table set in one pass — no incremental/versioned steps needed. `PRAGMA user_version` is
-    // kept as the hook for whenever a *real* future migration is needed: add `if (ver < N)`
-    // blocks below the initial creation, the same shape as the removed historical ones.
-    const row = this.stmt('PRAGMA user_version').get() as { user_version: number } | null
-    const ver = row?.user_version ?? 0
+    // A fresh connect creates the full current schema in one pass and stamps SCHEMA_VERSION; an
+    // older database is upgraded in place, gated on `PRAGMA user_version` (see seed-data.ts for
+    // what each version changed).
+    // Not the statement cache: a cached statement stays open and would block the table rebuild
+    // ("database table is locked").
+    const probe = this.db.prepare('PRAGMA user_version')
+    let ver = 0
+    try { ver = (probe.get() as { user_version: number } | null)?.user_version ?? 0 } finally { probe.finalize() }
     if (ver < 1) {
       this.db.exec(SCHEMA_SQL_SQLITE)
       this.db.exec(SEED_SQL)
-      this.db.exec('PRAGMA user_version = 1')
+      this.db.exec(`PRAGMA user_version = ${SCHEMA_VERSION}`)
+    } else if (ver < 2) {
+      this.migrateToV2()
     }
 
     // Plain-column indexes (tenant_id, created_at, visitor_id, etc.) are generated into
@@ -199,6 +203,18 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
       CREATE INDEX IF NOT EXISTS idx_profiles_tenant_compliance_active
         ON profiles (tenant_id, json_extract(profile_json,'$.complianceGroup'), json_extract(profile_json,'$.isActive'));
     `)
+  }
+
+  private migrateToV2(): void {
+    this.db.exec('PRAGMA foreign_keys=OFF')
+    try {
+      this.db.exec(`BEGIN;\n${SQLITE_MIGRATE_V2_SQL}\nCOMMIT;`)
+    } catch (err) {
+      try { this.db.exec('ROLLBACK') } catch { /* no transaction was opened */ }
+      throw err
+    } finally {
+      this.db.exec('PRAGMA foreign_keys=ON')
+    }
   }
 
   // ── Profiles ──────────────────────────────────────────────────────────────
@@ -269,6 +285,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return {
       id: row.id, tenantId: row.tenant_id, visitorId: row.visitor_id,
       profileId: row.profile_id,
+      ...(row.profile_version != null ? { profileVersion: row.profile_version } : {}),
       locale: row.locale, consentJson: JSON.parse(row.consent_json) as ConsentValue,
       gpcDetected: row.gpc_detected === 1,
       source: row.source as ConsentDbRecord['source'],
@@ -297,12 +314,12 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     const id = randomConsentId()
     const now = new Date().toISOString()
     this.stmt(
-      'INSERT INTO consent_records (id,tenant_id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,age_verified,parental_consent_token,tcf_string,gpp_string,signature,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
-    ).run([id, data.tenantId, data.visitorId, data.profileId, data.locale, JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source, data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.gppString ?? null, data.signature ?? null, now, now])
+      'INSERT INTO consent_records (id,tenant_id,visitor_id,profile_id,profile_version,locale,consent_json,gpc_detected,source,age_verified,parental_consent_token,tcf_string,gpp_string,signature,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'
+    ).run([id, data.tenantId, data.visitorId, data.profileId, data.profileVersion ?? null, data.locale, JSON.stringify(data.consentJson), data.gpcDetected ? 1 : 0, data.source, data.ageVerified ? 1 : 0, data.parentalConsentToken ?? null, data.tcfString ?? null, data.gppString ?? null, data.signature ?? null, now, now])
     const histId = randomUUID()
     this.stmt(
-      'INSERT INTO consent_history (id,tenant_id,consent_record_id,visitor_id,old_json,new_json,action,created_at) VALUES (?,?,?,?,?,?,?,?)'
-    ).run([histId, data.tenantId, id, data.visitorId, null, JSON.stringify(data.consentJson), 'created', now])
+      'INSERT INTO consent_history (id,tenant_id,consent_record_id,visitor_id,profile_version,old_json,new_json,action,created_at) VALUES (?,?,?,?,?,?,?,?,?)'
+    ).run([histId, data.tenantId, id, data.visitorId, data.profileVersion ?? null, null, JSON.stringify(data.consentJson), 'created', now])
     const record = await this.getConsent(data.visitorId)
     if (!record) throw new Error('Failed to create consent')
     return record
@@ -314,6 +331,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     const now = new Date().toISOString()
     const fields: string[] = ['updated_at = ?', 'consent_json = ?']
     const vals: Val[] = [now, JSON.stringify(data.consentJson)]
+    if (data.profileVersion != null) { fields.push('profile_version = ?'); vals.push(data.profileVersion) }
     if (data.locale != null) { fields.push('locale = ?'); vals.push(data.locale) }
     if (data.gpcDetected != null) { fields.push('gpc_detected = ?'); vals.push(data.gpcDetected ? 1 : 0) }
     if (data.signature != null) { fields.push('signature = ?'); vals.push(data.signature) }
@@ -321,8 +339,8 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     this.stmt(`UPDATE consent_records SET ${fields.join(', ')} WHERE visitor_id = ?`).run(vals)
     const histId = randomUUID()
     this.stmt(
-      'INSERT INTO consent_history (id,tenant_id,consent_record_id,visitor_id,old_json,new_json,action,created_at) VALUES (?,?,?,?,?,?,?,?)'
-    ).run([histId, existing.tenantId, existing.id, visitorId, JSON.stringify(existing.consentJson), JSON.stringify(data.consentJson), 'updated', now])
+      'INSERT INTO consent_history (id,tenant_id,consent_record_id,visitor_id,profile_version,old_json,new_json,action,created_at) VALUES (?,?,?,?,?,?,?,?,?)'
+    ).run([histId, existing.tenantId, existing.id, visitorId, data.profileVersion ?? existing.profileVersion ?? null, JSON.stringify(existing.consentJson), JSON.stringify(data.consentJson), 'updated', now])
     const updated = await this.getConsent(visitorId)
     if (!updated) throw new Error('Failed to update consent')
     return updated
@@ -380,6 +398,7 @@ export class NodeSqlite3WasmAdapter implements StorageAdapter {
     return rows.map(r => ({
       id: r.id, tenantId: r.tenant_id, consentRecordId: r.consent_record_id,
       visitorId: r.visitor_id,
+      ...(r.profile_version != null ? { profileVersion: r.profile_version } : {}),
       oldJson: r.old_json != null ? JSON.parse(r.old_json) as ConsentValue : null,
       newJson: JSON.parse(r.new_json) as ConsentValue,
       action: r.action as ConsentHistoryEntry['action'],

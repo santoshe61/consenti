@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS consent_records (
   id              TEXT PRIMARY KEY,
   tenant_id       TEXT NOT NULL REFERENCES tenants(id),
   visitor_id      TEXT NOT NULL,
-  profile_id      TEXT NOT NULL REFERENCES profiles(id),
+  profile_id      TEXT NOT NULL,
   profile_version INTEGER NOT NULL,
   locale          TEXT NOT NULL,
   consent_json    TEXT NOT NULL,

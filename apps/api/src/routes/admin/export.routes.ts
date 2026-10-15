@@ -20,7 +20,7 @@ function consentToCsvRow(r: ConsentDbRecord): string {
   return [
     r.id, r.visitorId, r.profileId, r.locale,
     JSON.stringify(r.consentJson), r.gpcDetected ? '1' : '0',
-    r.source, r.signature ?? '', r.createdAt, r.updatedAt,
+    r.source, r.signature ?? '', r.createdAt, r.updatedAt, r.profileVersion ?? '',
   ].map(escapeCsv).join(',') + '\n'
 }
 
@@ -71,7 +71,7 @@ export function buildAdminExportRoutes(
         }
 
         const enc = new TextEncoder()
-        const header = 'id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,signature,created_at,updated_at\n'
+        const header = 'id,visitor_id,profile_id,locale,consent_json,gpc_detected,source,signature,created_at,updated_at,profile_version\n'
         const stream = new ReadableStream({
           async start(controller) {
             controller.enqueue(enc.encode(header))
@@ -132,6 +132,7 @@ export function buildAdminExportRoutes(
             id: r.id,
             visitor_id: r.visitorId,
             profile_id: r.profileId,
+            profile_version: r.profileVersion ?? '',
             locale: r.locale,
             consent_json: JSON.stringify(r.consentJson),
             gpc_detected: r.gpcDetected ? 1 : 0,

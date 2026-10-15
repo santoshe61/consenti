@@ -109,7 +109,7 @@ export function buildAdminProfileRoutes(
 
     'POST /profiles': async (req: Request, _p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'profile:create')
+        const { user, denied } = await auth(req, 'profile:create')
         if (denied) return denied
         const body = await parseJsonBody(req) as Record<string, unknown>
         const validation = validateCreateProfile(body)
@@ -147,7 +147,7 @@ export function buildAdminProfileRoutes(
             }
             if (choice === 'deactivate') {
               // "Deactivate {name} and activate this one" — this profile must actually become active.
-              await service.deactivate(existing.id)
+              await service.deactivate(existing.id, user?.sub)
               input.profileJson.isActive = true
             } else if (choice === 'inactive') {
               // "Save this profile as inactive" — explicit, the other profile is left untouched.
@@ -155,7 +155,7 @@ export function buildAdminProfileRoutes(
             }
           }
 
-          const profile = await service.create(input)
+          const profile = await service.create(input, user?.sub)
           return json(201, { profile, warnings: complianceValidation.warnings })
         }
 
@@ -169,7 +169,7 @@ export function buildAdminProfileRoutes(
               return json(200, { conflict: { id: existing.id, name: existing.name }, requiresChoice: true })
             }
             if (choice === 'deactivate') {
-              await service.deactivate(existing.id)
+              await service.deactivate(existing.id, user?.sub)
               input.profileJson.isActive = true
             } else if (choice === 'inactive') {
               input.profileJson.isActive = false
@@ -177,13 +177,13 @@ export function buildAdminProfileRoutes(
           }
         }
 
-        const profile = await service.create(input)
+        const profile = await service.create(input, user?.sub)
         return json(201, profile)
       }),
 
     'PUT /profiles/:id': async (req: Request, p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'profile:update')
+        const { user, denied } = await auth(req, 'profile:update')
         if (denied) return denied
         const id = p['id'] ?? ''
         const body = await parseJsonBody(req) as Record<string, unknown>
@@ -226,7 +226,7 @@ export function buildAdminProfileRoutes(
             }
             if (choice === 'deactivate') {
               // "Deactivate {name} and activate this one" — this profile must actually become active.
-              await service.deactivate(existing.id)
+              await service.deactivate(existing.id, user?.sub)
               input.profileJson!.isActive = true
             } else if (choice === 'inactive') {
               // "Save this profile as inactive" — explicit, the other profile is left untouched.
@@ -234,7 +234,7 @@ export function buildAdminProfileRoutes(
             }
           }
 
-          const profile = await service.update(id, input)
+          const profile = await service.update(id, input, user?.sub)
           return json(200, { profile, warnings: complianceValidation.warnings })
         }
 
@@ -246,7 +246,7 @@ export function buildAdminProfileRoutes(
               return json(200, { conflict: { id: existing.id, name: existing.name }, requiresChoice: true })
             }
             if (choice === 'deactivate') {
-              await service.deactivate(existing.id)
+              await service.deactivate(existing.id, user?.sub)
               input.profileJson!.isActive = true
             } else if (choice === 'inactive') {
               input.profileJson!.isActive = false
@@ -254,34 +254,34 @@ export function buildAdminProfileRoutes(
           }
         }
 
-        const profile = await service.update(id, input)
+        const profile = await service.update(id, input, user?.sub)
         return json(200, profile)
       }),
 
     'DELETE /profiles/:id': async (req: Request, p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'profile:delete')
+        const { user, denied } = await auth(req, 'profile:delete')
         if (denied) return denied
-        await service.delete(p['id'] ?? '')
+        await service.delete(p['id'] ?? '', user?.sub)
         return json(200, { success: true })
       }),
 
     'POST /profiles/:id/copy': async (req: Request, p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'profile:create')
+        const { user, denied } = await auth(req, 'profile:create')
         if (denied) return denied
         const id = p['id'] ?? ''
         const existing = await service.get(id)
         if (!existing) return errorResponse(404, 'Profile not found')
         const body = await parseJsonBody(req) as Record<string, unknown> | null
         const name = typeof body?.['name'] === 'string' ? body['name'] : undefined
-        const copy = await service.copy(id, name)
+        const copy = await service.copy(id, name, user?.sub)
         return json(201, copy)
       }),
 
     'POST /profiles/:id/activate': async (req: Request, p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'profile:update')
+        const { user, denied } = await auth(req, 'profile:update')
         if (denied) return denied
         const id = p['id'] ?? ''
         const body = await parseJsonBody(req) as Record<string, unknown> | null
@@ -299,20 +299,20 @@ export function buildAdminProfileRoutes(
               return json(200, { conflict: { id: existing.id, name: existing.name }, requiresChoice: true })
             }
             if (choice === 'deactivate') {
-              await service.deactivate(existing.id)
+              await service.deactivate(existing.id, user?.sub)
             }
           }
         }
 
-        const activated = await service.activate(id)
+        const activated = await service.activate(id, user?.sub)
         return json(200, activated)
       }),
 
     'POST /profiles/:id/deactivate': async (req: Request, p: Record<string, string>): Promise<Response> =>
       withErrorHandler(async () => {
-        const { denied } = await auth(req, 'profile:update')
+        const { user, denied } = await auth(req, 'profile:update')
         if (denied) return denied
-        const profile = await service.deactivate(p['id'] ?? '')
+        const profile = await service.deactivate(p['id'] ?? '', user?.sub)
         return json(200, profile)
       }),
 
