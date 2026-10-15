@@ -55,6 +55,9 @@ const widget = new ConsentiSetup({
       enabled: false,            // must match the backend's tcf config
       cmpId: 0,
       cmpVersion: 1,
+      publisherCC: 'DE',         // optional — ISO 3166-1 alpha-2; vendors see 'AA' if unset
+      // vendorListVersion: 0,   // optional — GVL version you track (0 = unknown)
+      // gvlVersion: 0,          // optional — GVL specification version you track (0 = unknown)
     },
     gpp: {                       // IAB GPP (US National section); must match the backend's gpp config
       enabled: false,
@@ -262,9 +265,15 @@ const widget = new ConsentiSetup({
             </td>
             <td>
               IAB TCF v2.3 client stub configuration —{' '}
-              <code>{'{ enabled, cmpId, cmpVersion }'}</code>, must match the backend&apos;s{' '}
-              <code>tcf</code> config. When enabled, installs
-              <code>window.__tcfapi</code>. See the &quot;TCF v2.3 Implementation Guide&quot;.
+              <code>{'{ enabled, cmpId, cmpVersion, publisherCC?, vendorListVersion?, gvlVersion? }'}</code>
+              ; <code>enabled</code>, <code>cmpId</code> and <code>cmpVersion</code> must match the
+              backend&apos;s <code>tcf</code> config. When enabled, installs{' '}
+              <code>window.__tcfapi</code>. <code>publisherCC</code> is your ISO 3166-1 alpha-2
+              country code: leave it unset and ad-tech vendors reading it see{' '}
+              <code>&apos;AA&apos;</code>, an explicit &quot;not configured&quot; placeholder.{' '}
+              <code>vendorListVersion</code> and <code>gvlVersion</code> are the Global Vendor List
+              and specification versions, if you track them; both default to <code>0</code>{' '}
+              (&quot;unknown&quot;). See the &quot;TCF v2.3 Implementation Guide&quot;.
             </td>
           </tr>
           <tr>
@@ -1530,6 +1539,16 @@ new ConsentiSetup({
         This is a runtime override only. It does not affect the stored profile. See the{' '}
         <a href="/docs/ui/advanced-profiles/">Advanced Profile reference</a> for a full reference
         and examples.
+      </p>
+      <p>
+        Its per-compliance-group sibling is <code>complianceGroupsOverride</code>: a map keyed by
+        compliance-group id (one of the 8 built-in groups, or a custom group id) whose entries are
+        deep-merged onto whichever profile the visitor&apos;s resolved group loads, so you can write
+        different copy per country without a separate profile for each. It is applied before{' '}
+        <code>profileOverride</code>, which always applies last, and works the same in standalone
+        and <code>api.enabled</code> mode. See{' '}
+        <a href="/docs/ui/advanced-profiles/#compliancegroupsoverride">complianceGroupsOverride</a>{' '}
+        for examples.
       </p>
       <CodeBlock
         lang="ts"

@@ -224,6 +224,13 @@ const consenti = createConsenti({
     // The embedded map sets this for Colorado's CPA already; only takes effect with a geoip/maxmind
     // geoDataProvider (the timezone/language heuristic never resolves a US state).
 
+    // Server-side Global Privacy Control enforcement on POST/PUT /consent. When a write carries
+    // gpcDetected: true the server denies CPRA sale/sharing cookies (CPRA) or cookies with listenGpc
+    // (every other regulation), whatever the client sent; skipped for DPDPA. false = off. true / 'strict' /
+    // omitted = on ('strict' currently behaves like true). The banner's own GPC behaviour is the per-profile
+    // gpcMode — a separate setting.
+    gpc: true,
+
     // IAB TCF v2.3
     tcf: {
       enabled: false,
@@ -255,8 +262,7 @@ const consenti = createConsenti({
 
     // Data retention
     dataRetention: {
-      purgeAfterDays: 365,          // delete consent records older than N days; runs nightly
-      auditLogPurgeAfterDays: 730,  // optional, independent from purgeAfterDays — unset = keep forever
+      purgeAfterDays: 365,          // delete consent records older than N days; runs nightly (audit logs are never purged)
     },
   },
 

@@ -49,6 +49,8 @@ const consenti = createConsenti({
   storage: {
     driver: 'json',            // not recommended for production
     path: './consenti-data',   // always required, even for MySQL/Mongo/Postgres — profiles are stored here
+    // uri: process.env.CONSENTI_DB_URI,   // postgresql | mysql | mongodb connection string
+    // poolMax: 5,                         // postgresql | mysql | mongodb — max connections per process (default 5)
   },
   auth: {
     mode: 'local',
@@ -69,14 +71,28 @@ const consenti = createConsenti({
   compliance: {
     type: 'auto',                 // 'auto' = geo-resolve per visitor | ComplianceGroupId = fixed group
     geoDataProvider: 'default',   // 'default' | 'hosted-geoip-lite' | 'geoip' | 'maxmind' | CountryResolverFn
+    complianceMap: 'default',     // 'default' (embedded map) | URL | { version, override?, countries }
+    gpc: true,                    // server-side GPC enforcement on consent writes; false = off
 
     tcf: {
       enabled: false,
       cmpId: 0,
       cmpVersion: 1,
+      publisherCC: 'DE',          // ISO 3166-1 alpha-2 — needed for spec-correct TC strings
+    },
+
+    gpp: {
+      enabled: false,
+      cmpId: 0,
+      cmpVersion: 1,
+      mspaCoveredTransaction: false,   // required, no default
+      mspaOptOutOptionMode: 0,         // 0 = not applicable | 1 = yes | 2 = no
+      mspaServiceProviderMode: 0,
     },
 
     dataSigningHash: process.env.CONSENTI_DATA_SIGNING_HASH,  // signs consent records, ownership cookies, parental-consent tokens; salts hashed IPs. Auto-generated if omitted.
+
+    parentalConsentTokenTtlDays: 7,   // expiry of parental-consent tokens (default 7)
 
     dataRetention: {
       purgeAfterDays: 365,       // delete consent records older than this
@@ -94,8 +110,9 @@ const consenti = createConsenti({
   },
 
   // CDN / cache invalidation hook (optional)
-  handleCache: (paths, version, isPurge) => {
+  handleCache: (paths, profileId, isPurge) => {
     // paths: locale file paths written or removed
+    // profileId: id of the profile that triggered the write
     // isPurge: true = files removed (deactivate/delete); false = files written (create/activate)
   },
 
@@ -1417,14 +1434,130 @@ rateLimit: { enabled: false }`}
               route into an operator-defined custom group).
             </td>
           </tr>
+          <tr>
+            <td>
+              <code>complianceMap</code>
+            </td>
+            <td>
+              <code>
+                &apos;default&apos; | string | ComplianceMapData
+              </code>
+            </td>
+            <td>
+              <code>&apos;default&apos;</code>
+            </td>
+            <td>
+              The country → compliance-group map used by <code>type: &apos;auto&apos;</code>.{' '}
+              <code>&apos;default&apos;</code> is the embedded map; a URL string is fetched and
+              refreshed in the background; an object is used as given. By default a supplied map{' '}
+              <em>replaces</em> the embedded one; <code>override: false</code> inside it merges your
+              countries over the embedded map instead. Invalid data logs an error and falls back to{' '}
+              <code>&apos;default&apos;</code>. Details and examples below.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>gpc</code>
+            </td>
+            <td>
+              <code>boolean | &apos;strict&apos;</code>
+            </td>
+            <td>
+              enabled
+            </td>
+            <td>
+              Server-side Global Privacy Control enforcement on <code>POST</code>/<code>PUT</code>{' '}
+              <code>/consent</code>. When a write arrives with <code>gpcDetected: true</code>, the
+              server denies, regardless of what the client sent: under CPRA, cookies tagged{' '}
+              <code>cpraCategory: &apos;sale&apos;</code> or <code>&apos;sharing&apos;</code>; under
+              every other regulation, cookies with <code>listenGpc: true</code>. Skipped for DPDPA,
+              which recognises no GPC opt-out signal. <code>false</code> turns the check off
+              entirely (the widget&apos;s own client-side handling is unaffected); <code>true</code>,{' '}
+              <code>&apos;strict&apos;</code> or omitted leave it on —{' '}
+              <code>&apos;strict&apos;</code> is accepted but currently behaves like{' '}
+              <code>true</code>. Whether the visitor-facing banner honours GPC is the per-profile{' '}
+              <code>gpcMode</code>, a separate setting.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>tcf</code>
+            </td>
+            <td>
+              <code>TcfConfig</code>
+            </td>
+            <td>— (omit to disable)</td>
+            <td>
+              IAB TCF integration: <code>enabled</code>, <code>cmpId</code>, <code>cmpVersion</code>,{' '}
+              <code>publisherCC</code>. See <a href="#tcf">tcf</a>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>gpp</code>
+            </td>
+            <td>
+              <code>GppConfig</code>
+            </td>
+            <td>— (omit to disable)</td>
+            <td>
+              IAB GPP (US National section): <code>enabled</code>, <code>cmpId</code>,{' '}
+              <code>cmpVersion</code>, <code>mspaCoveredTransaction</code>,{' '}
+              <code>mspaOptOutOptionMode</code>, <code>mspaServiceProviderMode</code>. See{' '}
+              <a href="#gpp">gpp</a>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>dataSigningHash</code>
+            </td>
+            <td>
+              <code>string</code>
+            </td>
+            <td>auto-generated in memory</td>
+            <td>
+              Secret that signs consent records, ownership cookies and parental-consent tokens and
+              salts hashed IPs. Set it for production. See{' '}
+              <a href="#dataSigningHash">compliance.dataSigningHash</a>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>parentalConsentTokenTtlDays</code>
+            </td>
+            <td>
+              <code>number</code>
+            </td>
+            <td>
+              <code>7</code>
+            </td>
+            <td>
+              How long a parental-consent request/resolve token stays valid, in days. See{' '}
+              <a href="#dataSigningHash">compliance.dataSigningHash</a>.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>dataRetention</code>
+            </td>
+            <td>
+              <code>{'{ purgeAfterDays: number }'}</code>
+            </td>
+            <td>— (omit to keep records)</td>
+            <td>
+              Nightly hard-delete of consent records older than <code>purgeAfterDays</code>. Audit
+              logs are never purged. See <a href="#dataRetention">dataRetention</a>.
+            </td>
+          </tr>
         </tbody>
       </table>
 
       <Callout type="info">
-        GPC handling (<code>ignore</code> / <code>honor</code> / <code>strict</code>) is a
-        per-profile setting configured in the dashboard profile wizard (<code>gpcMode</code>) — not
-        a global compliance config option. The compliance group provides a default GPC behaviour;
-        the profile can override it.
+        Two different GPC settings exist, at two levels. <code>compliance.gpc</code> (above) is a
+        server-wide safety net applied to every consent write. <code>gpcMode</code>{' '}
+        (<code>ignore</code> / <code>honor</code> / <code>strict</code>) is per profile, set in the
+        dashboard profile wizard, and controls what the banner does when it detects GPC; the
+        compliance group provides its default.
       </Callout>
 
       <CodeBlock
@@ -1681,12 +1814,15 @@ compliance: {
           </tr>
           <tr>
             <td>
-              <code>version</code>
+              <code>profileId</code>
             </td>
             <td>
-              <code>number</code>
+              <code>string</code>
             </td>
-            <td>Current profile version at the time of the operation.</td>
+            <td>
+              Id of the profile that triggered the operation. It stays the same across edits of
+              that profile.
+            </td>
           </tr>
           <tr>
             <td>
@@ -1705,7 +1841,7 @@ compliance: {
       <CodeBlock
         lang="ts"
         filename="handleCache example"
-        code={`handleCache: (paths, version, isPurge) => {
+        code={`handleCache: (paths, profileId, isPurge) => {
   if (isPurge) {
     // Purge these paths from your CDN / nginx proxy cache
     for (const p of paths) {
@@ -1754,7 +1890,7 @@ compliance: {
 
 const cloudfront = new CloudFrontClient({ region: 'us-east-1' })
 
-handleCache: async (paths, _version, isPurge) => {
+handleCache: async (paths, _profileId, isPurge) => {
   // Only the pointer.json paths need active invalidation — versioned locale
   // files are immutable and can just expire out of cache on their own TTL.
   const pointerPaths = paths.filter(p => p.endsWith('pointer.json'))
@@ -1790,9 +1926,9 @@ handleCache: async (paths, _version, isPurge) => {
       </Callout>
 
       {/* ── tcf ──────────────────────────────────────────────────────────── */}
-      <h2>tcf</h2>
+      <h2 id="tcf">tcf</h2>
       <p>
-        IAB Transparency & Consent Framework v2.2 integration. When enabled, Consenti fetches the
+        IAB Transparency & Consent Framework v2.3 integration. When enabled, Consenti fetches the
         Global Vendor List and stores TC strings on consent records. <code>cmpId</code>/
         <code>cmpVersion</code> here must match the widget's own <code>compliance.tcf</code> config
         — the client-side <code>window.__tcfapi</code> stub lives in <code>@consenti/ui</code>, not
@@ -1845,6 +1981,24 @@ handleCache: async (paths, _version, isPurge) => {
               in TC strings.
             </td>
           </tr>
+          <tr>
+            <td>
+              <code>publisherCC</code>
+            </td>
+            <td>
+              <code>string</code>
+            </td>
+            <td>— (no default)</td>
+            <td>
+              ISO 3166-1 alpha-2 country code of the publisher (<code>&apos;DE&apos;</code>,{' '}
+              <code>&apos;FR&apos;</code>). Needed for spec-correct binary TC-string encoding
+              (with the optional <code>@iabtechlabtcf/core</code> peer dependency): without it
+              Consenti falls back to a simplified, non-spec TC string. There is no default because
+              there is no honest country to assume on a publisher&apos;s behalf. Part of what the
+              dashboard&apos;s registration confirmation hashes, so changing it asks you to
+              re-confirm.
+            </td>
+          </tr>
         </tbody>
       </table>
       <CodeBlock
@@ -1853,15 +2007,150 @@ handleCache: async (paths, _version, isPurge) => {
         code={`compliance: {
   tcf: {
     enabled: true,
-    cmpId: 42,        // your IAB CMP ID
+    cmpId: 42,          // your IAB CMP ID
     cmpVersion: 1,
+    publisherCC: 'DE',  // your country — needed for spec-correct TC strings
   },
 }`}
       />
+      <Callout type="info">
+        Until a dashboard admin confirms the <code>cmpId</code>/<code>cmpVersion</code> registration
+        (Dashboard → Vendors), TCF is treated as disabled: no TC string is produced and the widget
+        installs no <code>window.__tcfapi</code>. See the{' '}
+        <a href="/docs/compliance/tcf-and-gpp-registration/">TCF &amp; GPP Registration Guide</a>.
+      </Callout>
       <Callout type="warning">
         TCF mode requires an IAB-registered CMP ID. Do not use a placeholder CMP ID in production —
         the GVL and downstream DSPs validate it.
       </Callout>
+
+      {/* ── gpp ──────────────────────────────────────────────────────────── */}
+      <h2 id="gpp">gpp</h2>
+      <p>
+        IAB Global Privacy Platform integration, <strong>US National (<code>usnat</code>) section
+        only</strong> — the umbrella section most MSPA / programmatic US bidders read. State sections
+        (US-CA, US-CO, …) are not encoded separately. When enabled, Consenti stores a{' '}
+        <code>gppString</code> on consent records, and the widget exposes <code>window.__gpp</code>.{' '}
+        <code>cmpId</code>/<code>cmpVersion</code> here must match the widget&apos;s own{' '}
+        <code>compliance.gpp</code> config.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Key</th>
+            <th>Type</th>
+            <th>Default</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <code>enabled</code>
+            </td>
+            <td>
+              <code>boolean</code>
+            </td>
+            <td>
+              <code>false</code> (omit <code>gpp</code> to disable)
+            </td>
+            <td>Turn GPP string generation on.</td>
+          </tr>
+          <tr>
+            <td>
+              <code>cmpId</code>
+            </td>
+            <td>
+              <code>number</code>
+            </td>
+            <td>— (required)</td>
+            <td>
+              Your CMP ID for GPP. Unlike TCF there is no public IAB list to check it against, so
+              confirming it in the dashboard is a self-attestation.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>cmpVersion</code>
+            </td>
+            <td>
+              <code>number</code>
+            </td>
+            <td>— (required)</td>
+            <td>Your CMP software version number.</td>
+          </tr>
+          <tr>
+            <td>
+              <code>mspaCoveredTransaction</code>
+            </td>
+            <td>
+              <code>boolean</code>
+            </td>
+            <td>— (required)</td>
+            <td>
+              MSPA &quot;covered transaction&quot;: whether this deployment&apos;s data transactions
+              fall under Multi-State Privacy Agreement signatory obligations. Required, with no
+              default, because there is no honest value to assume — answer it with your legal
+              counsel.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>mspaOptOutOptionMode</code>
+            </td>
+            <td>
+              <code>0 | 1 | 2</code>
+            </td>
+            <td>— (required)</td>
+            <td>
+              MSPA opt-out-option mode, IAB&apos;s tri-state: <code>0</code> not applicable,{' '}
+              <code>1</code> yes, <code>2</code> no.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>mspaServiceProviderMode</code>
+            </td>
+            <td>
+              <code>0 | 1 | 2</code>
+            </td>
+            <td>— (required)</td>
+            <td>
+              MSPA service-provider mode, same tri-state: <code>0</code> not applicable,{' '}
+              <code>1</code> yes, <code>2</code> no.
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <CodeBlock
+        lang="ts"
+        filename="gpp example"
+        code={`compliance: {
+  gpp: {
+    enabled: true,
+    cmpId: 9999,
+    cmpVersion: 1,
+    mspaCoveredTransaction: true,
+    mspaOptOutOptionMode: 1,     // 0 = not applicable | 1 = yes | 2 = no
+    mspaServiceProviderMode: 2,
+  },
+}`}
+      />
+      <ul>
+        <li>
+          A GPP string is only produced for a consent write when the profile contains cookies
+          tagged <code>cpraCategory: &apos;sale&apos;</code> or <code>&apos;sharing&apos;</code>;
+          otherwise there is nothing to encode.
+        </li>
+        <li>
+          Install the optional <code>@iabgpp/cmpapi</code> peer dependency for spec-correct binary
+          encoding. Without it Consenti uses a simplified, non-spec string.
+        </li>
+        <li>
+          Like TCF, GPP stays disabled until a dashboard admin confirms the registration. See the{' '}
+          <a href="/docs/compliance/tcf-and-gpp-registration/">TCF &amp; GPP Registration Guide</a>.
+        </li>
+      </ul>
 
       {/* ── ageGate ──────────────────────────────────────────────────────── */}
       <h2>Age gate (per-profile, not a createConsenti() option)</h2>
@@ -1936,7 +2225,7 @@ handleCache: async (paths, _version, isPurge) => {
       </p>
 
       {/* ── dataRetention ────────────────────────────────────────────────── */}
-      <h2>dataRetention</h2>
+      <h2 id="dataRetention">dataRetention</h2>
       <p>
         Automatic GDPR data minimisation. When configured, Consenti runs a nightly background job
         that hard-deletes consent records older than <code>purgeAfterDays</code>.
@@ -2334,7 +2623,7 @@ branding: {
       </Callout>
 
       {/* ── dataSigningHash ────────────────────────────────────────────── */}
-      <h2>compliance.dataSigningHash</h2>
+      <h2 id="dataSigningHash">compliance.dataSigningHash</h2>
       <p>
         One secret, four jobs — all server-side, HMAC-SHA256 via <code>node:crypto</code>{' '}
         <code>createHmac</code>: signs every consent record at create/update time (hex-encoded
@@ -2374,6 +2663,23 @@ branding: {
               <code>undefined</code>
             </td>
             <td>Signing/salting key. Auto-generated in memory (changes on restart) if omitted.</td>
+          </tr>
+          <tr>
+            <td>
+              <code>parentalConsentTokenTtlDays</code>
+            </td>
+            <td>
+              <code>number</code>
+            </td>
+            <td>
+              <code>7</code>
+            </td>
+            <td>
+              Days a parental-consent request/resolve token (from{' '}
+              <code>POST /consent/:visitorId/parental-consent-request</code>) stays valid. The
+              tokens are signed with <code>dataSigningHash</code>, so with the auto-generated key a
+              restart invalidates them regardless of this value.
+            </td>
           </tr>
         </tbody>
       </table>

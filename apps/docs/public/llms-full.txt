@@ -646,6 +646,42 @@ The script only renames: no rows are read, copied or deleted; it is safe to re-r
 
 ---
 
+## Backend API — Server Configuration Reference
+
+Every option of `createConsenti({...})`. All are optional except where a nested key says required. Code config wins over environment variables.
+
+| Option | Type / default | Notes |
+|---|---|---|
+| `basePath` | `string`, `'/consenti'` | URL prefix for every route (`CONSENTI_BASE_PATH`) |
+| `dashboard` | `boolean \| { enabled?, path? }`, `true` | Serve the admin SPA at `basePath`, or at a custom sub-path |
+| `storage` | `StorageConfig`, `json` driver | See Storage Drivers. `path` is always required; `poolMax` default 5 |
+| `auth` | `AuthConfig`, `mode: 'local'` | `mode` `'local' \| 'jwt' \| 'oidc' \| 'saml' \| 'custom'`; `masterSecret`, `adminEmail`, `adminPassword`, `oidc`, `saml`, `validateUser` |
+| `rateLimit` | `{ enabled?, windowMs?, maxRequests? }`, 60 requests per 60 000 ms per IP | `enabled: false` turns it off |
+| `maxBodySize` | `number`, `1048576` | Request body limit in bytes |
+| `trustedProxies` | `string[]`, `[]` | IPs / CIDRs of reverse proxies, whose `X-Forwarded-For` is trusted |
+| `multiTenant` | `{ enabled: boolean }`, off | Scopes all data per tenant (`X-Tenant-ID`) |
+| `branding` | `{ appName?, appLogoPath?, hidePoweredBy? }` | Dashboard name, logo (file path or URL), hide the "Powered by Consenti" badge |
+| `s3Api` | `{ enabled, region, bucketName, accessKeyId, secretAccessKey, sessionToken? }` | Also writes profile locale JSON to S3 |
+| `handleCache` | `(paths: string[], profileId: string, isPurge: boolean) => void` | Called after profile create/update/activate/deactivate/delete: `paths` are the files written or removed, `profileId` the profile that triggered it, `isPurge` true when files were removed |
+| `plugins` | `ConsentiServerPlugin[]`, `[]` | Lifecycle hooks |
+| `compliance` | `ComplianceConfig` | Below |
+
+`compliance`:
+
+| Key | Type / default | Notes |
+|---|---|---|
+| `type` | `'auto' \| ComplianceGroupId`, `'auto'` | `'auto'` geo-resolves per visitor; a group id applies one group to everyone |
+| `geoDataProvider` | `'default' \| 'hosted-geoip-lite' \| 'geoip' \| 'maxmind' \| CountryResolverFn`, `'default'` | A custom function gets `{ ip, timezone, language, languages, locale }` and returns `{ country, region, locale, complianceGroup? }` |
+| `complianceMap` | `'default' \| url \| ComplianceMapData`, `'default'` | Country-to-group map. A supplied map replaces the embedded one; `override: false` inside it merges over it |
+| `gpc` | `boolean \| 'strict'`, on | Server-side GPC enforcement on consent writes (denies CPRA sale/sharing cookies, or cookies with `listenGpc` under other regulations; skipped for DPDPA). `false` = off. `'strict'` currently behaves like `true`. Banner behaviour is the per-profile `gpcMode` |
+| `tcf` | `{ enabled, cmpId, cmpVersion, publisherCC? }` | `publisherCC` (ISO 3166-1 alpha-2) is needed for spec-correct TC strings. Stays disabled until a dashboard admin confirms the registration |
+| `gpp` | `{ enabled, cmpId, cmpVersion, mspaCoveredTransaction, mspaOptOutOptionMode, mspaServiceProviderMode }` | US National section only. `mspaCoveredTransaction` is a boolean, the two modes are `0` not applicable / `1` yes / `2` no; all required, no defaults. Needs the optional `@iabgpp/cmpapi` for spec-correct encoding |
+| `dataSigningHash` | `string`, auto-generated in memory | Signs consent records, ownership cookies, parental-consent tokens; salts hashed IPs. Set it for production (`CONSENTI_DATA_SIGNING_HASH`) |
+| `parentalConsentTokenTtlDays` | `number`, `7` | Validity of parental-consent request/resolve tokens |
+| `dataRetention` | `{ purgeAfterDays }`, keep forever | Nightly hard-delete of consent records older than N days. Audit logs are never purged |
+
+---
+
 ## Backend API — Auth Modes
 
 ### Local (username + password)

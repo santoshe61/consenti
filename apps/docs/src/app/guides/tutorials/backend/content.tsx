@@ -216,7 +216,7 @@ compliance: {
       <CodeBlock
         lang="ts"
         filename="handleCache example"
-        code={`handleCache: (paths, version, isPurge) => {
+        code={`handleCache: (paths, profileId, isPurge) => {
   if (isPurge) {
     for (const p of paths) cdnClient.purge(p)
   } else {
