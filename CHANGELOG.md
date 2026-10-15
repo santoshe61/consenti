@@ -93,6 +93,13 @@ admin who made them, and compliance-group / locale names are validated as safe d
   only writes its version files, like `activate()` already did.
 - `@consenti/api`: the worker now refuses to touch the file system for an unsafe compliance-group or
   locale name, even if request validation were bypassed.
+- Repo / install on Windows: root `npm run build` now goes through Turborepo, so the shared `types` and
+  `utils` packages are built before `ui`/`api` (a fresh clone used to fail with `Could not resolve
+  "@consenti/utils"`); `package-lock.json` was regenerated and is now complete for every OS/CPU (it was
+  out of sync — `npm ci` failed with `Missing: postcss@8.5.30 from lock file` — and only recorded macOS
+  native packages such as `@rollup/rollup-darwin-arm64`); the docs `dev`/`build` scripts no longer use the
+  Unix-only `NEXT_IGNORE_INCORRECT_LOCKFILE=1` prefix; new `npm run check:lockfile` verifies the lockfile
+  against Windows, Linux and macOS using the pinned npm.
 - `@consenti/api`: **Windows** — activating a profile no longer fails with `EPERM` when the
   compliance-group junction already exists; the existing junction is removed just before the swap (the
   previous version's own directory is untouched). The swap stays a single atomic `rename()` on

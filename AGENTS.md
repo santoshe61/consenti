@@ -121,6 +121,15 @@ npx turbo dev
 
 # Build (production)
 npx turbo build
+# Build just the publishable packages (and the shared packages they import, in order)
+npm run build            # = turbo build --filter=@consenti/ui... --filter=@consenti/api...
+
+# Lockfile — must install on Windows, Linux and macOS (checked with the pinned npm)
+npm run check:lockfile
+# If it fails (usually a lockfile written on one OS, or edited package.json without re-locking):
+#   delete package-lock.json and node_modules, then run `npm install --package-lock-only` TWICE
+#   (the second pass settles hoisting) and re-run the check. Don't regenerate it on a shared
+#   volume that another OS is also using.
 
 # Type check
 npx turbo typecheck
