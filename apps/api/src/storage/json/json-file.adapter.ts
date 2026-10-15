@@ -1,5 +1,6 @@
 import { readFile, writeFile, rename, mkdir } from 'node:fs/promises'
 import { randomUUID } from 'node:crypto'
+import { dirname } from 'node:path'
 import { randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
 import type {
   StorageAdapter,
@@ -140,7 +141,7 @@ export class JsonFileAdapter implements StorageAdapter {
   private scheduleWrite(): void {
     this.writeQueue = this.writeQueue
       .then(async () => {
-        await mkdir(this.filePath.replace(/\/[^/]+$/, ''), { recursive: true })
+        await mkdir(dirname(this.filePath), { recursive: true })
         const tmp = `${this.filePath}.tmp`
         await writeFile(tmp, JSON.stringify(this.db), 'utf8')
         await rename(tmp, this.filePath)

@@ -178,7 +178,17 @@ export async function activateComplianceGroup(msg: WorkerMessage): Promise<void>
 
   const tmpLinkPath = `${linkPath}.new-${randomUUID().slice(0, 8)}`
   symlinkSync(srcDir, tmpLinkPath, 'junction')
-  renameSync(tmpLinkPath, linkPath)
+  try {
+    // Windows refuses to rename over an existing junction (EPERM), unlike POSIX where rename
+    // atomically replaces a symlink — so there it's remove-then-rename, leaving a brief gap.
+    if (process.platform === 'win32') {
+      try { unlinkSync(linkPath) } catch (err) { if ((err as NodeJS.ErrnoException).code !== 'ENOENT') throw err }
+    }
+    renameSync(tmpLinkPath, linkPath)
+  } catch (err) {
+    try { unlinkSync(tmpLinkPath) } catch { /* ok */ }
+    throw err
+  }
 
   // S3 has no symlink equivalent — a single pointer object plays the same role. Readers
   // (our own route, or an external CDN/edge function) resolve this, then fetch the versioned
