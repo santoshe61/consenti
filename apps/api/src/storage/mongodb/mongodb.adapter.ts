@@ -1,6 +1,6 @@
 import type { MongoClient, Db } from 'mongodb'
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
-import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, ALL_INDEXES } from '../seed-data'
+import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, ALL_INDEXES, LEGACY_PROBE_NAMES, prefixed, legacyInstallError } from '../seed-data'
 import { buildProfileSummaries, tallyOptIn } from '../derived-queries'
 import type {
   StorageAdapter, StorageConfig, Profile, StoredProfileJson,
@@ -234,13 +234,17 @@ export class MongoDBAdapter implements StorageAdapter {
   private col(name: string): DocCollection {
     // MongoDB's Collection generics assume ObjectId for _id; we use string UUIDs throughout.
     // The cast via unknown is the TypeScript-sanctioned way to bridge structurally incompatible types.
-    return this.db.collection(name) as unknown as DocCollection
+    // Every collection carries the `consenti_` prefix (see seed-data.ts's TABLE_PREFIX): callers keep
+    // using the plain names, this is the only place they are turned into real collection names.
+    return this.db.collection(prefixed(name)) as unknown as DocCollection
   }
 
   async connect(): Promise<void> {
     const { MongoClient: MC } = (await import('mongodb')) as { MongoClient: typeof MongoClient }
     const uri = this.config.uri ?? 'mongodb://localhost:27017'
-    this.client = new MC(uri)
+    // Bounded by default (5 — the driver's own default is 100, which exhausts the connection cap on
+    // shared hosts and small Atlas tiers; raise `poolMax` for a dedicated server).
+    this.client = new MC(uri, { maxPoolSize: this.config.poolMax ?? 5 })
     await this.client.connect()
     this.db = this.client.db(this.config.database ?? 'consenti')
     await this.migrate()
@@ -251,8 +255,21 @@ export class MongoDBAdapter implements StorageAdapter {
   }
 
   async migrate(): Promise<void> {
+    await this.refuseLegacyCollections()
     await this.createIndexes()
     await this.seed()
+  }
+
+  /** Collections from before the `consenti_` prefix exist and no prefixed set does: stop, don't start empty. */
+  private async refuseLegacyCollections(): Promise<void> {
+    let names: Set<string>
+    try {
+      names = new Set((await this.db.listCollections({}, { nameOnly: true }).toArray()).map(c => c.name))
+    } catch {
+      return // a role without listCollections can't be checked — the guard is a safety net, not a gate
+    }
+    const legacy = LEGACY_PROBE_NAMES.filter(n => n !== 'schema_version') // Mongo has no schema_version collection
+    if (!names.has(prefixed('tenants')) && legacy.every(n => names.has(n))) throw legacyInstallError('collections')
   }
 
   private async createIndexes(): Promise<void> {
@@ -267,25 +284,25 @@ export class MongoDBAdapter implements StorageAdapter {
   }
 
   private async seed(): Promise<void> {
-    const { id, name, slug } = SEED_TENANT
-    if (!(await this.col('tenants').findOne({ _id: id }))) {
-      await this.col('tenants').insertOne({ _id: id, name, slug })
+    // Several instances starting at once race on the same upserts; the loser gets E11000 for a document
+    // that now exists, which is exactly the state seeding wants — so that one error is not a failure.
+    const upsert = async (collection: string, filter: object, doc: object): Promise<void> => {
+      try {
+        await this.col(collection).updateOne(filter, { $setOnInsert: doc }, { upsert: true })
+      } catch (err) {
+        if ((err as { code?: number }).code !== 11000) throw err
+      }
     }
+    const { id, name, slug } = SEED_TENANT
+    await upsert('tenants', { _id: id }, { _id: id, name, slug })
     for (const p of SEED_PERMISSIONS) {
-      const doc = { _id: p.id, name: p.name, description: p.description }
-      await this.col('permissions').updateOne({ _id: p.id }, { $setOnInsert: doc }, { upsert: true })
+      await upsert('permissions', { _id: p.id }, { _id: p.id, name: p.name, description: p.description })
     }
     for (const r of SEED_ROLES) {
-      const doc = { _id: r.id, tenant_id: r.tenantId, name: r.name, description: r.description }
-      await this.col('roles').updateOne({ _id: r.id }, { $setOnInsert: doc }, { upsert: true })
+      await upsert('roles', { _id: r.id }, { _id: r.id, tenant_id: r.tenantId, name: r.name, description: r.description })
     }
-    const rp = this.col('role_permissions')
     for (const { roleId, permissionId } of SEED_ROLE_PERMISSIONS) {
-      await rp.updateOne(
-        { role_id: roleId, permission_id: permissionId },
-        { $setOnInsert: { role_id: roleId, permission_id: permissionId } },
-        { upsert: true },
-      )
+      await upsert('role_permissions', { role_id: roleId, permission_id: permissionId }, { role_id: roleId, permission_id: permissionId })
     }
   }
 
@@ -789,7 +806,7 @@ export class MongoDBAdapter implements StorageAdapter {
   async getCountries(tenantId: string): Promise<CountryStat[]> {
     const pipeline = [
       { $match: { tenant_id: tenantId } },
-      { $lookup: { from: 'visitors', localField: 'visitor_id', foreignField: 'visitor_id', as: 'v' } },
+      { $lookup: { from: prefixed('visitors'), localField: 'visitor_id', foreignField: 'visitor_id', as: 'v' } },
       { $unwind: '$v' },
       { $match: { 'v.country': { $ne: null } } },
       { $group: { _id: '$v.country', count: { $sum: 1 } } },

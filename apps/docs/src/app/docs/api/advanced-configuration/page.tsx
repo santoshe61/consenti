@@ -48,7 +48,7 @@ const consenti = createConsenti({
   // Optional but recommended
   storage: {
     driver: 'json',            // not recommended for production
-    path: './consenti-data',   // directory path — Consenti creates db/, profiles/, logs/ inside
+    path: './consenti-data',   // always required, even for MySQL/Mongo/Postgres — profiles are stored here
   },
   auth: {
     mode: 'local',
@@ -123,7 +123,7 @@ const consenti = createConsenti({
         engine; the remaining fields depend on which driver you choose.
       </p>
 
-      <h3>storage.path is a directory</h3>
+      <h3>storage.path is a directory — and always required</h3>
       <p>
         <code>storage.path</code> is a <strong>directory path</strong>, not a file path. Consenti
         creates the following layout inside it automatically:
@@ -144,6 +144,17 @@ const consenti = createConsenti({
         2/                 ← version 2 on next edit
       \${complianceGroup}/ → symlink to the active profile's version dir (hot-serve path)`}
       />
+      <Callout type="warning">
+        <strong>
+          <code>storage.path</code> is required for every driver — including PostgreSQL, MySQL and
+          MongoDB.
+        </strong>{' '}
+        The database holds consent records, users and templates, but profiles are always written to
+        disk under <code>{`\${storage.path}/profiles/`}</code> so the public routes can serve them
+        with no database access. With a server driver <code>db/</code> stays empty, but{' '}
+        <code>profiles/</code> is still used: keep the directory on persistent, writable storage,
+        and if you run more than one instance, point them all at the same shared volume.
+      </Callout>
       <Callout type="info">
         Backward compat: if <code>storage.path</code> has a file extension (<code>.json</code>,{' '}
         <code>.db</code>), the parent directory is used and a deprecation warning is logged.
@@ -236,14 +247,18 @@ npm install node-sqlite3-wasm`}
         lang="ts"
         filename="SQLite config examples"
         code={`// Node 22.5+ — built-in, no install needed
-storage: { driver: 'node:sqlite', path: './consenti.db' }
+storage: { driver: 'node:sqlite', path: './consenti-data' }
 
 // Node 20+ with native addon
-storage: { driver: 'better-sqlite3', path: './consenti.db' }
+storage: { driver: 'better-sqlite3', path: './consenti-data' }
 
 // Node 20+ WASM fallback
-storage: { driver: 'node-sqlite3-wasm', path: './consenti.db' }`}
+storage: { driver: 'node-sqlite3-wasm', path: './consenti-data' }`}
       />
+      <p>
+        <code>path</code> is a directory: the database file ends up at{' '}
+        <code>./consenti-data/db/consenti.db</code>.
+      </p>
 
       <h3>Server drivers</h3>
       <table>
@@ -263,7 +278,7 @@ storage: { driver: 'node-sqlite3-wasm', path: './consenti.db' }`}
               <code>uri</code>
             </td>
             <td>
-              PostgreSQL 13+. Connection pool via <code>pool</code>.
+              PostgreSQL 13+. Pool size via <code>poolMax</code>.
             </td>
           </tr>
           <tr>
@@ -274,7 +289,7 @@ storage: { driver: 'node-sqlite3-wasm', path: './consenti.db' }`}
               <code>uri</code>
             </td>
             <td>
-              MySQL 8+ / MariaDB 10.6+. Connection pool via <code>pool</code>.
+              MySQL 8+ / MariaDB 10.6+. Pool size via <code>poolMax</code>.
             </td>
           </tr>
           <tr>
@@ -302,14 +317,70 @@ npm install mongodb    # MongoDB`}
         lang="ts"
         filename="Server driver config examples"
         code={`// PostgreSQL
-storage: { driver: 'postgresql', uri: process.env.CONSENTI_DATABASE_URL }
+storage: { driver: 'postgresql', path: './consenti-data', uri: process.env.CONSENTI_DB_URI }
 
 // MySQL
-storage: { driver: 'mysql', uri: process.env.CONSENTI_DATABASE_URL }
+storage: { driver: 'mysql', path: './consenti-data', uri: process.env.CONSENTI_DB_URI }
 
 // MongoDB
-storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 'consenti' }`}
+storage: { driver: 'mongodb', path: './consenti-data', uri: process.env.CONSENTI_DB_URI, database: 'consenti' }`}
       />
+      <Callout type="info">
+        <code>path</code> is in every example above on purpose — see{' '}
+        <a href="#storage">storage.path is a directory</a>.
+      </Callout>
+
+      <h3>Environment variables per driver</h3>
+      <p>
+        Every storage field can be set from the environment (code config wins over env vars).{' '}
+        <code>CONSENTI_DB_PATH</code> is always set, whichever driver you use:
+      </p>
+      <CodeBlock
+        lang="bash"
+        filename=".env — SQLite"
+        code={`CONSENTI_DB_DRIVER=node:sqlite
+CONSENTI_DB_PATH=./consenti-data`}
+      />
+      <CodeBlock
+        lang="bash"
+        filename=".env — PostgreSQL"
+        code={`CONSENTI_DB_DRIVER=postgresql
+CONSENTI_DB_PATH=./consenti-data      # still required: profiles are stored here
+CONSENTI_DB_URI=postgresql://consenti:your-password@localhost:5432/consenti
+
+# …or individual fields instead of CONSENTI_DB_URI:
+# CONSENTI_DB_HOST=localhost
+# CONSENTI_DB_PORT=5432
+# CONSENTI_DB_USER=consenti
+# CONSENTI_DB_PASSWORD=your-password
+# CONSENTI_DB_DATABASE=consenti`}
+      />
+      <CodeBlock
+        lang="bash"
+        filename=".env — MySQL / MariaDB"
+        code={`CONSENTI_DB_DRIVER=mysql
+CONSENTI_DB_PATH=./consenti-data      # still required: profiles are stored here
+CONSENTI_DB_HOST=localhost
+CONSENTI_DB_PORT=3306
+CONSENTI_DB_USER=consenti
+CONSENTI_DB_PASSWORD=your-password
+CONSENTI_DB_DATABASE=consenti
+
+# …or one connection string instead of the five lines above:
+# CONSENTI_DB_URI=mysql://consenti:your-password@localhost:3306/consenti`}
+      />
+      <CodeBlock
+        lang="bash"
+        filename=".env — MongoDB"
+        code={`CONSENTI_DB_DRIVER=mongodb
+CONSENTI_DB_PATH=./consenti-data      # still required: profiles are stored here
+CONSENTI_DB_URI=mongodb://consenti:your-password@localhost:27017/?authSource=admin
+CONSENTI_DB_DATABASE=consenti         # default: consenti`}
+      />
+      <p>
+        When <code>CONSENTI_DB_URI</code> is set, the MySQL/PostgreSQL host, port, user, password and
+        database fields are ignored.
+      </p>
 
       <h3>storage field reference</h3>
       <table>
@@ -348,10 +419,12 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
               <code>'./consenti-data'</code>
             </td>
             <td>
-              <strong>Directory path</strong> for local drivers (<code>json</code>, SQLite).
-              Consenti creates <code>db/</code>, <code>profiles/</code>, and <code>logs/</code>{' '}
-              subdirectories inside. Relative paths resolve from <code>process.cwd()</code>. Must
-              not be inside the package installation directory.
+              <strong>Directory path — required for every driver</strong>, including PostgreSQL,
+              MySQL and MongoDB (profiles are always stored here). Consenti creates{' '}
+              <code>db/</code>, <code>profiles/</code>, and <code>logs/</code> subdirectories
+              inside; <code>db/</code> holds the database file for <code>json</code> and SQLite only.
+              Relative paths resolve from <code>process.cwd()</code>. Must not be inside the package
+              installation directory.
             </td>
           </tr>
           <tr>
@@ -362,7 +435,11 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
               <code>string</code>
             </td>
             <td>—</td>
-            <td>Server drivers only. Full connection string including credentials.</td>
+            <td>
+              Server drivers only (env: <code>CONSENTI_DB_URI</code>). Full connection string
+              including credentials; takes precedence over <code>host</code>/<code>port</code>/
+              <code>user</code>/<code>password</code>.
+            </td>
           </tr>
           <tr>
             <td>
@@ -412,8 +489,179 @@ storage: { driver: 'mongodb', uri: process.env.CONSENTI_DATABASE_URL, database: 
               Database name for PostgreSQL / MySQL when not in <code>uri</code>.
             </td>
           </tr>
+          <tr>
+            <td>
+              <code>poolMax</code>
+            </td>
+            <td>
+              <code>number</code>
+            </td>
+            <td>
+              <code>5</code>
+            </td>
+            <td>
+              PostgreSQL, MySQL and MongoDB. Maximum connections this process opens. The default is
+              deliberately low: shared hosts often cap connections per database user (5–25) across
+              every app on the account. Raise it on a dedicated server; each app instance has its own
+              pool.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>statementTimeoutMs</code>
+            </td>
+            <td>
+              <code>number</code>
+            </td>
+            <td>—</td>
+            <td>
+              PostgreSQL / MySQL. Abort a query after this many milliseconds. Unset by default — a
+              forced default could break a legitimate long-running export.
+            </td>
+          </tr>
+          <tr>
+            <td>
+              <code>idleInTransactionTimeoutMs</code>
+            </td>
+            <td>
+              <code>number</code>
+            </td>
+            <td>—</td>
+            <td>
+              PostgreSQL only. Terminate a connection left idle inside an open transaction after
+              this many milliseconds.
+            </td>
+          </tr>
         </tbody>
       </table>
+
+      <h3 id="table-names">Table and collection names</h3>
+      <p>
+        With <strong>PostgreSQL, MySQL/MariaDB and MongoDB</strong> every table (collection) is named
+        with a fixed <code>consenti_</code> prefix — <code>consenti_tenants</code>,{' '}
+        <code>consenti_profiles</code>, <code>consenti_consent_records</code>,{' '}
+        <code>consenti_users</code>, <code>consenti_schema_version</code>, … (17 in all) — so Consenti
+        can never collide with, or silently adopt, a table of the same name belonging to another app
+        in the same database. The prefix is not configurable. SQLite and the JSON store keep plain
+        names: their data lives in a file Consenti owns.
+      </p>
+      <Callout type="warning">
+        If the database still holds the old <strong>unprefixed</strong> tables from a version before
+        0.6.0 and no prefixed ones, Consenti refuses to start and tells you to run the migration
+        script, rather than creating an empty set next to your data. See{' '}
+        <a href="#upgrading-0-6-0">Upgrading from before 0.6.0</a>.
+      </Callout>
+
+      <h3 id="shared-hosting">Shared hosting and restricted database users</h3>
+      <p>
+        Consenti works against a database you can&apos;t administer — the cPanel / Plesk /
+        managed-database case, where the database and its user are created in a control panel and
+        the user can only touch that one database. It never runs <code>CREATE DATABASE</code>,{' '}
+        <code>USE</code>, <code>CREATE EXTENSION</code>, <code>GRANT</code>, triggers or stored
+        procedures: it connects to the database named in your config, creates its{' '}
+        <code>consenti_*</code> tables on first start and upgrades them in place later.
+      </p>
+      <table>
+        <thead>
+          <tr>
+            <th>Driver</th>
+            <th>What the database user needs</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>MySQL / MariaDB</td>
+            <td>
+              <code>SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES</code> on that
+              database (<code>ALL PRIVILEGES</code>, the shared-host default, covers it)
+            </td>
+          </tr>
+          <tr>
+            <td>PostgreSQL</td>
+            <td>
+              <code>CREATE</code> on the schema it connects to (normally <code>public</code> — the
+              database owner has it) plus <code>SELECT, INSERT, UPDATE, DELETE</code>
+            </td>
+          </tr>
+          <tr>
+            <td>MongoDB</td>
+            <td>
+              the <code>readWrite</code> role on that database
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>
+          <strong>Use a dedicated database.</strong> The prefix keeps Consenti&apos;s tables from
+          clashing with other apps&apos; tables, but one database per app is still the clean setup.
+        </li>
+        <li>
+          <strong>
+            Set <code>storage.path</code> anyway
+          </strong>{' '}
+          — profiles are files. It must be a writable directory that survives restarts.
+        </li>
+        <li>
+          <strong>Connections.</strong> The pool defaults to 5 per process. If you see{' '}
+          <em>too many connections</em>, lower <code>storage.poolMax</code>; on a dedicated server,
+          raise it.
+        </li>
+        <li>
+          <strong>Names are used as given.</strong> cPanel prefixes names (<code>cpuser_consenti</code>
+          , <code>cpuser_app</code>) — use the full string. In a connection string, URL-encode
+          special characters in the password (<code>@</code> → <code>%40</code>, <code>/</code> →{' '}
+          <code>%2F</code>, <code>#</code> → <code>%23</code>), or use the separate{' '}
+          <code>host</code> / <code>user</code> / <code>password</code> / <code>database</code>{' '}
+          fields.
+        </li>
+        <li>
+          <strong>Versions.</strong> MySQL 8+ / MariaDB 10.6+ (the dashboard statistics use{' '}
+          <code>JSON_TABLE</code>), PostgreSQL 13+, MongoDB 6+.
+        </li>
+        <li>
+          <strong>Several instances</strong> may start at once on an empty database: the first start
+          is serialised with a named lock (MySQL/MariaDB) or advisory lock (PostgreSQL), neither of
+          which needs a special privilege.
+        </li>
+        <li>
+          <strong>A first start that dies halfway</strong> is safe: PostgreSQL rolls back;
+          MySQL/MariaDB cannot roll back DDL, so every statement is re-runnable and the version table
+          is written last — fix the cause and start again. A missing privilege is named in the error.
+        </li>
+      </ul>
+
+      <h3 id="upgrading-0-6-0">Upgrading from before 0.6.0</h3>
+      <p>
+        <strong>PostgreSQL, MySQL/MariaDB and MongoDB only</strong> (SQLite and JSON: nothing to do).
+        0.6.0 renamed the tables to <code>consenti_*</code>. Rename your existing ones once, before
+        starting the new version:
+      </p>
+      <CodeBlock
+        lang="bash"
+        filename="One-off rename"
+        code={`# 1. Back up the database and stop the app.
+# 2. Dry run — prints what would be renamed, changes nothing.
+#    Uses the same CONSENTI_DB_* variables as the app
+#    (or --driver, --uri, --host/--port/--user/--password, --database).
+node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs
+
+# 3. Rename.
+node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs --apply
+
+# 4. Start the app — it finishes any remaining schema upgrade itself.`}
+      />
+      <p>
+        The script only renames: no rows are read, copied or deleted, so it takes moments whatever
+        the database size, and it is safe to re-run. MySQL/MariaDB renames every table in one atomic
+        statement, PostgreSQL in one transaction, MongoDB collection by collection (each keeps its
+        data and indexes). It refuses to overwrite a <code>consenti_*</code> table that already
+        exists. It needs more than the app does: <code>ALTER</code> + <code>DROP</code> on the old
+        tables and <code>CREATE</code> + <code>INSERT</code> on the new ones (MySQL;{' '}
+        <code>ALL PRIVILEGES</code> covers it), table ownership (PostgreSQL) or the{' '}
+        <code>renameCollection</code> action (MongoDB; <code>readWrite</code> includes it). Anything
+        else that reads these tables directly — reports, BI tools — must switch to the new names.
+      </p>
 
       {/* ── auth ─────────────────────────────────────────────────────────── */}
       <h2>auth</h2>

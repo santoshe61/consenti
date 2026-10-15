@@ -65,7 +65,7 @@ npm install mongodb
 
 ### Schema upgrades
 
-SQL drivers (SQLite, PostgreSQL, MySQL/MariaDB) track a schema version (`schema_version` table, or `PRAGMA user_version` on SQLite). A fresh database is created at the current version; an older one is upgraded automatically on the next start — no manual step. MongoDB and the JSON file store are schemaless, so older data simply lacks the newer optional fields.
+SQL drivers (SQLite, PostgreSQL, MySQL/MariaDB) track a schema version (the `consenti_schema_version` table, or `PRAGMA user_version` on SQLite). A fresh database is created at the current version; an older one is upgraded automatically on the next start — no manual step, except the one-off rename to `consenti_*` table names when upgrading a PostgreSQL / MySQL / MongoDB install from before 0.6.0 (see [Upgrading from before 0.6.0](#upgrading-from-before-060)). MongoDB and the JSON file store are schemaless, so older data simply lacks the newer optional fields.
 
 | Version | Change |
 |---|---|
@@ -145,14 +145,16 @@ const consenti = createConsenti({
   // ── Storage ─────────────────────────────────────────────────────────────────
   storage: {
     driver: 'json',              // 'json' | 'node:sqlite' | 'node-sqlite3-wasm' | 'better-sqlite3' | 'sqlite' | 'postgresql' | 'mysql' | 'mongodb'
-    path: './consenti-data',     // base directory — Consenti creates db/, profiles/, logs/ subdirectories automatically
+    path: './consenti-data',     // ALWAYS required, for every driver — base directory for profile files; also holds db/ for json/SQLite
     
     // Optional
     uri: 'mongodb://localhost:27017/consenti', // db connection string/uri, only for (driver: 'postgresql' | 'mysql' | 'mongodb')
     database: 'consenti',        // database name when not in above uri
 
-    // Postgres/MySQL only — connection pool tuning
-    poolMax: 10,                       // max pool connections (default: 10, both drivers' own default)
+    // PostgreSQL / MySQL / MongoDB — connection pool
+    poolMax: 5,                        // max connections (default: 5 — shared hosts often cap connections per
+                                        // database user; raise it on a dedicated server)
+    // PostgreSQL / MySQL only
     statementTimeoutMs: 30_000,        // abort a query after N ms — unset by default; a forced
                                         // default could break a legitimate long-running export
     idleInTransactionTimeoutMs: 30_000, // Postgres only: kill a connection idle inside an open transaction after N ms
@@ -471,7 +473,7 @@ Gated by `tenant_settings.setup_completed` (per-tenant in multi-tenant mode) —
 
 ## Storage Directory Structure
 
-`storage.path` is a **directory path**. Consenti creates the following layout automatically:
+`storage.path` is a **directory path**, and it is **required for every driver** — including PostgreSQL, MySQL and MongoDB. The database holds consent records, users, templates and so on, but compiled profiles are always written to disk under `${storage.path}/profiles/` so the public `GET` routes can serve them with zero DB access. Consenti creates the following layout automatically:
 
 ```
 ${storage.path}/
@@ -491,6 +493,8 @@ ${storage.path}/
   logs/                    # reserved for future structured logging
 ```
 
+With `postgresql` / `mysql` / `mongodb`, `db/` stays empty (the data lives in your database), but `profiles/` is still used — so keep `storage.path` set and on **persistent, writable** storage. Running more than one instance? Point every instance's `storage.path` at the same shared volume, otherwise a profile saved on one instance won't be served by the others.
+
 **Key rules:**
 - Every profile save writes to a new immutable version directory under `${profileId}/${version}/`
 - `${complianceGroup}/` only exists when a profile is **active** for that group — it's a directory symlink (junction on Windows), not a copy
@@ -500,6 +504,48 @@ ${storage.path}/
 - Windows: symlinks are created as directory **junctions** — no admin rights or Developer Mode required, but the volume must be NTFS and `storage.path` must stay on the same drive
 
 **Backward compat:** If `storage.path` has a file extension (`.json`, `.db`), the parent directory is used and a deprecation warning is logged.
+
+### Table and collection names
+
+With **PostgreSQL, MySQL/MariaDB and MongoDB** every table (collection) is named with a fixed `consenti_` prefix — `consenti_tenants`, `consenti_profiles`, `consenti_consent_records`, `consenti_users`, `consenti_schema_version`, … (17 in all) — so Consenti can never collide with, or silently adopt, a table of the same name from another app in the same database. The prefix is not configurable. SQLite and the JSON store keep plain names: their data lives in a file Consenti owns.
+
+If the database still holds the old **unprefixed** tables from a version before 0.6.0 and no prefixed ones, Consenti refuses to start and says so, instead of creating an empty set next to your data. See [Upgrading from before 0.6.0](#upgrading-from-before-060).
+
+### Shared hosting and restricted database users
+
+Consenti runs fine against a database you can't administer — the cPanel / Plesk / managed-database case where the database and its user are created in a control panel and the user can only touch that one database. It never runs `CREATE DATABASE`, `USE`, `CREATE EXTENSION`, `GRANT`, triggers or stored procedures: it connects to the database named in your config, creates its `consenti_*` tables on first start and upgrades them in place later.
+
+| Driver | What the database user needs |
+|---|---|
+| MySQL / MariaDB | `SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES` on that database (`ALL PRIVILEGES`, the shared-host default, covers it) |
+| PostgreSQL | `CREATE` on the schema it connects to (normally `public` — the database owner has it) plus `SELECT, INSERT, UPDATE, DELETE` |
+| MongoDB | the `readWrite` role on that database |
+
+Things to know:
+
+- **Use a dedicated database** (or at least don't share it with an app that also has `consenti_*` tables). The `consenti_` prefix keeps Consenti's tables from clashing with *other* apps' tables, but one database per app is still the clean setup.
+- **Set `storage.path` anyway** — profiles are files, see [Storage Directory Structure](#storage-directory-structure). It must be a writable directory that persists across restarts.
+- **Connections:** the pool defaults to 5 per process, because hosts commonly cap connections per database user at 5–25 (shared with everything else on the account). Lower it with `storage.poolMax` if you see `too many connections`, raise it on a dedicated server. Remember each app instance has its own pool.
+- **Names are used as given.** cPanel prefixes names (`cpuser_consenti`, `cpuser_app`) — use the full string. With a connection string (`CONSENTI_DB_URI`), URL-encode special characters in the password (`@` → `%40`, `/` → `%2F`, `#` → `%23`), or use the separate `host` / `user` / `password` / `database` fields instead.
+- **Versions:** MySQL 8+ / MariaDB 10.6+ (the dashboard statistics use `JSON_TABLE`, added in MariaDB 10.6 and MySQL 8.0.4), PostgreSQL 13+, MongoDB 6+.
+- **Several app instances** can start at once against an empty database: the first start is serialised with a named lock (MySQL/MariaDB) / advisory lock (PostgreSQL), neither needs a special privilege.
+- **A first start that dies halfway** (dropped connection, host limit) is safe on every driver: PostgreSQL rolls back; MySQL/MariaDB can't roll back DDL, so every statement is re-runnable and the version table is written last — fix the cause and start again. If the user lacks a privilege the error names the ones needed.
+
+### Upgrading from before 0.6.0
+
+Applies to **PostgreSQL, MySQL/MariaDB and MongoDB** only (SQLite and JSON: nothing to do). 0.6.0 renamed the tables to `consenti_*`; rename your existing ones once, before starting the new version:
+
+```bash
+# 1. Back up the database and stop the app.
+# 2. Dry run — prints what would be renamed, changes nothing.
+#    Uses the same CONSENTI_DB_* variables as the app (or --driver, --uri, --host/--port/--user/--password, --database).
+node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs
+# 3. Rename.
+node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs --apply
+# 4. Start the app — it finishes any remaining schema upgrade itself.
+```
+
+The script only renames — no rows are read, copied or deleted — so it takes moments whatever the database size, and it is safe to re-run. MySQL/MariaDB renames every table in one atomic statement, PostgreSQL in one transaction, MongoDB collection by collection (each keeps its data and indexes). It refuses to overwrite a `consenti_*` table that already exists. It needs `ALTER` + `DROP` on the old tables and `CREATE` + `INSERT` on the new ones (MySQL; `ALL PRIVILEGES` on the database covers it), table ownership (PostgreSQL) or the `renameCollection` action (MongoDB; `readWrite` includes it). Anything else that reads these tables directly — reports, BI tools — must switch to the new names.
 
 ---
 
@@ -1448,7 +1494,7 @@ All config fields can be set via environment variables. Code config takes preced
 | `CONSENTI_ADMIN_MASTER_SECRET`      | `auth.masterSecret`                 | random per restart               |
 | `CONSENTI_DATA_SIGNING_HASH`        | `compliance.dataSigningHash`        | random per restart               |
 | `CONSENTI_DB_DRIVER`                | `storage.driver`                   | `'json'`                         |
-| `CONSENTI_DB_PATH`                  | `storage.path`                     | `'./consenti-data'`              |
+| `CONSENTI_DB_PATH`                  | `storage.path` — **always needed, for every driver** (profiles live here) | `'./consenti-data'` |
 | `CONSENTI_DB_URI`                   | `storage.uri`                      | —                                |
 | `CONSENTI_DB_DATABASE`              | `storage.database`                 | —                                |
 | `CONSENTI_DB_HOST`                  | `storage.host`                     | —                                |
@@ -1458,6 +1504,69 @@ All config fields can be set via environment variables. Code config takes preced
 | `CONSENTI_RATE_LIMIT_WINDOW_MS`     | `rateLimit.windowMs`               | `60000`                          |
 | `CONSENTI_RATE_LIMIT_MAX_REQUESTS`  | `rateLimit.maxRequests`            | `60`                             |
 | `CONSENTI_MAX_BODY_SIZE`            | `maxBodySize`                      | `1048576` (1 MB)                 |
+
+### Storage `.env` examples
+
+`CONSENTI_DB_PATH` is set in **every** example below — profiles are always stored on disk, whichever database you pick. Install the matching driver package first (see [Database / Storage](#database--storage)).
+
+**JSON file** (development only — no install):
+
+```bash
+CONSENTI_DB_DRIVER=json
+CONSENTI_DB_PATH=./consenti-data
+```
+
+**SQLite** (`node:sqlite` needs Node 22.5+; or `better-sqlite3` / `node-sqlite3-wasm`):
+
+```bash
+CONSENTI_DB_DRIVER=node:sqlite
+CONSENTI_DB_PATH=./consenti-data          # holds db/consenti.db and profiles/
+```
+
+**PostgreSQL** (`npm install pg`) — either a connection string…
+
+```bash
+CONSENTI_DB_DRIVER=postgresql
+CONSENTI_DB_PATH=./consenti-data          # still required: profiles are stored here
+CONSENTI_DB_URI=postgresql://consenti:your-password@localhost:5432/consenti
+```
+
+…or individual fields (ignored when `CONSENTI_DB_URI` is set):
+
+```bash
+CONSENTI_DB_DRIVER=postgresql
+CONSENTI_DB_PATH=./consenti-data
+CONSENTI_DB_HOST=localhost
+CONSENTI_DB_PORT=5432
+CONSENTI_DB_USER=consenti
+CONSENTI_DB_PASSWORD=your-password
+CONSENTI_DB_DATABASE=consenti
+```
+
+**MySQL / MariaDB** (`npm install mysql2`):
+
+```bash
+CONSENTI_DB_DRIVER=mysql
+CONSENTI_DB_PATH=./consenti-data          # still required: profiles are stored here
+CONSENTI_DB_HOST=localhost
+CONSENTI_DB_PORT=3306
+CONSENTI_DB_USER=consenti
+CONSENTI_DB_PASSWORD=your-password
+CONSENTI_DB_DATABASE=consenti
+# or, instead of the five lines above:
+# CONSENTI_DB_URI=mysql://consenti:your-password@localhost:3306/consenti
+```
+
+**MongoDB** (`npm install mongodb`):
+
+```bash
+CONSENTI_DB_DRIVER=mongodb
+CONSENTI_DB_PATH=./consenti-data          # still required: profiles are stored here
+CONSENTI_DB_URI=mongodb://consenti:your-password@localhost:27017/?authSource=admin
+CONSENTI_DB_DATABASE=consenti             # database name (default: consenti)
+```
+
+The same settings in code: `storage: { driver: 'mysql', path: './consenti-data', host: process.env.DB_HOST, user: process.env.DB_USER, password: process.env.DB_PASSWORD, database: 'consenti' }`.
 
 ---
 

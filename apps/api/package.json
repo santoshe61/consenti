@@ -38,7 +38,8 @@
     }
   },
   "files": [
-    "dist"
+    "dist",
+    "scripts/migrate-to-consenti-prefix.mjs"
   ],
   "scripts": {
     "buildonly": "tsup",

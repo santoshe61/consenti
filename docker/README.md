@@ -49,8 +49,8 @@ reads them directly, no extra wiring needed. Common ones:
 | `CONSENTI_ADMIN_PASSWORD` | Bootstrap super-admin password (required, no default in compose) |
 | `CONSENTI_ADMIN_MASTER_SECRET` | JWT signing secret (required, no default in compose) |
 | `CONSENTI_DB_DRIVER` | `node:sqlite` (default in this image), `postgresql`, `mysql`, `mongodb`, `json` |
-| `CONSENTI_DB_PATH` | SQLite/JSON storage directory |
-| `CONSENTI_DB_HOST` / `CONSENTI_DB_URI` | Postgres/MySQL/MongoDB connection |
+| `CONSENTI_DB_PATH` | Storage directory — **always required, whatever the driver** (profiles are stored here; SQLite/JSON also keep their database here). Keep it on the mounted volume |
+| `CONSENTI_DB_HOST` / `CONSENTI_DB_USER` / `CONSENTI_DB_PASSWORD` / `CONSENTI_DB_DATABASE` or `CONSENTI_DB_URI` | Postgres/MySQL/MongoDB connection |
 | `CONSENTI_BASE_PATH` | URL prefix for all routes (default `/consenti`) |
 
 ## Why `node:sqlite` and not `better-sqlite3` by default

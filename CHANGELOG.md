@@ -33,6 +33,13 @@ fails`). Oracle MySQL parsed but ignored the inline constraint, and the JSON and
 one, so this also closes an adapter-parity gap. (5) Hardening so a deleted or edited profile never loses
 evidence: each consent now records the profile version it was given, profile actions are attributed to the
 admin who made them, and compliance-group / locale names are validated as safe directory and file names.
+(6) **PostgreSQL, MySQL/MariaDB and MongoDB tables/collections are now prefixed `consenti_`** (`consenti_users`,
+`consenti_profiles`, …) so Consenti can never collide with, or silently adopt, a generic `users`/`profiles`
+table that already exists in the database. **This one needs a manual step — rename the existing ones once
+with the script shipped in the package (see Migration).** The same release hardens first-start on shared
+hosting and restricted database users: connection pools default to 5, a first start that dies halfway is
+now recoverable on MySQL/MariaDB, several instances booting at once no longer race, and search in the
+dashboard (consents, visitors, audit log) works on PostgreSQL and MySQL/MariaDB again.
 
 ### Added
 
@@ -40,6 +47,10 @@ admin who made them, and compliance-group / locale names are validated as safe d
 - Standalone-mode `geoDataProvider` is called with the browser hints.
 
 #### `@consenti/api`
+- `scripts/migrate-to-consenti-prefix.mjs`, shipped in the package: renames the 17 unprefixed tables (or the
+  collections) of a pre-0.6.0 install to their `consenti_` names. Dry run by default, `--apply` to rename;
+  reads the same `CONSENTI_DB_*` variables as the app; renames only (no rows read, copied or deleted); safe
+  to re-run; refuses to overwrite an existing `consenti_*` table.
 - **Schema v2** (all SQL drivers; MongoDB/JSON simply gain an optional field): `consent_records` and
   `consent_history` get a nullable `profile_version`. The service stamps it on every create/update (after
   any plugin hook, never from the request body). With `profile_id` it pins the exact on-disk snapshot —
@@ -63,6 +74,20 @@ admin who made them, and compliance-group / locale names are validated as safe d
 - `findCountryEntry()` — country lookup that treats `GB` and `UK` as the same country.
 
 ### Changed
+- `@consenti/api`: **PostgreSQL, MySQL/MariaDB, MongoDB — every table / collection is now named with a
+  `consenti_` prefix** (`consenti_tenants`, `consenti_profiles`, `consenti_consent_records`,
+  `consenti_schema_version`, …; index names too). The prefix is fixed, not configurable. SQLite and the JSON
+  store are unchanged — their data lives in a file Consenti owns. If the database still holds the old
+  unprefixed Consenti tables/collections and no prefixed ones, the adapter **refuses to start** and says to
+  run the migration script, rather than quietly creating an empty set beside your data (it only triggers when
+  Consenti's own `tenants`, `profiles` and `consent_records` — plus `schema_version` on SQL — all exist, so
+  another app's `users` or `profiles` table doesn't set it off). Code that reads the database directly (reports, BI) needs the new names.
+- `@consenti/api`: connection pool default is now **5** (was 10 for PostgreSQL/MySQL, and the MongoDB driver's
+  own 100): shared hosts commonly cap connections per database user at 5–25, shared with every other app.
+  `storage.poolMax` sets it, for all three drivers, on a dedicated server.
+- `@consenti/api`: `storage.path` is documented as **required for every driver** — PostgreSQL, MySQL and
+  MongoDB too: the database holds consent records, users and templates, but compiled profiles are always files
+  under `${storage.path}/profiles/`, so keep it on persistent storage (shared between instances).
 - `@consenti/utils`: `resolveComplianceMapOverride()` merges an operator map over the embedded map when
   the document sets `override: false` (country-level replacement — an operator entry replaces the
   embedded entry wholesale, never deep-merged); `override: true`/omitted keeps the existing replace
@@ -86,6 +111,21 @@ admin who made them, and compliance-group / locale names are validated as safe d
   the same compliance group) and `consent_expired` are derived from the snapshot.
 
 ### Fixed
+- `@consenti/api`: **MySQL/MariaDB** — a first start that died partway (dropped connection, host limit) used to
+  leave tables behind and then fail on every later start with `Duplicate key name`, because DDL auto-commits
+  and `CREATE INDEX` has no `IF NOT EXISTS`. Indexes are now declared inside each `CREATE TABLE IF NOT
+  EXISTS`, `consenti_schema_version` is still stamped last, so starting again simply resumes.
+- `@consenti/api`: several instances starting at once against an empty database no longer race — a named lock
+  (`GET_LOCK`) on MySQL/MariaDB, an advisory lock on PostgreSQL (both need no special privilege), and
+  idempotent upserts for the seed data on MongoDB (a concurrent first start could fail with `E11000 duplicate key`).
+- `@consenti/api`: first-start failures on a restricted database user now say which privileges are needed
+  (MySQL/MariaDB: `SELECT, INSERT, UPDATE, DELETE, CREATE, ALTER, INDEX, REFERENCES`; PostgreSQL: `CREATE` on
+  the schema) and that Consenti never creates databases, schemas, extensions or users.
+- `@consenti/api`: **PostgreSQL, MySQL/MariaDB** — the `q` search on the consents, visitors and audit-log lists
+  failed with a SQL syntax error (`ESCAPE` placed after the closing parenthesis; present since 0.3.0).
+- `@consenti/api`: **MySQL/MariaDB** — `createTenant` / `updateTenant` failed with `Incorrect datetime value:
+  '2026-…T…Z'` (strict mode rejects an ISO-8601 timestamp for a `DATETIME` column); `purgeExpiredConsents`
+  compares with the same format.
 - `@consenti/api`: **MariaDB 10.5+, PostgreSQL, SQLite** — `DELETE /profiles/:id` no longer fails with a
   foreign-key error for a profile that has consent or notice records (see Changed).
 - `@consenti/api`: saving an active profile that has no compliance group no longer points the "live
@@ -115,6 +155,10 @@ admin who made them, and compliance-group / locale names are validated as safe d
   (`navigator` is getter-only).
 
 ### Breaking changes
+**PostgreSQL, MySQL/MariaDB and MongoDB: tables/collections are renamed `consenti_*` and an existing install
+must be migrated by hand once** (see Migration). Until then the app refuses to start with a message saying so;
+nothing is changed or lost. SQLite and the JSON store are not affected.
+
 Stricter names for anything that becomes a directory or file name: `profileJson.complianceGroup` /
 `customComplianceGroup` must be 1–64 characters of `a-z 0-9 - _`, start with a letter or digit, not be a
 reserved Windows device name (`con`, `nul`, `com1`…) and not start with `prof_`; `defaultLocale`,
@@ -124,7 +168,31 @@ violates this fails — rename it (upper-case or spaced custom groups are the li
 groups and normal locales are unaffected.
 
 ### Migration
-Automatic. The first start on 0.6.0 upgrades an existing database to schema v2 — drops the two
+**Step 1 — PostgreSQL, MySQL/MariaDB and MongoDB only (SQLite and JSON: skip to "Automatic" below).** Rename
+the existing tables/collections to their `consenti_` names once, *before* starting 0.6.0:
+
+1. Back up the database and stop the app.
+2. From your project, with the same `CONSENTI_DB_*` environment variables the app uses (or pass `--driver`,
+   `--uri` / `--host --port --user --password`, `--database`):
+
+   ```bash
+   # shows what would be renamed, changes nothing
+   node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs
+   # renames
+   node node_modules/@consenti/api/scripts/migrate-to-consenti-prefix.mjs --apply
+   ```
+
+3. Start the app. It finishes any remaining schema upgrade itself (below).
+
+The script renames only — no rows are read, copied or deleted — and is quick regardless of database size.
+MySQL/MariaDB renames all tables in one atomic statement and PostgreSQL in one transaction; MongoDB renames
+collection by collection (each keeps its data and indexes), and a re-run skips the ones already done. It needs
+more than the app does: MySQL `ALTER` + `DROP` on the old tables and `CREATE` + `INSERT` on the new ones
+(`ALL PRIVILEGES` on the database, which shared hosts grant by default), PostgreSQL table ownership, MongoDB the
+`renameCollection` action (`readWrite` includes it). It refuses to overwrite a `consenti_*` table that already
+exists. A fresh database needs nothing. Everything else that reads these tables directly must use the new names.
+
+**Automatic.** The first start on 0.6.0 upgrades an existing database to schema v2 — drops the two
 `profile_id` foreign keys and adds `profile_version` — on MariaDB, PostgreSQL and SQLite; MySQL (Oracle)
 only gains the column, MongoDB and the JSON store need nothing. Take a backup first for production
 databases. The upgrade changes table structure only and never edits rows. The database user needs the
@@ -137,7 +205,11 @@ rolled back, so each step is idempotent and an interrupted upgrade resumes on th
 against an upgraded database still works. Verified with full before/after dumps (18,837 rows across 17
 tables, awkward values included) on MariaDB 10.5 and 10.11, MySQL 8.4, PostgreSQL 16, and SQLite
 (`node:sqlite`, `node-sqlite3-wasm`; 5,000 consents plus every other table), plus restricted-account and
-mid-upgrade-failure cases; MongoDB 7 and the JSON store gain only an optional field. To change only some countries, add `override: false` to your `complianceMap` document. A profile
+mid-upgrade-failure cases; MongoDB 7 and the JSON store gain only an optional field. The prefix rename, the migration script, the
+restricted-user and shared-database cases, concurrent first starts and about 70 adapter operations were run
+against PostgreSQL 16, MySQL 8.4, MariaDB 10.11 and MongoDB 7 (before and after the rename, including a
+simulated 0.5.0 database upgraded through both steps). MariaDB 10.6+ / MySQL 8.0.4+ is needed for the dashboard
+statistics (`JSON_TABLE`). To change only some countries, add `override: false` to your `complianceMap` document. A profile
 whose activation failed earlier on Windows is repaired by saving it again; on Windows with `json`
 storage, delete the stray `db\consenti-data.json\` directory if one exists.
 

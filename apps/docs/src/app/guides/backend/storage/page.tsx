@@ -189,7 +189,7 @@ createConsenti({
     driver: 'postgresql',
     uri: process.env.DATABASE_URL,  // e.g. postgresql://user:pass@host:5432/consenti
     database: 'consenti',           // optional if included in uri
-    path: './consenti-data',        // for profile files (still written locally)
+    path: './consenti-data',        // required — profile files are always written locally
   },
 })`}
       />
@@ -224,11 +224,56 @@ createConsenti({
 })`}
       />
 
-      <Callout type="tip">
-        All config values can also be set via environment variables: <code>CONSENTI_DB_DRIVER</code>
-        , <code>CONSENTI_DB_URI</code>, <code>CONSENTI_DB_DATABASE</code>, etc. Code config takes
-        precedence over env vars.
+      <Callout type="warning">
+        <code>storage.path</code> is required with every database driver. The database stores
+        consent records, users and templates; profiles are stored as files under{' '}
+        <code>storage.path/profiles/</code>. Keep that directory on persistent storage, shared
+        between instances if you run more than one.
       </Callout>
+
+      <Callout type="info">
+        With these three drivers every table (collection) is named <code>consenti_*</code> (
+        <code>consenti_users</code>, <code>consenti_profiles</code>, …), so Consenti can&apos;t clash
+        with another app&apos;s tables. Upgrading an existing PostgreSQL / MySQL / MongoDB install
+        from before 0.6.0 needs a{' '}
+        <a href="/docs/api/advanced-configuration/#upgrading-0-6-0">one-off rename</a>. On shared
+        hosting with a restricted database user, see{' '}
+        <a href="/docs/api/advanced-configuration/#shared-hosting">what it needs</a> — the connection
+        pool defaults to 5 (<code>storage.poolMax</code>) for exactly that case.
+      </Callout>
+
+      <h2>Environment variables</h2>
+      <p>
+        All config values can also be set via environment variables. Code config takes precedence
+        over env vars. <code>CONSENTI_DB_PATH</code> is always needed.
+      </p>
+      <CodeBlock
+        lang="bash"
+        filename=".env — PostgreSQL"
+        code={`CONSENTI_DB_DRIVER=postgresql
+CONSENTI_DB_PATH=./consenti-data
+CONSENTI_DB_URI=postgresql://consenti:your-password@localhost:5432/consenti`}
+      />
+      <CodeBlock
+        lang="bash"
+        filename=".env — MySQL / MariaDB"
+        code={`CONSENTI_DB_DRIVER=mysql
+CONSENTI_DB_PATH=./consenti-data
+CONSENTI_DB_HOST=localhost
+CONSENTI_DB_PORT=3306
+CONSENTI_DB_USER=consenti
+CONSENTI_DB_PASSWORD=your-password
+CONSENTI_DB_DATABASE=consenti
+# or: CONSENTI_DB_URI=mysql://consenti:your-password@localhost:3306/consenti`}
+      />
+      <CodeBlock
+        lang="bash"
+        filename=".env — MongoDB"
+        code={`CONSENTI_DB_DRIVER=mongodb
+CONSENTI_DB_PATH=./consenti-data
+CONSENTI_DB_URI=mongodb://consenti:your-password@localhost:27017/?authSource=admin
+CONSENTI_DB_DATABASE=consenti`}
+      />
 
       <RelatedDocs
         items={[

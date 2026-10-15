@@ -20,8 +20,9 @@ services:
   # ── PostgreSQL alternative ────────────────────────────────────────────────────
   # To use Postgres instead of SQLite:
   #   1. Uncomment this service and the `postgres-data` volume below.
-  #   2. On the `consenti` service above, change CONSENTI_DB_DRIVER to `postgresql`, remove
-  #      CONSENTI_DB_PATH, and add:
+  #   2. On the `consenti` service above, change CONSENTI_DB_DRIVER to `postgresql` and add the lines
+  #      below. Keep CONSENTI_DB_PATH and the /data volume — profiles are always stored on disk, even
+  #      with a database driver:
   #        CONSENTI_DB_HOST: postgres
   #        CONSENTI_DB_DATABASE: consenti
   #        CONSENTI_DB_USER: consenti
@@ -41,8 +42,9 @@ services:
   # ── MongoDB alternative ───────────────────────────────────────────────────────
   # To use MongoDB instead of SQLite:
   #   1. Uncomment this service and the `mongo-data` volume below.
-  #   2. On the `consenti` service above, change CONSENTI_DB_DRIVER to `mongodb`, remove
-  #      CONSENTI_DB_PATH, and add:
+  #   2. On the `consenti` service above, change CONSENTI_DB_DRIVER to `mongodb` and add the line
+  #      below. Keep CONSENTI_DB_PATH and the /data volume — profiles are always stored on disk, even
+  #      with a database driver:
   #        CONSENTI_DB_URI: mongodb://consenti:${MONGO_PASSWORD:?set a real password}@mongodb:27017/consenti?authSource=admin
   #   3. Add `depends_on: [mongodb]` to the `consenti` service.
   #

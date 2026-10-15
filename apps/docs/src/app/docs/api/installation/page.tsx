@@ -174,6 +174,14 @@ export { consentiHandler as GET, consentiHandler as POST, consentiHandler as PUT
         All config fields can be set via environment variables. Code config takes precedence over
         env vars.
       </p>
+      <Callout type="warning">
+        <code>CONSENTI_DB_PATH</code> (<code>storage.path</code>) is needed with every driver, not
+        just SQLite/JSON: profiles are stored as files there even when the data lives in MySQL,
+        PostgreSQL or MongoDB. On a shared host with a restricted database user, see{' '}
+        <a href="/docs/api/advanced-configuration/#shared-hosting">what the database user needs</a>;
+        upgrading a PostgreSQL / MySQL / MongoDB install from before 0.6.0 needs a{' '}
+        <a href="/docs/api/advanced-configuration/#upgrading-0-6-0">one-off table rename</a>.
+      </Callout>
       <CodeBlock
         lang="bash"
         filename=".env"
@@ -185,9 +193,21 @@ CONSENTI_DATA_SIGNING_HASH=your-data-signing-hash   # auto-generated if not set 
 
 # Storage
 CONSENTI_DB_DRIVER=node:sqlite              # default: json
-CONSENTI_DB_PATH=./consenti-data            # directory path
-CONSENTI_DB_URI=postgresql://...            # server drivers (pg, mysql, mongodb)
+CONSENTI_DB_PATH=./consenti-data            # directory path — ALWAYS needed, for every driver (profiles are stored here)
+CONSENTI_DB_URI=postgresql://...            # server drivers (postgresql, mysql, mongodb)
 CONSENTI_DB_DATABASE=consenti               # database name override
+
+# Storage — what a server database needs instead of the SQLite lines above
+# (keep CONSENTI_DB_PATH in every case)
+#   PostgreSQL:   CONSENTI_DB_DRIVER=postgresql
+#                 CONSENTI_DB_URI=postgresql://user:pass@localhost:5432/consenti
+#   MySQL:        CONSENTI_DB_DRIVER=mysql
+#                 CONSENTI_DB_HOST=localhost  CONSENTI_DB_PORT=3306
+#                 CONSENTI_DB_USER=consenti   CONSENTI_DB_PASSWORD=your-password
+#                 CONSENTI_DB_DATABASE=consenti       (or one CONSENTI_DB_URI=mysql://…)
+#   MongoDB:      CONSENTI_DB_DRIVER=mongodb
+#                 CONSENTI_DB_URI=mongodb://user:pass@localhost:27017/?authSource=admin
+#                 CONSENTI_DB_DATABASE=consenti
 
 # Routing
 CONSENTI_BASE_PATH=/cmp                     # change /consenti prefix (default: /consenti)

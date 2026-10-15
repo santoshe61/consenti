@@ -1,6 +1,6 @@
 import type { Pool, PoolClient, QueryResult } from 'pg'
 import { randomUUID, randomProfileId, randomVisitorId, randomConsentId, randomConsentTemplateId, randomUITemplateId } from '../../utils/crypto'
-import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_POSTGRES, SCHEMA_VERSION } from '../seed-data'
+import { SEED_TENANT, SEED_PERMISSIONS, SEED_ROLES, SEED_ROLE_PERMISSIONS, SCHEMA_SQL_POSTGRES, SCHEMA_VERSION, LEGACY_PROBE_NAMES, legacyInstallError } from '../seed-data'
 import { likePrefix } from '../../utils/sql-search'
 import { buildProfileSummaries, tallyOptIn } from '../derived-queries'
 import type {
@@ -231,9 +231,10 @@ export class PostgreSQLAdapter implements StorageAdapter {
         password: cfg.password ?? '',
         database: cfg.database ?? 'consenti',
       }
-    // Bounded by default (10, matching pg's own default — made explicit/tunable). Timeouts stay
+    // Bounded by default (5 — shared hosts commonly cap connections per database user, shared with
+    // every other app on the account; raise `poolMax` for a dedicated server). Timeouts stay
     // unset unless configured: see StorageConfig.statementTimeoutMs's doc comment for why.
-    poolCfg['max'] = cfg.poolMax ?? 10
+    poolCfg['max'] = cfg.poolMax ?? 5
     if (cfg.statementTimeoutMs != null) poolCfg['statement_timeout'] = cfg.statementTimeoutMs
     if (cfg.idleInTransactionTimeoutMs != null) poolCfg['idle_in_transaction_session_timeout'] = cfg.idleInTransactionTimeoutMs
     this.pool = new PgPool(poolCfg)
@@ -249,13 +250,24 @@ export class PostgreSQLAdapter implements StorageAdapter {
     // older database is upgraded in place, gated on `schema_version` (see seed-data.ts for what
     // each version changed).
     const client: PoolClient = await this.pool.connect()
+    // Several instances booting against a fresh database would otherwise run the same DDL at once
+    // (the loser fails on a duplicate type/relation). An advisory lock needs no special privilege and
+    // is per-database; it is released in `finally` (or when the connection drops).
+    await client.query(`SELECT pg_advisory_lock(hashtext('consenti_schema'))`)
     try {
+      const probe = await client.query<{ name: string; found: boolean }>(
+        `SELECT n AS name, to_regclass(n) IS NOT NULL AS found FROM unnest($1::text[]) AS n`,
+        [['consenti_schema_version', ...LEGACY_PROBE_NAMES]],
+      )
+      const present = new Set(probe.rows.filter(r => r.found).map(r => r.name))
+      if (!present.has('consenti_schema_version') && LEGACY_PROBE_NAMES.every(n => present.has(n))) {
+        throw legacyInstallError('tables')
+      }
+
       let version = 0
-      try {
-        const res = await client.query<{ version: number }>('SELECT version FROM schema_version ORDER BY version DESC LIMIT 1')
+      if (present.has('consenti_schema_version')) {
+        const res = await client.query<{ version: number }>('SELECT version FROM consenti_schema_version ORDER BY version DESC LIMIT 1')
         version = res.rows[0]?.version ?? 0
-      } catch {
-        // schema_version doesn't exist — fresh install
       }
 
       if (version === 0) {
@@ -265,11 +277,17 @@ export class PostgreSQLAdapter implements StorageAdapter {
             await client.query(stmt)
           }
           await this.seedTx(client)
-          await client.query('INSERT INTO schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING', [SCHEMA_VERSION])
+          await client.query('INSERT INTO consenti_schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING', [SCHEMA_VERSION])
           await client.query('COMMIT')
         } catch (err) {
           await client.query('ROLLBACK')
-          throw err
+          throw new Error(
+            `Creating the Consenti tables failed: ${err instanceof Error ? err.message : String(err)}. ` +
+            `The database user needs CREATE on the schema it connects to (normally "public" — the database ` +
+            `owner has it) plus SELECT, INSERT, UPDATE and DELETE; it never creates databases, schemas or ` +
+            `extensions. Nothing was changed (one transaction, rolled back): fix the cause and start again.`,
+            { cause: err },
+          )
         }
       } else if (version < 2) {
         try {
@@ -284,6 +302,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
         }
       }
     } finally {
+      try { await client.query(`SELECT pg_advisory_unlock(hashtext('consenti_schema'))`) } catch { /* connection already gone — the lock went with it */ }
       client.release()
     }
   }
@@ -293,15 +312,15 @@ export class PostgreSQLAdapter implements StorageAdapter {
     try {
       const fks = await client.query<{ tbl: string; name: string }>(
         `SELECT c.conrelid::regclass::text AS tbl, c.conname AS name FROM pg_constraint c
-         WHERE c.contype = 'f' AND c.confrelid = to_regclass('profiles')
-           AND c.conrelid IN (to_regclass('consent_records'), to_regclass('notice_shown'))`,
+         WHERE c.contype = 'f' AND c.confrelid = to_regclass('consenti_profiles')
+           AND c.conrelid IN (to_regclass('consenti_consent_records'), to_regclass('consenti_notice_shown'))`,
       )
       for (const fk of fks.rows) {
         await client.query(`ALTER TABLE ${fk.tbl} DROP CONSTRAINT "${fk.name.replace(/"/g, '""')}"`)
       }
-      await client.query('ALTER TABLE consent_records ADD COLUMN IF NOT EXISTS profile_version INTEGER')
-      await client.query('ALTER TABLE consent_history ADD COLUMN IF NOT EXISTS profile_version INTEGER')
-      await client.query('INSERT INTO schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING', [SCHEMA_VERSION])
+      await client.query('ALTER TABLE consenti_consent_records ADD COLUMN IF NOT EXISTS profile_version INTEGER')
+      await client.query('ALTER TABLE consenti_consent_history ADD COLUMN IF NOT EXISTS profile_version INTEGER')
+      await client.query('INSERT INTO consenti_schema_version (version) VALUES ($1) ON CONFLICT DO NOTHING', [SCHEMA_VERSION])
       await client.query('COMMIT')
     } catch (err) {
       await client.query('ROLLBACK')
@@ -311,24 +330,24 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   private async seedTx(client: PoolClient): Promise<void> {
     await client.query(
-      'INSERT INTO tenants (id, name, slug) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+      'INSERT INTO consenti_tenants (id, name, slug) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
       [SEED_TENANT.id, SEED_TENANT.name, SEED_TENANT.slug],
     )
     for (const p of SEED_PERMISSIONS) {
       await client.query(
-        'INSERT INTO permissions (id, name, description) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
+        'INSERT INTO consenti_permissions (id, name, description) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING',
         [p.id, p.name, p.description],
       )
     }
     for (const r of SEED_ROLES) {
       await client.query(
-        'INSERT INTO roles (id, tenant_id, name, description) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
+        'INSERT INTO consenti_roles (id, tenant_id, name, description) VALUES ($1,$2,$3,$4) ON CONFLICT DO NOTHING',
         [r.id, r.tenantId, r.name, r.description],
       )
     }
     for (const { roleId, permissionId } of SEED_ROLE_PERMISSIONS) {
       await client.query(
-        'INSERT INTO role_permissions VALUES ($1,$2) ON CONFLICT DO NOTHING',
+        'INSERT INTO consenti_role_permissions VALUES ($1,$2) ON CONFLICT DO NOTHING',
         [roleId, permissionId],
       )
     }
@@ -339,7 +358,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createProfile(data: CreateProfileInput): Promise<Profile> {
     const id = randomProfileId()
     const rows = await this.q<RowProfile>(
-      `INSERT INTO profiles (id, tenant_id, name, default_locale, version, profile_json)
+      `INSERT INTO consenti_profiles (id, tenant_id, name, default_locale, version, profile_json)
        VALUES ($1,$2,$3,$4,$5,$6::json) RETURNING *`,
       [id, data.tenantId, data.name, data.defaultLocale, 1, JSON.stringify(data.profileJson)],
     )
@@ -358,7 +377,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (data.version != null) { sets.push(`version=$${idx++}`); vals.push(data.version) }
     vals.push(id)
     const rows = await this.q<RowProfile>(
-      `UPDATE profiles SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
+      `UPDATE consenti_profiles SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
       vals,
     )
     const row = rows[0]
@@ -367,16 +386,16 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async deleteProfile(id: string): Promise<void> {
-    await this.q('DELETE FROM profiles WHERE id=$1', [id])
+    await this.q('DELETE FROM consenti_profiles WHERE id=$1', [id])
   }
 
   async getProfile(id: string): Promise<Profile | null> {
-    const rows = await this.q<RowProfile>('SELECT * FROM profiles WHERE id=$1', [id])
+    const rows = await this.q<RowProfile>('SELECT * FROM consenti_profiles WHERE id=$1', [id])
     return rows[0] ? mapProfile(rows[0]) : null
   }
 
   async getProfiles(tenantId: string): Promise<Profile[]> {
-    const rows = await this.q<RowProfile>('SELECT * FROM profiles WHERE tenant_id=$1 ORDER BY created_at DESC', [tenantId])
+    const rows = await this.q<RowProfile>('SELECT * FROM consenti_profiles WHERE tenant_id=$1 ORDER BY created_at DESC', [tenantId])
     return rows.map(mapProfile)
   }
 
@@ -393,7 +412,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createConsent(data: CreateConsentInput): Promise<ConsentDbRecord> {
     const id = randomConsentId()
     const rows = await this.q<RowConsent>(
-      `INSERT INTO consent_records (id, tenant_id, visitor_id, profile_id, profile_version, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature)
+      `INSERT INTO consenti_consent_records (id, tenant_id, visitor_id, profile_id, profile_version, locale, consent_json, gpc_detected, source, age_verified, parental_consent_token, tcf_string, gpp_string, signature)
        VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8,$9,$10,$11,$12,$13,$14) RETURNING *`,
       [id, data.tenantId, data.visitorId, data.profileId, data.profileVersion ?? null,
         data.locale, JSON.stringify(data.consentJson), data.gpcDetected, data.source,
@@ -417,7 +436,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (data.signature != null) { sets.push(`signature=$${idx++}`); vals.push(data.signature) }
     vals.push(visitorId)
     const rows = await this.q<RowConsent>(
-      `UPDATE consent_records SET ${sets.join(',')} WHERE visitor_id=$${idx} RETURNING *`,
+      `UPDATE consenti_consent_records SET ${sets.join(',')} WHERE visitor_id=$${idx} RETURNING *`,
       vals,
     )
     const row = rows[0]
@@ -427,12 +446,12 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async deleteConsent(visitorId: string): Promise<void> {
-    await this.q('DELETE FROM consent_history WHERE visitor_id=$1', [visitorId])
-    await this.q('DELETE FROM consent_records WHERE visitor_id=$1', [visitorId])
+    await this.q('DELETE FROM consenti_consent_history WHERE visitor_id=$1', [visitorId])
+    await this.q('DELETE FROM consenti_consent_records WHERE visitor_id=$1', [visitorId])
   }
 
   async getConsent(visitorId: string): Promise<ConsentDbRecord | null> {
-    const rows = await this.q<RowConsent>('SELECT * FROM consent_records WHERE visitor_id=$1', [visitorId])
+    const rows = await this.q<RowConsent>('SELECT * FROM consenti_consent_records WHERE visitor_id=$1', [visitorId])
     return rows[0] ? mapConsent(rows[0]) : null
   }
 
@@ -457,14 +476,16 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   private buildConsentWhere(f: ConsentFilters): { where: string; params: (string | number | boolean | null)[]; nextIdx: number } {
-    let where = 'FROM consent_records WHERE tenant_id=$1'
+    let where = 'FROM consenti_consent_records WHERE tenant_id=$1'
     const params: (string | number | boolean | null)[] = [f.tenantId]
     let idx = 2
     if (f.profileId != null) { where += ` AND profile_id=$${idx++}`; params.push(f.profileId) }
     if (f.from != null) { where += ` AND created_at>=$${idx++}`; params.push(f.from) }
     if (f.to != null) { where += ` AND created_at<=$${idx++}`; params.push(f.to) }
     if (f.q) {
-      where += ` AND (visitor_id ILIKE $${idx} OR profile_id ILIKE $${idx} OR locale ILIKE $${idx} OR source ILIKE $${idx}) ESCAPE '\\'`
+      // No ESCAPE clause: backslash is already PostgreSQL's default LIKE/ILIKE escape character, which is what
+      // likePrefix() emits (a trailing `ESCAPE` after the closing paren is a syntax error and broke search).
+      where += ` AND (visitor_id ILIKE $${idx} OR profile_id ILIKE $${idx} OR locale ILIKE $${idx} OR source ILIKE $${idx})`
       params.push(likePrefix(f.q))
       idx++
     }
@@ -476,7 +497,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     oldJson: ConsentValue | null, newJson: ConsentValue, action: string, profileVersion: number | null,
   ): Promise<void> {
     await this.q(
-      `INSERT INTO consent_history (id, tenant_id, consent_record_id, visitor_id, profile_version, old_json, new_json, action)
+      `INSERT INTO consenti_consent_history (id, tenant_id, consent_record_id, visitor_id, profile_version, old_json, new_json, action)
        VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8)`,
       [randomUUID(), tenantId, consentRecordId, visitorId, profileVersion,
       oldJson ? JSON.stringify(oldJson) : null, JSON.stringify(newJson), action],
@@ -485,7 +506,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   async getConsentHistory(visitorId: string): Promise<ConsentHistoryEntry[]> {
     const rows = await this.q<RowConsentHistory>(
-      'SELECT * FROM consent_history WHERE visitor_id=$1 ORDER BY created_at ASC',
+      'SELECT * FROM consenti_consent_history WHERE visitor_id=$1 ORDER BY created_at ASC',
       [visitorId],
     )
     return rows.map(mapHistory)
@@ -494,7 +515,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createNoticeShown(data: CreateNoticeShownInput): Promise<NoticeShownRecord> {
     const id = randomUUID()
     const rows = await this.q<RowNoticeShown>(
-      `INSERT INTO notice_shown (id, tenant_id, visitor_id, profile_id, locale)
+      `INSERT INTO consenti_notice_shown (id, tenant_id, visitor_id, profile_id, locale)
        VALUES ($1,$2,$3,$4,$5) RETURNING *`,
       [id, data.tenantId, data.visitorId, data.profileId, data.locale],
     )
@@ -504,7 +525,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   async getNoticeShownForVisitor(visitorId: string): Promise<NoticeShownRecord[]> {
     const rows = await this.q<RowNoticeShown>(
-      'SELECT * FROM notice_shown WHERE visitor_id=$1 ORDER BY created_at DESC',
+      'SELECT * FROM consenti_notice_shown WHERE visitor_id=$1 ORDER BY created_at DESC',
       [visitorId],
     )
     return rows.map(r => ({
@@ -518,7 +539,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createVisitor(data: CreateVisitorInput): Promise<Visitor> {
     const id = randomVisitorId()
     const rows = await this.q<RowVisitor>(
-      `INSERT INTO visitors (id, tenant_id, visitor_id, country, region, city, ip_hash, user_agent_hash)
+      `INSERT INTO consenti_visitors (id, tenant_id, visitor_id, country, region, city, ip_hash, user_agent_hash)
        VALUES ($1,$2,$3,$4,$5,$6,$7,$8) RETURNING *`,
       [id, data.tenantId, data.visitorId,
         data.country ?? null, data.region ?? null, data.city ?? null,
@@ -538,7 +559,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (data.city != null) { sets.push(`city=$${idx++}`); vals.push(data.city) }
     vals.push(visitorId)
     const rows = await this.q<RowVisitor>(
-      `UPDATE visitors SET ${sets.join(',')} WHERE visitor_id=$${idx} RETURNING *`,
+      `UPDATE consenti_visitors SET ${sets.join(',')} WHERE visitor_id=$${idx} RETURNING *`,
       vals,
     )
     const row = rows[0]
@@ -547,22 +568,22 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async deleteVisitor(visitorId: string): Promise<void> {
-    await this.q('DELETE FROM visitors WHERE visitor_id=$1', [visitorId])
+    await this.q('DELETE FROM consenti_visitors WHERE visitor_id=$1', [visitorId])
   }
 
   async getVisitor(visitorId: string): Promise<Visitor | null> {
-    const rows = await this.q<RowVisitor>('SELECT * FROM visitors WHERE visitor_id=$1', [visitorId])
+    const rows = await this.q<RowVisitor>('SELECT * FROM consenti_visitors WHERE visitor_id=$1', [visitorId])
     return rows[0] ? mapVisitor(rows[0]) : null
   }
 
   async getVisitors(filters: VisitorFilters): Promise<PagedResult<Visitor>> {
-    let where = 'FROM visitors WHERE tenant_id=$1'
+    let where = 'FROM consenti_visitors WHERE tenant_id=$1'
     const params: (string | number | boolean | null)[] = [filters.tenantId]
     let idx = 2
     if (filters.from != null) { where += ` AND first_seen>=$${idx++}`; params.push(filters.from) }
     if (filters.to != null) { where += ` AND first_seen<=$${idx++}`; params.push(filters.to) }
     if (filters.q) {
-      where += ` AND (visitor_id ILIKE $${idx} OR country ILIKE $${idx}) ESCAPE '\\'`
+      where += ` AND (visitor_id ILIKE $${idx} OR country ILIKE $${idx})`
       params.push(likePrefix(filters.q))
       idx++
     }
@@ -582,9 +603,9 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   async getOverviewStats(tenantId: string): Promise<OverviewStats> {
     const [[countRow], [gpcRow], [visitorRow]] = await Promise.all([
-      this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consent_records WHERE tenant_id=$1', [tenantId]),
-      this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consent_records WHERE tenant_id=$1 AND gpc_detected=true', [tenantId]),
-      this.q<RowCount>('SELECT COUNT(*)::int AS total FROM visitors WHERE tenant_id=$1', [tenantId]),
+      this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consenti_consent_records WHERE tenant_id=$1', [tenantId]),
+      this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consenti_consent_records WHERE tenant_id=$1 AND gpc_detected=true', [tenantId]),
+      this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consenti_visitors WHERE tenant_id=$1', [tenantId]),
     ])
     const total = Number(countRow?.total ?? 0)
     const gpcCount = Number(gpcRow?.total ?? 0)
@@ -592,7 +613,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
     const statusRows = await this.q<RowStatus>(
       `SELECT val AS status, COUNT(*)::int AS count
-       FROM consent_records cr,
+       FROM consenti_consent_records cr,
             jsonb_each_text(cr.consent_json) AS kv(key, val)
        WHERE cr.tenant_id=$1
        GROUP BY val`,
@@ -616,7 +637,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async getCategoryStats(tenantId: string): Promise<CategoryStats> {
     const rows = await this.q<RowCookieStatus>(
       `SELECT kv.key AS cookie_id, kv.val AS status, COUNT(*)::int AS count
-       FROM consent_records cr,
+       FROM consenti_consent_records cr,
             jsonb_each_text(cr.consent_json) AS kv(key, val)
        WHERE cr.tenant_id=$1
        GROUP BY kv.key, kv.val`,
@@ -639,7 +660,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     const from = new Date(Date.now() - days * 86400_000).toISOString()
     const rows = await this.q<RowDateCount>(
       `SELECT to_char(created_at, 'YYYY-MM-DD') AS date, COUNT(*)::int AS count
-       FROM consent_records
+       FROM consenti_consent_records
        WHERE tenant_id=$1 AND created_at>=$2
        GROUP BY to_char(created_at, 'YYYY-MM-DD')
        ORDER BY date ASC`,
@@ -653,7 +674,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createUser(data: CreateUserInput): Promise<AdminUser> {
     const id = randomUUID()
     const rows = await this.q<RowUser>(
-      'INSERT INTO users (id, tenant_id, name, email, password_hash) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      'INSERT INTO consenti_users (id, tenant_id, name, email, password_hash) VALUES ($1,$2,$3,$4,$5) RETURNING *',
       [id, data.tenantId, data.name, data.email, data.passwordHash],
     )
     const row = rows[0]
@@ -671,7 +692,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (data.isActive != null) { sets.push(`is_active=$${idx++}`); vals.push(data.isActive) }
     vals.push(id)
     const rows = await this.q<RowUser>(
-      `UPDATE users SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
+      `UPDATE consenti_users SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
       vals,
     )
     const row = rows[0]
@@ -680,43 +701,43 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async deleteUser(id: string): Promise<void> {
-    await this.q('DELETE FROM user_roles WHERE user_id=$1', [id])
-    await this.q('DELETE FROM users WHERE id=$1', [id])
+    await this.q('DELETE FROM consenti_user_roles WHERE user_id=$1', [id])
+    await this.q('DELETE FROM consenti_users WHERE id=$1', [id])
   }
 
   async getUserById(id: string): Promise<AdminUser | null> {
-    const rows = await this.q<RowUser>('SELECT * FROM users WHERE id=$1', [id])
+    const rows = await this.q<RowUser>('SELECT * FROM consenti_users WHERE id=$1', [id])
     return rows[0] ? mapUser(rows[0]) : null
   }
 
   async getUserByEmail(email: string): Promise<AdminUser | null> {
-    const rows = await this.q<RowUser>('SELECT * FROM users WHERE email=$1', [email])
+    const rows = await this.q<RowUser>('SELECT * FROM consenti_users WHERE email=$1', [email])
     return rows[0] ? mapUser(rows[0]) : null
   }
 
   async getUsers(tenantId: string): Promise<AdminUser[]> {
-    const rows = await this.q<RowUser>('SELECT * FROM users WHERE tenant_id=$1 ORDER BY created_at DESC', [tenantId])
+    const rows = await this.q<RowUser>('SELECT * FROM consenti_users WHERE tenant_id=$1 ORDER BY created_at DESC', [tenantId])
     return rows.map(mapUser)
   }
 
   async countUsers(tenantId?: string): Promise<number> {
     const rows = tenantId
-      ? await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM users WHERE tenant_id=$1', [tenantId])
-      : await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM users')
+      ? await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consenti_users WHERE tenant_id=$1', [tenantId])
+      : await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consenti_users')
     return Number(rows[0]?.total ?? 0)
   }
 
   // ── Roles & permissions ───────────────────────────────────────────────────────
 
   async getRoles(tenantId: string): Promise<Role[]> {
-    const rows = await this.q<RowRole>('SELECT * FROM roles WHERE tenant_id=$1', [tenantId])
+    const rows = await this.q<RowRole>('SELECT * FROM consenti_roles WHERE tenant_id=$1', [tenantId])
     return rows.map(mapRole)
   }
 
   async createRole(data: CreateRoleInput): Promise<Role> {
     const id = randomUUID()
     const rows = await this.q<RowRole>(
-      'INSERT INTO roles (id, tenant_id, name, description) VALUES ($1,$2,$3,$4) RETURNING *',
+      'INSERT INTO consenti_roles (id, tenant_id, name, description) VALUES ($1,$2,$3,$4) RETURNING *',
       [id, data.tenantId, data.name, data.description ?? null],
     )
     const row = rows[0]
@@ -731,32 +752,32 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (data.name != null) { sets.push(`name=$${idx++}`); vals.push(data.name) }
     if (data.description != null) { sets.push(`description=$${idx++}`); vals.push(data.description) }
     if (sets.length === 0) {
-      const rows = await this.q<RowRole>('SELECT * FROM roles WHERE id=$1', [id])
+      const rows = await this.q<RowRole>('SELECT * FROM consenti_roles WHERE id=$1', [id])
       const row = rows[0]
       if (!row) throw new Error(`Role ${id} not found`)
       return mapRole(row)
     }
     vals.push(id)
-    const rows = await this.q<RowRole>(`UPDATE roles SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`, vals)
+    const rows = await this.q<RowRole>(`UPDATE consenti_roles SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`, vals)
     const row = rows[0]
     if (!row) throw new Error(`Role ${id} not found`)
     return mapRole(row)
   }
 
   async deleteRole(id: string): Promise<void> {
-    await this.q('DELETE FROM role_permissions WHERE role_id=$1', [id])
-    await this.q('DELETE FROM user_roles WHERE role_id=$1', [id])
-    await this.q('DELETE FROM roles WHERE id=$1', [id])
+    await this.q('DELETE FROM consenti_role_permissions WHERE role_id=$1', [id])
+    await this.q('DELETE FROM consenti_user_roles WHERE role_id=$1', [id])
+    await this.q('DELETE FROM consenti_roles WHERE id=$1', [id])
   }
 
   async getAllPermissions(): Promise<Permission[]> {
-    const rows = await this.q<RowPermission>('SELECT * FROM permissions ORDER BY name')
+    const rows = await this.q<RowPermission>('SELECT * FROM consenti_permissions ORDER BY name')
     return rows.map(mapPermission)
   }
 
   async getPermissionsForRole(roleId: string): Promise<Permission[]> {
     const rows = await this.q<RowPermission>(
-      'SELECT p.* FROM permissions p JOIN role_permissions rp ON p.id=rp.permission_id WHERE rp.role_id=$1',
+      'SELECT p.* FROM consenti_permissions p JOIN consenti_role_permissions rp ON p.id=rp.permission_id WHERE rp.role_id=$1',
       [roleId],
     )
     return rows.map(mapPermission)
@@ -765,41 +786,41 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async getUserRoles(userId: string, tenantId?: string): Promise<Role[]> {
     const rows = tenantId
       ? await this.q<RowRole>(
-        'SELECT r.* FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=$1 AND ur.tenant_id=$2',
+        'SELECT r.* FROM consenti_roles r JOIN consenti_user_roles ur ON r.id=ur.role_id WHERE ur.user_id=$1 AND ur.tenant_id=$2',
         [userId, tenantId],
       )
       : await this.q<RowRole>(
-        'SELECT r.* FROM roles r JOIN user_roles ur ON r.id=ur.role_id WHERE ur.user_id=$1',
+        'SELECT r.* FROM consenti_roles r JOIN consenti_user_roles ur ON r.id=ur.role_id WHERE ur.user_id=$1',
         [userId],
       )
     return rows.map(mapRole)
   }
 
   async assignRole(userId: string, roleId: string, tenantId = 'default'): Promise<void> {
-    await this.q('INSERT INTO user_roles (user_id, role_id, tenant_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [userId, roleId, tenantId])
+    await this.q('INSERT INTO consenti_user_roles (user_id, role_id, tenant_id) VALUES ($1,$2,$3) ON CONFLICT DO NOTHING', [userId, roleId, tenantId])
   }
 
   async revokeRole(userId: string, roleId: string, tenantId?: string): Promise<void> {
     if (tenantId) {
-      await this.q('DELETE FROM user_roles WHERE user_id=$1 AND role_id=$2 AND tenant_id=$3', [userId, roleId, tenantId])
+      await this.q('DELETE FROM consenti_user_roles WHERE user_id=$1 AND role_id=$2 AND tenant_id=$3', [userId, roleId, tenantId])
     } else {
-      await this.q('DELETE FROM user_roles WHERE user_id=$1 AND role_id=$2', [userId, roleId])
+      await this.q('DELETE FROM consenti_user_roles WHERE user_id=$1 AND role_id=$2', [userId, roleId])
     }
   }
 
   async assignPermissionToRole(roleId: string, permissionId: string): Promise<void> {
-    await this.q('INSERT INTO role_permissions (role_id, permission_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [roleId, permissionId])
+    await this.q('INSERT INTO consenti_role_permissions (role_id, permission_id) VALUES ($1,$2) ON CONFLICT DO NOTHING', [roleId, permissionId])
   }
 
   async revokePermissionFromRole(roleId: string, permissionId: string): Promise<void> {
-    await this.q('DELETE FROM role_permissions WHERE role_id=$1 AND permission_id=$2', [roleId, permissionId])
+    await this.q('DELETE FROM consenti_role_permissions WHERE role_id=$1 AND permission_id=$2', [roleId, permissionId])
   }
 
   // ── Audit logs ────────────────────────────────────────────────────────────────
 
   async createLog(data: CreateAuditLogInput): Promise<void> {
     await this.q(
-      `INSERT INTO audit_logs (id, tenant_id, user_id, action, resource_type, resource_id, old_data, new_data)
+      `INSERT INTO consenti_audit_logs (id, tenant_id, user_id, action, resource_type, resource_id, old_data, new_data)
        VALUES ($1,$2,$3,$4,$5,$6,$7::jsonb,$8::jsonb)`,
       [randomUUID(), data.tenantId, data.userId ?? null, data.action, data.resourceType,
       data.resourceId ?? null,
@@ -823,7 +844,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async getAuditLogById(id: string): Promise<AuditLog | null> {
-    const rows = await this.q<RowAuditLog>('SELECT * FROM audit_logs WHERE id=$1', [id])
+    const rows = await this.q<RowAuditLog>('SELECT * FROM consenti_audit_logs WHERE id=$1', [id])
     return rows[0] ? mapAuditLog(rows[0]) : null
   }
 
@@ -834,7 +855,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   private buildAuditWhere(f: AuditFilters): { where: string; params: (string | number | boolean | null)[]; nextIdx: number } {
-    let where = 'FROM audit_logs WHERE tenant_id=$1'
+    let where = 'FROM consenti_audit_logs WHERE tenant_id=$1'
     const params: (string | number | boolean | null)[] = [f.tenantId]
     let idx = 2
     if (f.action != null) { where += ` AND action=$${idx++}`; params.push(f.action) }
@@ -842,7 +863,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (f.from != null) { where += ` AND created_at>=$${idx++}`; params.push(f.from) }
     if (f.to != null) { where += ` AND created_at<=$${idx++}`; params.push(f.to) }
     if (f.q) {
-      where += ` AND (action ILIKE $${idx} OR resource_type ILIKE $${idx} OR resource_id ILIKE $${idx} OR user_id ILIKE $${idx}) ESCAPE '\\'`
+      where += ` AND (action ILIKE $${idx} OR resource_type ILIKE $${idx} OR resource_id ILIKE $${idx} OR user_id ILIKE $${idx})`
       params.push(likePrefix(f.q))
       idx++
     }
@@ -853,8 +874,8 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   async getCountries(tenantId: string): Promise<CountryStat[]> {
     const rows = await this.q<RowCountry>(
-      `SELECT v.country, COUNT(*)::int AS count FROM consent_records cr
-       JOIN visitors v ON v.visitor_id=cr.visitor_id
+      `SELECT v.country, COUNT(*)::int AS count FROM consenti_consent_records cr
+       JOIN consenti_visitors v ON v.visitor_id=cr.visitor_id
        WHERE cr.tenant_id=$1 AND v.country IS NOT NULL
        GROUP BY v.country ORDER BY count DESC LIMIT 50`,
       [tenantId],
@@ -863,8 +884,8 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async getGpcStats(tenantId: string): Promise<GpcStats> {
-    const [t] = await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consent_records WHERE tenant_id=$1', [tenantId])
-    const [d] = await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consent_records WHERE tenant_id=$1 AND gpc_detected=TRUE', [tenantId])
+    const [t] = await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consenti_consent_records WHERE tenant_id=$1', [tenantId])
+    const [d] = await this.q<RowCount>('SELECT COUNT(*)::int AS total FROM consenti_consent_records WHERE tenant_id=$1 AND gpc_detected=TRUE', [tenantId])
     const total = Number(t?.total ?? 0)
     const detected = Number(d?.total ?? 0)
     return { detected, total, rate: total > 0 ? Math.round((detected / total) * 100) : 0 }
@@ -873,7 +894,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   // ── Tenants ───────────────────────────────────────────────────────────────────
 
   async getTenants(): Promise<Tenant[]> {
-    const rows = await this.q<RowTenant>('SELECT * FROM tenants ORDER BY name ASC', [])
+    const rows = await this.q<RowTenant>('SELECT * FROM consenti_tenants ORDER BY name ASC', [])
     return rows.map(r => ({ id: r.id, name: r.name, slug: r.slug, createdAt: r.created_at, updatedAt: r.updated_at }))
   }
 
@@ -892,7 +913,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createApiKey(data: CreateApiKeyInput): Promise<ApiKey> {
     const id = randomUUID()
     const rows = await this.q<RowApiKey>(
-      'INSERT INTO api_keys (id, tenant_id, key_hash, name, created_by, expire_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
+      'INSERT INTO consenti_api_keys (id, tenant_id, key_hash, name, created_by, expire_by) VALUES ($1,$2,$3,$4,$5,$6) RETURNING *',
       [id, data.tenantId, data.keyHash, data.name, data.createdBy ?? null, data.expireBy ?? null],
     )
     const r = rows[0]
@@ -901,28 +922,28 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async getApiKeyByHash(keyHash: string): Promise<ApiKey | null> {
-    const rows = await this.q<RowApiKey>('SELECT * FROM api_keys WHERE key_hash=$1 AND is_active=TRUE', [keyHash])
+    const rows = await this.q<RowApiKey>('SELECT * FROM consenti_api_keys WHERE key_hash=$1 AND is_active=TRUE', [keyHash])
     const r = rows[0]
     return r ? this.mapApiKey(r) : null
   }
 
   async revokeApiKey(id: string): Promise<void> {
-    await this.q('UPDATE api_keys SET is_active=FALSE, updated_at=NOW() WHERE id=$1', [id])
+    await this.q('UPDATE consenti_api_keys SET is_active=FALSE, updated_at=NOW() WHERE id=$1', [id])
   }
 
   async reactivateApiKey(id: string): Promise<void> {
     await this.q(
-      "UPDATE api_keys SET is_active=TRUE, updated_at=NOW(), expire_by=CASE WHEN expire_by <= NOW() THEN NULL ELSE expire_by END WHERE id=$1",
+      "UPDATE consenti_api_keys SET is_active=TRUE, updated_at=NOW(), expire_by=CASE WHEN expire_by <= NOW() THEN NULL ELSE expire_by END WHERE id=$1",
       [id],
     )
   }
 
   async deleteApiKey(id: string): Promise<void> {
-    await this.q('DELETE FROM api_keys WHERE id=$1', [id])
+    await this.q('DELETE FROM consenti_api_keys WHERE id=$1', [id])
   }
 
   async getApiKeys(tenantId: string): Promise<ApiKey[]> {
-    const rows = await this.q<RowApiKey>('SELECT * FROM api_keys WHERE tenant_id=$1 ORDER BY created_at DESC', [tenantId])
+    const rows = await this.q<RowApiKey>('SELECT * FROM consenti_api_keys WHERE tenant_id=$1 ORDER BY created_at DESC', [tenantId])
     return rows.map(r => this.mapApiKey(r))
   }
 
@@ -930,7 +951,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     const id = randomUUID()
     const now = new Date().toISOString()
     const rows = await this.q<RowTenant>(
-      'INSERT INTO tenants (id, name, slug, created_at, updated_at) VALUES ($1,$2,$3,$4,$5) RETURNING *',
+      'INSERT INTO consenti_tenants (id, name, slug, created_at, updated_at) VALUES ($1,$2,$3,$4,$5) RETURNING *',
       [id, data.name, data.slug, now, now],
     )
     const r = rows[0]
@@ -947,7 +968,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (data.slug != null) { sets.push(`slug=$${idx++}`); vals.push(data.slug) }
     vals.push(id)
     const rows = await this.q<RowTenant>(
-      `UPDATE tenants SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`, vals,
+      `UPDATE consenti_tenants SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`, vals,
     )
     const r = rows[0]
     if (!r) throw new Error(`Tenant ${id} not found`)
@@ -955,7 +976,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async deleteTenant(id: string): Promise<void> {
-    await this.q('DELETE FROM tenants WHERE id=$1', [id])
+    await this.q('DELETE FROM consenti_tenants WHERE id=$1', [id])
   }
 
   async getSettings(tenantId: string): Promise<TenantSettings> {
@@ -963,7 +984,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
       allowed_origins_json: string[]; admin_allowed_origins_json: string[]; setup_completed: boolean
       profiles_seeded: boolean; tcf_confirmation_json: TenantSettings['tcfConfirmation'] | null; gpp_confirmation_json: TenantSettings['gppConfirmation'] | null
     }>(
-      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json FROM tenant_settings WHERE tenant_id=$1', [tenantId],
+      'SELECT allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json FROM consenti_tenant_settings WHERE tenant_id=$1', [tenantId],
     )
     const r = rows[0]
     return r
@@ -982,7 +1003,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     const current = await this.getSettings(tenantId)
     const merged = { ...current, ...data }
     await this.q(
-      `INSERT INTO tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json, updated_at) VALUES ($1,$2::jsonb,$3::jsonb,$4,$5,$6::jsonb,$7::jsonb,NOW())
+      `INSERT INTO consenti_tenant_settings (tenant_id, allowed_origins_json, admin_allowed_origins_json, setup_completed, profiles_seeded, tcf_confirmation_json, gpp_confirmation_json, updated_at) VALUES ($1,$2::jsonb,$3::jsonb,$4,$5,$6::jsonb,$7::jsonb,NOW())
        ON CONFLICT (tenant_id) DO UPDATE SET allowed_origins_json=$2::jsonb, admin_allowed_origins_json=$3::jsonb, setup_completed=$4, profiles_seeded=$5, tcf_confirmation_json=$6::jsonb, gpp_confirmation_json=$7::jsonb, updated_at=NOW()`,
       [
         tenantId, JSON.stringify(merged.allowedOrigins ?? []), JSON.stringify(merged.adminAllowedOrigins ?? []), merged.setupCompleted ?? false,
@@ -995,13 +1016,13 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async purgeExpiredConsents(olderThanDays: number): Promise<number> {
     const cutoff = new Date(Date.now() - olderThanDays * 86_400_000).toISOString()
     const visitorRows = await this.q<{ visitor_id: string }>(
-      'SELECT visitor_id FROM consent_records WHERE created_at < $1', [cutoff]
+      'SELECT visitor_id FROM consenti_consent_records WHERE created_at < $1', [cutoff]
     )
     if (visitorRows.length === 0) return 0
     const ids = visitorRows.map(r => r.visitor_id)
     const placeholders = ids.map((_: string, i: number) => `$${i + 1}`).join(',')
-    await this.q(`DELETE FROM consent_history WHERE visitor_id IN (${placeholders})`, ids)
-    await this.q(`DELETE FROM consent_records WHERE visitor_id IN (${placeholders})`, ids)
+    await this.q(`DELETE FROM consenti_consent_history WHERE visitor_id IN (${placeholders})`, ids)
+    await this.q(`DELETE FROM consenti_consent_records WHERE visitor_id IN (${placeholders})`, ids)
     return ids.length
   }
 
@@ -1017,7 +1038,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
 
   async createConsentTemplate(data: CreateConsentTemplateInput): Promise<ServerConsentTemplate> {
     const rows = await this.q<RowConsentTemplate>(
-      `INSERT INTO consent_templates (id, tenant_id, name, cookies_json, categories_json)
+      `INSERT INTO consenti_consent_templates (id, tenant_id, name, cookies_json, categories_json)
        VALUES ($1,$2,$3,$4::json,$5::json) RETURNING *`,
       [randomConsentTemplateId(), data.tenantId, data.name, JSON.stringify(data.cookies), JSON.stringify(data.categories)],
     )
@@ -1034,7 +1055,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (data.cookies !== undefined) { sets.push(`cookies_json=$${idx++}::json`); vals.push(JSON.stringify(data.cookies)) }
     if (data.categories !== undefined) { sets.push(`categories_json=$${idx++}::json`); vals.push(JSON.stringify(data.categories)) }
     const rows = await this.q<RowConsentTemplate>(
-      `UPDATE consent_templates SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
+      `UPDATE consenti_consent_templates SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
       [...vals, id],
     )
     const row = rows[0]
@@ -1043,16 +1064,16 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async deleteConsentTemplate(id: string): Promise<void> {
-    await this.q('DELETE FROM consent_templates WHERE id=$1', [id])
+    await this.q('DELETE FROM consenti_consent_templates WHERE id=$1', [id])
   }
 
   async getConsentTemplate(id: string): Promise<ServerConsentTemplate | null> {
-    const rows = await this.q<RowConsentTemplate>('SELECT * FROM consent_templates WHERE id=$1', [id])
+    const rows = await this.q<RowConsentTemplate>('SELECT * FROM consenti_consent_templates WHERE id=$1', [id])
     return rows[0] ? this.mapConsentTemplate(rows[0]) : null
   }
 
   async getConsentTemplates(tenantId: string): Promise<ServerConsentTemplate[]> {
-    const rows = await this.q<RowConsentTemplate>('SELECT * FROM consent_templates WHERE tenant_id=$1 ORDER BY name ASC', [tenantId])
+    const rows = await this.q<RowConsentTemplate>('SELECT * FROM consenti_consent_templates WHERE tenant_id=$1 ORDER BY name ASC', [tenantId])
     return rows.map(r => this.mapConsentTemplate(r))
   }
 
@@ -1071,7 +1092,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   async createUITemplate(data: CreateUITemplateInput): Promise<ServerUITemplate> {
     const { tenantId, name, ...settings } = data
     const rows = await this.q<RowUITemplate>(
-      `INSERT INTO ui_templates (id, tenant_id, name, settings_json) VALUES ($1,$2,$3,$4::json) RETURNING *`,
+      `INSERT INTO consenti_ui_templates (id, tenant_id, name, settings_json) VALUES ($1,$2,$3,$4::json) RETURNING *`,
       [randomUITemplateId(), tenantId, name, JSON.stringify(settings)],
     )
     const row = rows[0]
@@ -1080,7 +1101,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async updateUITemplate(id: string, data: UpdateUITemplateInput): Promise<ServerUITemplate> {
-    const current = await this.q<RowUITemplate>('SELECT * FROM ui_templates WHERE id=$1', [id])
+    const current = await this.q<RowUITemplate>('SELECT * FROM consenti_ui_templates WHERE id=$1', [id])
     if (!current[0]) throw new Error('UI template not found')
     const { name, ...settingsUpdate } = data
     const sets: string[] = ['updated_at = NOW()']
@@ -1092,7 +1113,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
       vals.push(JSON.stringify({ ...current[0].settings_json, ...settingsUpdate }))
     }
     const rows = await this.q<RowUITemplate>(
-      `UPDATE ui_templates SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
+      `UPDATE consenti_ui_templates SET ${sets.join(',')} WHERE id=$${idx} RETURNING *`,
       [...vals, id],
     )
     const row = rows[0]
@@ -1101,16 +1122,16 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async deleteUITemplate(id: string): Promise<void> {
-    await this.q('DELETE FROM ui_templates WHERE id=$1', [id])
+    await this.q('DELETE FROM consenti_ui_templates WHERE id=$1', [id])
   }
 
   async getUITemplate(id: string): Promise<ServerUITemplate | null> {
-    const rows = await this.q<RowUITemplate>('SELECT * FROM ui_templates WHERE id=$1', [id])
+    const rows = await this.q<RowUITemplate>('SELECT * FROM consenti_ui_templates WHERE id=$1', [id])
     return rows[0] ? this.mapUITemplate(rows[0]) : null
   }
 
   async getUITemplates(tenantId: string): Promise<ServerUITemplate[]> {
-    const rows = await this.q<RowUITemplate>('SELECT * FROM ui_templates WHERE tenant_id=$1 ORDER BY name ASC', [tenantId])
+    const rows = await this.q<RowUITemplate>('SELECT * FROM consenti_ui_templates WHERE tenant_id=$1 ORDER BY name ASC', [tenantId])
     return rows.map(r => this.mapUITemplate(r))
   }
 
@@ -1138,17 +1159,17 @@ export class PostgreSQLAdapter implements StorageAdapter {
   }
 
   async listProfilesSummary(tenantId: string): Promise<ProfileSummary[]> {
-    const rows = await this.q<RowProfile>('SELECT * FROM profiles WHERE tenant_id=$1 ORDER BY created_at ASC', [tenantId])
+    const rows = await this.q<RowProfile>('SELECT * FROM consenti_profiles WHERE tenant_id=$1 ORDER BY created_at ASC', [tenantId])
     return this.toProfileSummaries(rows.map(mapProfile))
   }
 
   async findProfilesUsingConsentTemplate(templateId: string): Promise<ProfileSummary[]> {
-    const rows = await this.q<RowProfile>(`SELECT * FROM profiles WHERE profile_json->>'consentTemplateId'=$1 ORDER BY name ASC`, [templateId])
+    const rows = await this.q<RowProfile>(`SELECT * FROM consenti_profiles WHERE profile_json->>'consentTemplateId'=$1 ORDER BY name ASC`, [templateId])
     return this.toProfileSummaries(rows.map(mapProfile))
   }
 
   async findProfilesUsingUITemplate(templateId: string): Promise<ProfileSummary[]> {
-    const rows = await this.q<RowProfile>(`SELECT * FROM profiles WHERE profile_json->>'uiTemplateId'=$1 ORDER BY name ASC`, [templateId])
+    const rows = await this.q<RowProfile>(`SELECT * FROM consenti_profiles WHERE profile_json->>'uiTemplateId'=$1 ORDER BY name ASC`, [templateId])
     return this.toProfileSummaries(rows.map(mapProfile))
   }
 
@@ -1163,7 +1184,7 @@ export class PostgreSQLAdapter implements StorageAdapter {
     if (filters.locale) { params.push(filters.locale); where += ` AND locale=$${params.length}` }
 
     const rows = await this.q<RowOptInConsent>(
-      `SELECT locale, to_char(created_at, 'YYYY-MM-DD') AS day, consent_json FROM consent_records WHERE ${where} ORDER BY created_at ASC`,
+      `SELECT locale, to_char(created_at, 'YYYY-MM-DD') AS day, consent_json FROM consenti_consent_records WHERE ${where} ORDER BY created_at ASC`,
       params,
     )
     return tallyOptIn(rows.map(r => ({ locale: r.locale, day: r.day, consentJson: r.consent_json })))

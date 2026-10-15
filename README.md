@@ -76,7 +76,7 @@ import { createConsenti } from '@consenti/api'
 
 const app = express()
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
+  storage: { driver: 'node:sqlite', path: './consenti-data' },
   auth: {
     mode: 'local',
     adminEmail: 'admin@example.com',
@@ -179,7 +179,7 @@ See [`apps/api/README.md`](./apps/api/README.md) for the full reference.
 import { createConsenti } from '@consenti/api'
 
 const consenti = createConsenti({
-  storage: { driver: 'sqlite', path: './consenti.db' },
+  storage: { driver: 'node:sqlite', path: './consenti-data' },
   auth: { mode: 'local', adminEmail: 'admin@example.com', adminPassword: 'secret' },
   dashboard: true,
 })
@@ -187,7 +187,34 @@ const consenti = createConsenti({
 
 **SQLite drivers (choose one):** `'node:sqlite'` (Node 22.5+ built-in, zero install) · `'node-sqlite3-wasm'` (Node 20+, WASM, `npm i node-sqlite3-wasm`) · `'better-sqlite3'` (Node 20+, native, `npm i better-sqlite3`)
 
-**Other storage drivers:** `'pg'` · `'mysql'` · `'mongodb'`
+**Other storage drivers:** `'postgresql'` · `'mysql'` · `'mongodb'`
+
+> **`storage.path` is always required — even with PostgreSQL, MySQL or MongoDB.** The database holds consent records, users and templates, but profiles are stored as files under `${storage.path}/profiles/`. Keep it on persistent, writable storage (shared between instances if you run more than one).
+>
+> With these drivers every table (collection) is named `consenti_*` (`consenti_users`, `consenti_profiles`, …), so Consenti can't clash with another app's tables. Upgrading a PostgreSQL / MySQL / MongoDB install from before 0.6.0? Rename the existing tables once — [instructions](apps/api/README.md#upgrading-from-before-060). Running on shared hosting with a restricted database user? See [what it needs](apps/api/README.md#shared-hosting-and-restricted-database-users).
+
+```ts
+// MySQL — connection details can come from env vars
+storage: {
+  driver: 'mysql',
+  path: './consenti-data',            // still required: profiles are stored here
+  host: process.env.CONSENTI_DB_HOST,
+  user: process.env.CONSENTI_DB_USER,
+  password: process.env.CONSENTI_DB_PASSWORD,
+  database: 'consenti',
+}
+```
+
+```bash
+# .env equivalent (MySQL) — see apps/api/README.md#environment-variables for PostgreSQL / MongoDB
+CONSENTI_DB_DRIVER=mysql
+CONSENTI_DB_PATH=./consenti-data
+CONSENTI_DB_HOST=localhost
+CONSENTI_DB_PORT=3306
+CONSENTI_DB_USER=consenti
+CONSENTI_DB_PASSWORD=your-password
+CONSENTI_DB_DATABASE=consenti
+```
 
 ---
 
