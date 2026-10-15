@@ -8,10 +8,12 @@ release time.
 
 ---
 <!-- Changelpg entries here -->
-## [0.5.1] - 2026-10-15
+## [0.6.0] - 2026-10-15
 
 ### Summary
-Three fixes. (1) The United Kingdom never resolved under `compliance.type: 'auto'`: geo providers
+A minor release — it upgrades existing databases automatically (schema v2), adds a per-consent
+`profileVersion` and a `complianceMap` `override` key, and validates profile names more strictly — on top
+of the following. (1) The United Kingdom never resolved under `compliance.type: 'auto'`: geo providers
 (`geoip`, `maxmind`), the built-in timezone table and `en-GB` language tags all emit ISO `GB`, while
 `EMBEDDED_COMPLIANCE_MAP` keys it as `UK`, so `GET /resolve-profile` returned
 `{ path: null, complianceGroup: 'opt-in', found: false }` and the widget showed the default banner even
@@ -115,7 +117,7 @@ violates this fails — rename it (upper-case or spaced custom groups are the li
 groups and normal locales are unaffected.
 
 ### Migration
-Automatic. The first start on 0.5.1 upgrades an existing database to schema v2 — drops the two
+Automatic. The first start on 0.6.0 upgrades an existing database to schema v2 — drops the two
 `profile_id` foreign keys and adds `profile_version` — on MariaDB, PostgreSQL and SQLite; MySQL (Oracle)
 only gains the column, MongoDB and the JSON store need nothing. Take a backup first for production
 databases. PostgreSQL runs in one transaction; SQLite rebuilds the two affected tables in one
